@@ -587,25 +587,40 @@ function draw() {
   }
 
   // Draw diagonals
+  // Main diagonals from corners to center
   ctx.beginPath();
-  ctx.moveTo(padding, padding);
+  ctx.moveTo(padding, padding); // Top-left to bottom-right
   ctx.lineTo(padding + 4 * cellSize, padding + 4 * cellSize);
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.moveTo(padding + 4 * cellSize, padding);
+  ctx.moveTo(padding + 4 * cellSize, padding); // Top-right to bottom-left
   ctx.lineTo(padding, padding + 4 * cellSize);
   ctx.stroke();
 
-  // Cross through center
+  // Inner square diagonals (connecting middle points of edges)
+  // Top-center to right-center
   ctx.beginPath();
   ctx.moveTo(padding + 2 * cellSize, padding);
+  ctx.lineTo(padding + 4 * cellSize, padding + 2 * cellSize);
+  ctx.stroke();
+
+  // Right-center to bottom-center
+  ctx.beginPath();
+  ctx.moveTo(padding + 4 * cellSize, padding + 2 * cellSize);
   ctx.lineTo(padding + 2 * cellSize, padding + 4 * cellSize);
   ctx.stroke();
 
+  // Bottom-center to left-center
+  ctx.beginPath();
+  ctx.moveTo(padding + 2 * cellSize, padding + 4 * cellSize);
+  ctx.lineTo(padding, padding + 2 * cellSize);
+  ctx.stroke();
+
+  // Left-center to top-center
   ctx.beginPath();
   ctx.moveTo(padding, padding + 2 * cellSize);
-  ctx.lineTo(padding + 4 * cellSize, padding + 2 * cellSize);
+  ctx.lineTo(padding + 2 * cellSize, padding);
   ctx.stroke();
 
   // Draw valid move indicators
