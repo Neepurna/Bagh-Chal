@@ -181,7 +181,52 @@
               <h3>Candidates</h3>
               <p><strong>20 pieces</strong></p>
               <p>Place one by one</p>
-              <div class="counter-display">1 → 20</div>
+              <div class="game-board-demo">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <!-- Board Lines -->
+                  <line x1="10" y1="10" x2="190" y2="10" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="55" x2="190" y2="55" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="145" x2="190" y2="145" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="190" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Diagonals -->
+                  <line x1="10" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="55" x2="145" y2="145" stroke="#4a5568" stroke-width="1.5"/>
+                  <line x1="145" y1="55" x2="55" y2="145" stroke="#4a5568" stroke-width="1.5"/>
+                  
+                  <!-- Tiger pieces at corners (faded) -->
+                  <circle cx="10" cy="10" r="6" fill="#FF6B35" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+                  <circle cx="190" cy="10" r="6" fill="#FF6B35" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+                  <circle cx="10" cy="190" r="6" fill="#FF6B35" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+                  <circle cx="190" cy="190" r="6" fill="#FF6B35" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+                  
+                  <!-- Candidate pieces being placed (showing progression) -->
+                  <circle cx="100" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="55" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="100" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="100" cy="145" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="55" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="145" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="55" cy="145" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="10" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="10" cy="145" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  
+                  <!-- Placement indicator showing next placement with pulse -->
+                  <circle cx="100" cy="10" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2" class="pulse"/>
+                  
+                  <!-- Counter label -->
+                  <text x="100" y="25" fill="#4ECDC4" font-size="14" font-weight="bold" text-anchor="middle">13/20</text>
+                </svg>
+              </div>
             </div>
           </div>
         </section>
