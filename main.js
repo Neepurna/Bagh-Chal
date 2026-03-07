@@ -166,54 +166,51 @@ function isDiagonalConnected(r1, c1, r2, c2) {
     return false;
   }
 
-  // Main diagonal line (top-left to bottom-right): row === col
+  // Main diagonal (top-left to bottom-right): row === col
+  // Valid positions: (0,0)-(1,1)-(2,2)-(3,3)-(4,4)
   if (r1 === c1 && r2 === c2) {
     return true;
   }
 
-  // Anti-diagonal line (top-right to bottom-left): row + col === 4
+  // Anti-diagonal (top-right to bottom-left): row + col === 4
+  // Valid positions: (0,4)-(1,3)-(2,2)-(3,1)-(4,0)
   if (r1 + c1 === 4 && r2 + c2 === 4) {
     return true;
   }
 
-  // Inner square diagonals - connects the 8 points around center
-  // Top edge to/from center: rows 0-2, center at row 2
-  if ((r1 === 0 && c1 === 2 && r2 === 1 && (c2 === 1 || c2 === 3)) ||
-      (r1 === 1 && (c1 === 1 || c1 === 3) && r2 === 0 && c2 === 2)) {
-    return true;
-  }
+  // Inner square diagonals form a diamond around the center
+  // Center is at (2,2)
+  
+  // Check if both points are on the inner square
+  const isOnInnerSquare = (r, c) => {
+    // Top point: (1,2)
+    if (r === 1 && c === 2) return true;
+    // Right point: (2,3)
+    if (r === 2 && c === 3) return true;
+    // Bottom point: (3,2)
+    if (r === 3 && c === 2) return true;
+    // Left point: (2,1)
+    if (r === 2 && c === 1) return true;
+    return false;
+  };
 
-  // Center row diagonals: row 2 with adjacent columns
-  if ((r1 === 1 && r2 === 2) || (r1 === 2 && r2 === 1)) {
-    if ((c1 === 1 && c2 === 2) || (c1 === 2 && c2 === 1) ||
-        (c1 === 2 && c2 === 3) || (c1 === 3 && c2 === 2)) {
+  // Inner square diagonal connections:
+  // (1,2) <-> (2,1) and (2,3)
+  // (2,1) <-> (3,2)
+  // (2,3) <-> (3,2)
+  // (3,2) <-> (2,1) and (2,3)
+  
+  if (isOnInnerSquare(r1, c1) && isOnInnerSquare(r2, c2)) {
+    // Top (1,2) connects to left (2,1) and right (2,3)
+    if ((r1 === 1 && c1 === 2 && r2 === 2 && (c2 === 1 || c2 === 3)) ||
+        (r2 === 1 && c2 === 2 && r1 === 2 && (c1 === 1 || c1 === 3))) {
       return true;
     }
-  }
-
-  if ((r1 === 2 && r2 === 3) || (r1 === 3 && r2 === 2)) {
-    if ((c1 === 1 && c2 === 2) || (c1 === 2 && c2 === 1) ||
-        (c1 === 2 && c2 === 3) || (c1 === 3 && c2 === 2)) {
+    // Bottom (3,2) connects to left (2,1) and right (2,3)
+    if ((r1 === 3 && c1 === 2 && r2 === 2 && (c2 === 1 || c2 === 3)) ||
+        (r2 === 3 && c2 === 2 && r1 === 2 && (c1 === 1 || c1 === 3))) {
       return true;
     }
-  }
-
-  // Bottom edge to/from center: rows 2-4, center at row 2
-  if ((r1 === 4 && c1 === 2 && r2 === 3 && (c2 === 1 || c2 === 3)) ||
-      (r1 === 3 && (c1 === 1 || c1 === 3) && r2 === 4 && c2 === 2)) {
-    return true;
-  }
-
-  // Left edge to/from center: cols 0-2, center at col 2
-  if ((c1 === 0 && r1 === 2 && c2 === 1 && (r2 === 1 || r2 === 3)) ||
-      (c1 === 1 && (r1 === 1 || r1 === 3) && c2 === 0 && r2 === 2)) {
-    return true;
-  }
-
-  // Right edge to/from center: cols 2-4, center at col 2
-  if ((c1 === 4 && r1 === 2 && c2 === 3 && (r2 === 1 || r2 === 3)) ||
-      (c1 === 3 && (r1 === 1 || r1 === 3) && c2 === 4 && r2 === 2)) {
-    return true;
   }
 
   return false;
@@ -237,15 +234,9 @@ function getValidMoves(index) {
     const adjacent = getAdjacent(index);
     for (const adj of adjacent) {
       if (gameState.board[adj] === PIECE_TYPES.EMPTY) {
-        // Regular move
+        // Regular move - only to directly adjacent empty position
         moves.push({ to: adj, capture: null });
       } else if (gameState.board[adj] === PIECE_TYPES.GOAT) {
-        // Check if goat is at a corner position - tigers cannot jump over corner goats
-        const cornerPositions = [0, 4, 20, 24];
-        if (cornerPositions.includes(adj)) {
-          continue; // Skip capturing goat at corner position
-        }
-        
         // Check if can capture (jump over goat)
         const { row: r1, col: c1 } = positions[index];
         const { row: r2, col: c2 } = positions[adj];
@@ -254,10 +245,20 @@ function getValidMoves(index) {
         const jumpRow = r2 + dr;
         const jumpCol = c2 + dc;
         
+        // Validate jump position is within board
         if (jumpRow >= 0 && jumpRow < GRID_SIZE && jumpCol >= 0 && jumpCol < GRID_SIZE) {
           const jumpIndex = jumpRow * GRID_SIZE + jumpCol;
+          
+          // Must land on empty space
           if (gameState.board[jumpIndex] === PIECE_TYPES.EMPTY) {
-            moves.push({ to: jumpIndex, capture: adj });
+            // Verify the jump follows a valid line on the board
+            // The jump destination must be adjacent to the goat in the same direction
+            const jumpAdjacent = getAdjacent(adj);
+            if (jumpAdjacent.includes(jumpIndex)) {
+              // Additional check: the tiger must be able to reach the goat position
+              // This prevents invalid diagonal jumps
+              moves.push({ to: jumpIndex, capture: adj });
+            }
           }
         }
       }
