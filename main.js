@@ -13,11 +13,11 @@ const images = {
   ]
 };
 
-images.goat.src = '/assets/Ghanti.png';
-images.tigers[0].src = '/assets/Congress.png';
-images.tigers[1].src = '/assets/Maoist.png';
-images.tigers[2].src = '/assets/RRP.png';
-images.tigers[3].src = '/assets/Surya.png';
+images.goat.src = 'assets/Ghanti.png';
+images.tigers[0].src = 'assets/Congress.png';
+images.tigers[1].src = 'assets/Maoist.png';
+images.tigers[2].src = 'assets/RRP.png';
+images.tigers[3].src = 'assets/Surya.png';
 
 let imagesLoaded = 0;
 const totalImages = 5;
@@ -131,12 +131,12 @@ function getAdjacent(index) {
     [-1, 0], [1, 0], [0, -1], [0, 1]
   ];
 
-  // Diagonals (only for certain positions)
+  // Diagonals
   const diagonals = [
     [-1, -1], [-1, 1], [1, -1], [1, 1]
   ];
 
-  // Check regular directions
+  // Check regular directions (always valid)
   for (const [dr, dc] of directions) {
     const newRow = row + dr;
     const newCol = col + dc;
@@ -145,25 +145,78 @@ function getAdjacent(index) {
     }
   }
 
-  // Check diagonals (valid for corners, center, and mid-edges)
-  const isDiagonal = (row === col) || (row + col === GRID_SIZE - 1) || 
-                      (row === 2 || col === 2);
-  
-  if (isDiagonal) {
-    for (const [dr, dc] of diagonals) {
-      const newRow = row + dr;
-      const newCol = col + dc;
-      if (newRow >= 0 && newRow < GRID_SIZE && newCol >= 0 && newCol < GRID_SIZE) {
-        // Check if diagonal connection exists on the board
-        if ((newRow === newCol) || (newRow + newCol === GRID_SIZE - 1) || 
-            (row === 2 && newRow === 2) || (col === 2 && newCol === 2)) {
-          adjacent.push(newRow * GRID_SIZE + newCol);
-        }
+  // Check diagonals - check if diagonal line exists between two points
+  for (const [dr, dc] of diagonals) {
+    const newRow = row + dr;
+    const newCol = col + dc;
+    if (newRow >= 0 && newRow < GRID_SIZE && newCol >= 0 && newCol < GRID_SIZE) {
+      if (isDiagonalConnected(row, col, newRow, newCol)) {
+        adjacent.push(newRow * GRID_SIZE + newCol);
       }
     }
   }
 
   return adjacent;
+}
+
+// Check if two positions are connected by a diagonal line on the board
+function isDiagonalConnected(r1, c1, r2, c2) {
+  // Must be diagonal move (both row and col change by 1)
+  if (Math.abs(r1 - r2) !== 1 || Math.abs(c1 - c2) !== 1) {
+    return false;
+  }
+
+  // Main diagonal line (top-left to bottom-right): row === col
+  if (r1 === c1 && r2 === c2) {
+    return true;
+  }
+
+  // Anti-diagonal line (top-right to bottom-left): row + col === 4
+  if (r1 + c1 === 4 && r2 + c2 === 4) {
+    return true;
+  }
+
+  // Inner square diagonals - connects the 8 points around center
+  // Top edge to/from center: rows 0-2, center at row 2
+  if ((r1 === 0 && c1 === 2 && r2 === 1 && (c2 === 1 || c2 === 3)) ||
+      (r1 === 1 && (c1 === 1 || c1 === 3) && r2 === 0 && c2 === 2)) {
+    return true;
+  }
+
+  // Center row diagonals: row 2 with adjacent columns
+  if ((r1 === 1 && r2 === 2) || (r1 === 2 && r2 === 1)) {
+    if ((c1 === 1 && c2 === 2) || (c1 === 2 && c2 === 1) ||
+        (c1 === 2 && c2 === 3) || (c1 === 3 && c2 === 2)) {
+      return true;
+    }
+  }
+
+  if ((r1 === 2 && r2 === 3) || (r1 === 3 && r2 === 2)) {
+    if ((c1 === 1 && c2 === 2) || (c1 === 2 && c2 === 1) ||
+        (c1 === 2 && c2 === 3) || (c1 === 3 && c2 === 2)) {
+      return true;
+    }
+  }
+
+  // Bottom edge to/from center: rows 2-4, center at row 2
+  if ((r1 === 4 && c1 === 2 && r2 === 3 && (c2 === 1 || c2 === 3)) ||
+      (r1 === 3 && (c1 === 1 || c1 === 3) && r2 === 4 && c2 === 2)) {
+    return true;
+  }
+
+  // Left edge to/from center: cols 0-2, center at col 2
+  if ((c1 === 0 && r1 === 2 && c2 === 1 && (r2 === 1 || r2 === 3)) ||
+      (c1 === 1 && (r1 === 1 || r1 === 3) && c2 === 0 && r2 === 2)) {
+    return true;
+  }
+
+  // Right edge to/from center: cols 2-4, center at col 2
+  if ((c1 === 4 && r1 === 2 && c2 === 3 && (r2 === 1 || r2 === 3)) ||
+      (c1 === 3 && (r1 === 1 || r1 === 3) && c2 === 4 && r2 === 2)) {
+    return true;
+  }
+
+  return false;
 }
 
 // Get valid moves for a piece
@@ -187,6 +240,12 @@ function getValidMoves(index) {
         // Regular move
         moves.push({ to: adj, capture: null });
       } else if (gameState.board[adj] === PIECE_TYPES.GOAT) {
+        // Check if goat is at a corner position - tigers cannot jump over corner goats
+        const cornerPositions = [0, 4, 20, 24];
+        if (cornerPositions.includes(adj)) {
+          continue; // Skip capturing goat at corner position
+        }
+        
         // Check if can capture (jump over goat)
         const { row: r1, col: c1 } = positions[index];
         const { row: r2, col: c2 } = positions[adj];
@@ -221,17 +280,50 @@ function areTigersTrapped() {
   return true;
 }
 
+// Count how many tigers are trapped (have no valid moves)
+function countTrappedTigers() {
+  let trappedCount = 0;
+  for (let i = 0; i < 25; i++) {
+    if (gameState.board[i] === PIECE_TYPES.TIGER) {
+      const moves = getValidMoves(i);
+      if (moves.length === 0) {
+        trappedCount++;
+      }
+    }
+  }
+  return trappedCount;
+}
+
+// Check if goats are trapped (rare case)
+function areGoatsTrapped() {
+  for (let i = 0; i < 25; i++) {
+    if (gameState.board[i] === PIECE_TYPES.GOAT) {
+      const moves = getValidMoves(i);
+      if (moves.length > 0) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 // Check win conditions
 function checkWin() {
   // Tigers win by capturing 5 goats
   if (gameState.goatsCaptured >= 5) {
-    endGame('Tigers Win!', 'tiger');
+    endGame('Opposition Wins!', 'tiger');
     return true;
   }
 
   // Goats win by trapping all tigers (only in movement phase)
   if (gameState.phase === PHASE.MOVEMENT && areTigersTrapped()) {
-    endGame('Goats Win!', 'goat');
+    endGame('Governing Parties Win!', 'goat');
+    return true;
+  }
+
+  // Tigers win by trapping all goats (rare case, only in movement phase)
+  if (gameState.phase === PHASE.MOVEMENT && gameState.goatsPlaced === 20 && areGoatsTrapped()) {
+    endGame('Opposition Wins!', 'tiger');
     return true;
   }
 
@@ -700,6 +792,7 @@ function draw() {
 function updateUI() {
   document.getElementById('tiger-captures').textContent = gameState.goatsCaptured;
   document.getElementById('goats-remaining').textContent = 20 - gameState.goatsPlaced;
+  document.getElementById('tigers-trapped').textContent = countTrappedTigers();
 
   const turnIndicator = document.getElementById('turn-indicator');
   const turnIcon = document.getElementById('turn-icon');
@@ -712,17 +805,17 @@ function updateUI() {
   if (gameState.currentPlayer === PIECE_TYPES.TIGER) {
     // Update turn indicator for tigers
     turnIcon.innerHTML = `
-      <img src="/assets/Congress.png" class="turn-logo mini-logo">
-      <img src="/assets/Maoist.png" class="turn-logo mini-logo">
-      <img src="/assets/RRP.png" class="turn-logo mini-logo">
-      <img src="/assets/Surya.png" class="turn-logo mini-logo">
+      <img src="assets/Congress.png" class="turn-logo mini-logo">
+      <img src="assets/Maoist.png" class="turn-logo mini-logo">
+      <img src="assets/RRP.png" class="turn-logo mini-logo">
+      <img src="assets/Surya.png" class="turn-logo mini-logo">
     `;
-    turnText.textContent = 'Tigers';
+    turnText.textContent = 'Opposition';
     turnIndicator.style.borderColor = '#FF6B35';
   } else {
     // Update turn indicator for goats
-    turnIcon.innerHTML = '<img src="/assets/Ghanti.png" alt="Goat" class="turn-logo">';
-    turnText.textContent = 'Goats';
+    turnIcon.innerHTML = '<img src="assets/Ghanti.png" alt="Goat" class="turn-logo">';
+    turnText.textContent = 'Governing Parties';
     turnIndicator.style.borderColor = '#4ECDC4';
   }
 
@@ -742,14 +835,14 @@ function endGame(message, winner) {
   if (winner === 'tiger') {
     winnerIcon.innerHTML = `
       <div class="winner-logos">
-        <img src="/assets/Congress.png" class="winner-logo">
-        <img src="/assets/Maoist.png" class="winner-logo">
-        <img src="/assets/RRP.png" class="winner-logo">
-        <img src="/assets/Surya.png" class="winner-logo">
+        <img src="assets/Congress.png" class="winner-logo">
+        <img src="assets/Maoist.png" class="winner-logo">
+        <img src="assets/RRP.png" class="winner-logo">
+        <img src="assets/Surya.png" class="winner-logo">
       </div>
     `;
   } else {
-    winnerIcon.innerHTML = '<img src="/assets/Ghanti.png" class="winner-logo-single">';
+    winnerIcon.innerHTML = '<img src="assets/Ghanti.png" class="winner-logo-single">';
   }
   
   winnerText.textContent = message;

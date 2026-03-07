@@ -273,6 +273,21 @@ h1 {
   text-align: center;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   animation: scaleIn 0.4s ease-out;
+  max-width: 800px;
+  width: 100%;
+}
+
+.menu-buttons {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 15px;
+  margin-top: 30px;
+  width: 100%;
+}
+
+.menu-buttons .play-again-btn {
+  margin: 0 !important;
 }
 
 .winner-icon {
@@ -340,18 +355,25 @@ h1 {
 
 .player-selection {
   display: flex;
-  gap: 30px;
+  gap: 40px;
   margin-top: 30px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 .selection-card {
   background: var(--bg-secondary);
-  padding: 30px;
+  padding: 40px 30px;
   border-radius: 20px;
   cursor: pointer;
   transition: all 0.3s ease;
   border: 3px solid transparent;
-  min-width: 250px;
+  min-width: 280px;
+  max-width: 300px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .selection-card:hover {
@@ -366,10 +388,11 @@ h1 {
 }
 
 .selection-logo {
-  width: 100px;
-  height: 100px;
+  width: 120px;
+  height: 120px;
   object-fit: contain;
   margin-bottom: 20px;
+  display: block;
 }
 
 .tiger-logos-group {
@@ -457,6 +480,8 @@ h1 {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4),
               0 0 25px rgba(78, 205, 196, 0.3);
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  width: 100%;
+  display: block;
 }
 
 .play-again-btn:hover {
