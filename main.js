@@ -804,12 +804,7 @@ function updateUI() {
   
   if (gameState.currentPlayer === PIECE_TYPES.TIGER) {
     // Update turn indicator for tigers
-    turnIcon.innerHTML = `
-      <img src="assets/Congress.png" class="turn-logo mini-logo">
-      <img src="assets/Maoist.png" class="turn-logo mini-logo">
-      <img src="assets/RRP.png" class="turn-logo mini-logo">
-      <img src="assets/Surya.png" class="turn-logo mini-logo">
-    `;
+    turnIcon.innerHTML = '<img src="assets/Opposition.png" alt="Opposition" class="turn-logo">';
     turnText.textContent = 'Opposition';
     turnIndicator.style.borderColor = '#FF6B35';
   } else {
@@ -862,6 +857,42 @@ document.getElementById('play-again-btn').addEventListener('click', showPlayerSe
 // Start game button
 document.getElementById('start-game-btn').addEventListener('click', () => {
   document.getElementById('start-overlay').classList.remove('show');
+  document.getElementById('player-select-overlay').classList.add('show');
+});
+
+// Tutorial button
+document.getElementById('tutorial-btn').addEventListener('click', () => {
+  document.getElementById('start-overlay').classList.remove('show');
+  document.getElementById('tutorial-overlay').classList.add('show');
+});
+
+// Tutorial close button
+document.getElementById('tutorial-close').addEventListener('click', () => {
+  document.getElementById('tutorial-overlay').classList.remove('show');
+  document.getElementById('start-overlay').classList.add('show');
+});
+
+// Tutorial start playing button
+document.getElementById('tutorial-start').addEventListener('click', () => {
+  document.getElementById('tutorial-overlay').classList.remove('show');
+  document.getElementById('player-select-overlay').classList.add('show');
+});
+
+// About button
+document.getElementById('about-btn').addEventListener('click', () => {
+  document.getElementById('start-overlay').classList.remove('show');
+  document.getElementById('about-overlay').classList.add('show');
+});
+
+// About close button
+document.getElementById('about-close').addEventListener('click', () => {
+  document.getElementById('about-overlay').classList.remove('show');
+  document.getElementById('start-overlay').classList.add('show');
+});
+
+// About start playing button
+document.getElementById('about-start').addEventListener('click', () => {
+  document.getElementById('about-overlay').classList.remove('show');
   document.getElementById('player-select-overlay').classList.add('show');
 });
 
