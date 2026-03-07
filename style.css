@@ -1375,3 +1375,159 @@ h1 {
     font-size: 1.4rem;
   }
 }
+
+/* Small Mobile Styles */
+@media (max-width: 480px) {
+  body {
+    padding: 5px;
+  }
+
+  .game-title {
+    font-size: 1.5rem;
+  }
+
+  .winner-card {
+    padding: 20px 15px;
+  }
+
+  .play-again-btn {
+    padding: 12px 25px;
+    font-size: 0.9rem;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+  }
+
+  .board-container {
+    padding: 10px;
+  }
+
+  .player-card {
+    padding: 15px;
+  }
+
+  .player-logo {
+    width: 50px;
+    height: 50px;
+  }
+
+  .player-name {
+    font-size: 1rem;
+  }
+
+  .turn-text {
+    font-size: 0.8rem;
+  }
+
+  .tutorial-title {
+    font-size: 1.5rem;
+  }
+
+  .tutorial-section h2 {
+    font-size: 1.1rem;
+  }
+
+  .tutorial-scroll {
+    padding: 20px 10px;
+  }
+
+  .visual-card h3,
+  .demo-step h3,
+  .move-card h3 {
+    font-size: 0.95rem;
+  }
+
+  .visual-card p,
+  .demo-step p,
+  .move-card p {
+    font-size: 0.8rem;
+  }
+
+  .dice-step {
+    width: 45px;
+    height: 45px;
+    font-size: 16px;
+  }
+}
+
+/* Landscape Mobile Orientation */
+@media (max-height: 600px) and (orientation: landscape) {
+  .tutorial-content {
+    max-height: 95vh;
+  }
+
+  .tutorial-scroll {
+    padding: 20px 15px;
+    max-height: 85vh;
+  }
+
+  .tutorial-title {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+  }
+
+  .tutorial-subtitle {
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+  }
+
+  .tutorial-section {
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+
+  .tutorial-section h2 {
+    font-size: 1.2rem;
+  }
+
+  .game-layout {
+    grid-template-columns: 200px 1fr 200px;
+  }
+
+  .info-panel {
+    flex-direction: row;
+  }
+
+  .player-card {
+    padding: 10px;
+  }
+
+  .winner-card {
+    padding: 20px;
+  }
+}
+
+/* Touch-Friendly Mobile Styles */
+@media (hover: none) and (pointer: coarse) {
+  .play-again-btn,
+  .select-card,
+  .tutorial-close {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .play-again-btn:hover,
+  .select-card:hover,
+  .visual-card:hover,
+  .dice-step:hover {
+    transform: none;
+  }
+
+  .play-again-btn:active {
+    transform: scale(0.95);
+  }
+
+  .select-card:active {
+    transform: translateY(2px);
+  }
+
+  .tutorial-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  input, textarea, select {
+    font-size: 16px;
+  }
+}
