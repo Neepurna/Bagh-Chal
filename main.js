@@ -36,6 +36,22 @@ function imageLoaded() {
 images.goat.onload = imageLoaded;
 images.tigers.forEach(img => img.onload = imageLoaded);
 
+// Audio system
+const soundUrls = {
+  newGame:      '/music/newgamestart.mp3',
+  pieceMove:    '/music/Piece-Move.mp3',
+  tigerCapture: '/music/tiger-points.mp3',
+  winning:      '/music/winning-sound.mp3'
+};
+
+function playSound(name) {
+  const url = soundUrls[name];
+  if (url) {
+    const snd = new Audio(url);
+    snd.play().catch(() => {});
+  }
+}
+
 // Game Constants
 const GRID_SIZE = 5;
 const PIECE_TYPES = {
@@ -112,6 +128,10 @@ function initGame() {
   gameState.tigerIdentities[20] = 2;
   gameState.board[24] = PIECE_TYPES.TIGER; // Bottom-right - Surya
   gameState.tigerIdentities[24] = 3;
+
+  if (gameStarted) {
+    playSound('newGame');
+  }
 
   updateUI();
   draw();
@@ -394,6 +414,7 @@ function handleClick(event) {
         saveState(); // Save state before move
         gameState.board[clickedIndex] = PIECE_TYPES.GOAT;
         gameState.goatsPlaced++;
+        playSound('pieceMove');
         
         if (gameState.goatsPlaced === 20) {
           gameState.phase = PHASE.MOVEMENT;
@@ -426,9 +447,11 @@ function handleClick(event) {
           gameState.board[gameState.selectedPiece] = PIECE_TYPES.EMPTY;
           delete gameState.tigerIdentities[gameState.selectedPiece];
           
+          playSound('pieceMove');
           if (move.capture !== null) {
             gameState.board[move.capture] = PIECE_TYPES.EMPTY;
             gameState.goatsCaptured++;
+            playSound('tigerCapture');
             updateUI();
           }
           
@@ -466,6 +489,7 @@ function handleClick(event) {
           saveState(); // Save state before move
           gameState.board[move.to] = PIECE_TYPES.GOAT;
           gameState.board[gameState.selectedPiece] = PIECE_TYPES.EMPTY;
+          playSound('pieceMove');
           gameState.selectedPiece = null;
           gameState.validMoves = [];
           gameState.currentPlayer = PIECE_TYPES.TIGER;
@@ -506,9 +530,11 @@ function handleClick(event) {
           gameState.board[gameState.selectedPiece] = PIECE_TYPES.EMPTY;
           delete gameState.tigerIdentities[gameState.selectedPiece];
           
+          playSound('pieceMove');
           if (move.capture !== null) {
             gameState.board[move.capture] = PIECE_TYPES.EMPTY;
             gameState.goatsCaptured++;
+            playSound('tigerCapture');
             updateUI();
           }
           
@@ -611,6 +637,8 @@ function executeAITigerMove() {
       
       gameState.board[move.capture] = PIECE_TYPES.EMPTY;
       gameState.goatsCaptured++;
+      playSound('pieceMove');
+      playSound('tigerCapture');
       gameState.currentPlayer = PIECE_TYPES.GOAT;
       
       updateUI();
@@ -633,6 +661,7 @@ function executeAITigerMove() {
   gameState.board[randomTiger.index] = PIECE_TYPES.EMPTY;
   delete gameState.tigerIdentities[randomTiger.index];
   
+  playSound('pieceMove');
   gameState.currentPlayer = PIECE_TYPES.GOAT;
 
   updateUI();
@@ -663,6 +692,7 @@ function executeAIGoatMove() {
       saveState(); // Save state before AI move
       gameState.board[randomSpot] = PIECE_TYPES.GOAT;
       gameState.goatsPlaced++;
+      playSound('pieceMove');
       
       if (gameState.goatsPlaced === 20) {
         gameState.phase = PHASE.MOVEMENT;
@@ -690,6 +720,7 @@ function executeAIGoatMove() {
       
       gameState.board[randomMove.to] = PIECE_TYPES.GOAT;
       gameState.board[randomGoat.index] = PIECE_TYPES.EMPTY;
+      playSound('pieceMove');
       gameState.currentPlayer = PIECE_TYPES.TIGER;
     }
   }
@@ -1045,6 +1076,7 @@ function updateViewPrevButton() {
 // End game
 function endGame(message, winner) {
   gameState.gameOver = true;
+  playSound('winning');
   
   const overlay = document.getElementById('winner-overlay');
   const winnerIcon = document.getElementById('winner-icon');
