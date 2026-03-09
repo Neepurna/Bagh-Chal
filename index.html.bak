@@ -19,29 +19,18 @@
         <div class="header-subtitle">A Political Allegory of Nepal</div>
       </div>
       <nav class="header-nav">
-        <button class="nav-btn primary" id="reset-btn">Sign In</button>
+        <button class="nav-btn" id="tutorial-btn">Tutorial</button>
+        <button class="nav-btn" id="about-btn">About</button>
+        <button class="nav-btn" id="setting-btn">Settings</button>
+        <button class="nav-btn" id="signin-btn">Work On Progress</button>
+        <button class="nav-btn primary" id="reset-btn">New Game</button>
       </nav>
     </header>
 
     <div class="game-layout">
-      <main class="board-wrap">
-        <div class="board-container">
-        <canvas id="game-canvas"></canvas>
-        </div>
-      </main>
-
       <aside class="sidebar">
-        <!-- Welcome Screen -->
-        <div class="welcome-screen" id="welcome-screen">
-          <h2>🐯 Welcome to Bagh Chal 🐐</h2>
-          <p>A traditional Nepali board game reimagined as a political allegory. Choose your side and begin your strategic journey.</p>
-          <button class="welcome-start-btn" id="welcome-start-btn">Start Game</button>
-          <button class="welcome-secondary-btn" id="tutorial-btn">Tutorial</button>
-          <button class="welcome-secondary-btn" id="about-btn">About</button>
-        </div>
-        
         <!-- Game State Panel -->
-        <div class="panel active hidden" id="gameStatePanel">
+        <div class="panel active" id="gameStatePanel">
           <div class="panel-header">
             <div class="panel-icon teal">🏛️</div>
             <div>
@@ -57,15 +46,11 @@
               <span class="stat-label">Active Player</span>
               <span class="stat-value" id="turn-text">Governing Parties</span>
             </div>
-            <div class="stat-row timer-row">
-              <span class="stat-label">Time Remaining</span>
-              <span class="stat-value timer-value" id="timer-text">30.0</span>
-            </div>
           </div>
         </div>
 
         <!-- Opposition Panel -->
-        <div class="panel hidden" id="tigerPanel">
+        <div class="panel" id="tigerPanel">
           <div class="panel-header">
             <div class="panel-icon red">🐯</div>
             <div class="panel-label">Opposition</div>
@@ -87,7 +72,7 @@
         </div>
 
         <!-- Candidates Panel -->
-        <div class="panel hidden" id="goatPanel">
+        <div class="panel" id="goatPanel">
           <div class="panel-header">
             <div class="panel-icon gold">🐐</div>
             <div class="panel-label">Candidates</div>
@@ -107,11 +92,28 @@
             </div>
           </div>
         </div>
+      </aside>
+
+      <main class="board-wrap">
+        <div class="board-container">
+        <canvas id="game-canvas"></canvas>
+        
+        <!-- Start Game Overlay -->
+        <div class="winner-overlay show" id="start-overlay">
+          <div class="winner-card">
+            <h1 class="game-title">🐅 Bagh Chal 🐐</h1>
+            <div class="menu-buttons">
+              <button class="play-again-btn" id="start-game-btn">Start New Game</button>
+              <button class="play-again-btn" id="tutorial-btn">Tutorial</button>
+              <button class="play-again-btn" id="setting-btn">Setting</button>
+              <button class="play-again-btn" id="about-btn">About</button>
+            </div>
+          </div>
+        </div>
         
         <!-- Player Selection Overlay -->
         <div class="winner-overlay" id="player-select-overlay">
           <div class="winner-card">
-            <button class="player-select-close" id="player-select-close">✕</button>
             <h2 class="select-title">Choose Your Side</h2>
             <div class="player-selection">
               <div class="selection-card" id="select-goat">
@@ -125,32 +127,28 @@
                 <p>Capture 5 Government Party Members</p>
               </div>
             </div>
-          </div>
-        </div>
-        
-        <!-- Sign Up Overlay -->
-        <div class="winner-overlay" id="signup-overlay">
-          <div class="winner-card signup-card">
-            <button class="player-select-close" id="signup-close">✕</button>
-            <h2 class="select-title">🔐 Sign Up</h2>
-            <form class="signup-form" id="signup-form">
-              <div class="form-group">
-                <label for="username">👤 Username</label>
-                <input type="text" id="username" name="username" placeholder="Enter your username" required>
+            
+            <!-- Difficulty Selector -->
+            <div class="difficulty-selector">
+              <h3 class="difficulty-title">AI Difficulty</h3>
+              <div class="difficulty-options">
+                <button class="difficulty-btn active" data-difficulty="easy">
+                  <div class="difficulty-icon">🎯</div>
+                  <div class="difficulty-name">Easy</div>
+                  <div class="difficulty-desc">Basic strategy</div>
+                </button>
+                <button class="difficulty-btn" data-difficulty="medium">
+                  <div class="difficulty-icon">⚔️</div>
+                  <div class="difficulty-name">Medium</div>
+                  <div class="difficulty-desc">Tactical moves</div>
+                </button>
+                <button class="difficulty-btn" data-difficulty="hard">
+                  <div class="difficulty-icon">🧠</div>
+                  <div class="difficulty-name">Hard</div>
+                  <div class="difficulty-desc">MCTS AI (1000 sims)</div>
+                </button>
               </div>
-              <div class="form-group">
-                <label for="email">✉️ Email</label>
-                <input type="email" id="email" name="email" placeholder="Enter your email" required>
-              </div>
-              <div class="form-group">
-                <label for="password">🔒 Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter your password" required>
-              </div>
-              <button type="submit" class="signup-submit-btn">Create Account</button>
-              <div class="signup-footer">
-                <p>Already have an account? <a href="#" id="signin-link">Sign In</a></p>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
         
@@ -596,6 +594,36 @@
         </section>
 
         <button class="play-again-btn tutorial-start" id="about-start">Start Playing!</button>
+      </div>
+    </div>
+
+    <!-- Sign In Overlay -->
+    <div class="winner-overlay" id="signin-overlay">
+      <div class="winner-card signin-card">
+        <h2 class="select-title">� Work On Progress</h2>
+        <p class="dataset-description">Sign in feature is coming soon! Stay tuned for updates.</p>
+        
+        <div class="signin-form">
+          <div class="input-group">
+            <label for="username">Username:</label>
+            <input type="text" id="username" placeholder="Enter your username">
+          </div>
+          
+          <div class="input-group">
+            <label for="password">Password:</label>
+            <input type="password" id="password" placeholder="Enter your password">
+          </div>
+          
+          <button class="play-again-btn" id="signin-submit-btn">
+            🔑 Sign In
+          </button>
+          
+          <p class="signin-footer">
+            Don't have an account? <a href="#" id="signup-link">Create one</a>
+          </p>
+        </div>
+        
+        <button class="close-overlay-btn" id="close-signin">✕</button>
       </div>
     </div>
   </div>

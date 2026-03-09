@@ -73,6 +73,12 @@ let playerSide = null; // Will be PIECE_TYPES.GOAT or PIECE_TYPES.TIGER
 let gameStarted = false;
 let isFirstAIMove = true;
 
+// Timer settings
+let timerInterval = null;
+let currentTime = 30; // 30 seconds per move
+const TIME_PER_MOVE = 30;
+const TIME_INCREMENT = 3;
+
 // Game State
 let gameState = {
   board: Array(25).fill(PIECE_TYPES.EMPTY),
@@ -136,10 +142,88 @@ function initGame() {
   updateUI();
   draw();
   
+  // Show/hide panels based on game state
+  if (gameStarted) {
+    document.getElementById('welcome-screen').style.display = 'none';
+    document.getElementById('gameStatePanel').classList.remove('hidden');
+    document.getElementById('tigerPanel').classList.remove('hidden');
+    document.getElementById('goatPanel').classList.remove('hidden');
+    startTimer();
+  } else {
+    document.getElementById('welcome-screen').style.display = 'flex';
+    document.getElementById('gameStatePanel').classList.add('hidden');
+    document.getElementById('tigerPanel').classList.add('hidden');
+    document.getElementById('goatPanel').classList.add('hidden');
+  }
+  
   // If player is tiger, goats go first (AI)
   if (gameStarted && playerSide === PIECE_TYPES.TIGER) {
     setTimeout(() => aiMove(), getAIThinkingTime());
   }
+}
+
+// Timer functions
+function startTimer() {
+  stopTimer();
+  currentTime = TIME_PER_MOVE;
+  updateTimerDisplay();
+  
+  timerInterval = setInterval(() => {
+    currentTime -= 0.1;
+    if (currentTime <= 0) {
+      currentTime = 0;
+      stopTimer();
+      handleTimeOut();
+    }
+    updateTimerDisplay();
+  }, 100);
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
+
+function resetTimer() {
+  currentTime = TIME_PER_MOVE + TIME_INCREMENT;
+  updateTimerDisplay();
+}
+
+function updateTimerDisplay() {
+  const timerElement = document.getElementById('timer-text');
+  if (timerElement) {
+    timerElement.textContent = currentTime.toFixed(1);
+    
+    // Update color based on time remaining
+    timerElement.classList.remove('warning', 'danger');
+    if (currentTime <= 5) {
+      timerElement.classList.add('danger');
+    } else if (currentTime <= 10) {
+      timerElement.classList.add('warning');
+    }
+  }
+}
+
+function handleTimeOut() {
+  if (gameState.gameOver) return;
+  
+  stopTimer();
+  
+  // Current player loses
+  const winner = gameState.currentPlayer === PIECE_TYPES.GOAT ? 'tiger' : 'goat';
+  const message = gameState.currentPlayer === PIECE_TYPES.GOAT 
+    ? 'Opposition Wins - Time Out!' 
+    : 'Governing Parties Win - Time Out!';
+  
+  endGame(message, winner);
+}
+
+function onMoveMade() {
+  // Reset timer with increment and start for next player
+  resetTimer();
+  startTimer();
 }
 
 // Get randomized AI thinking time (0-0.5 seconds, first move instant)
@@ -422,6 +506,7 @@ function handleClick(event) {
         
         gameState.currentPlayer = PIECE_TYPES.TIGER;
         updateUI();
+        onMoveMade();
         
         if (!checkWin()) {
           setTimeout(aiMove, getAIThinkingTime());
@@ -644,6 +729,7 @@ function executeAITigerMove() {
       updateUI();
       draw();
       checkWin();
+      onMoveMade();
       return;
     }
   }
@@ -1107,20 +1193,20 @@ function resetGame() {
 
 // Event listeners
 canvas.addEventListener('click', handleClick);
-document.getElementById('reset-btn').addEventListener('click', showPlayerSelect);
+document.getElementById('reset-btn').addEventListener('click', () => {
+  document.getElementById('signup-overlay').classList.add('show');
+});
 document.getElementById('play-again-btn').addEventListener('click', showPlayerSelect);
 document.getElementById('view-prev-btn').addEventListener('click', toggleViewPrevious);
 
-// Start game button
-document.getElementById('start-game-btn').addEventListener('click', () => {
-  document.getElementById('start-overlay').classList.remove('show');
+// Welcome start button
+document.getElementById('welcome-start-btn').addEventListener('click', () => {
   document.getElementById('player-select-overlay').classList.add('show');
 });
 
 // Tutorial buttons (handle all instances)
 document.querySelectorAll('#tutorial-btn, #footer-tutorial').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.getElementById('start-overlay').classList.remove('show');
     document.getElementById('tutorial-overlay').classList.add('show');
   });
 });
@@ -1128,7 +1214,32 @@ document.querySelectorAll('#tutorial-btn, #footer-tutorial').forEach(btn => {
 // Tutorial close button
 document.getElementById('tutorial-close').addEventListener('click', () => {
   document.getElementById('tutorial-overlay').classList.remove('show');
-  document.getElementById('start-overlay').classList.add('show');
+});
+
+// Player selection close button
+document.getElementById('player-select-close').addEventListener('click', () => {
+  document.getElementById('player-select-overlay').classList.remove('show');
+});
+
+// Sign up overlay close button
+document.getElementById('signup-close').addEventListener('click', () => {
+  document.getElementById('signup-overlay').classList.remove('show');
+});
+
+// Sign up form submission
+document.getElementById('signup-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  // Close sign up overlay and show player selection
+  document.getElementById('signup-overlay').classList.remove('show');
+  document.getElementById('player-select-overlay').classList.add('show');
+});
+
+// Sign in link (for users who already have account)
+document.getElementById('signin-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  // Close sign up and show player selection
+  document.getElementById('signup-overlay').classList.remove('show');
+  document.getElementById('player-select-overlay').classList.add('show');
 });
 
 // Tutorial start playing button
@@ -1143,7 +1254,6 @@ if (tutorialStart) {
 // About buttons (handle all instances)
 document.querySelectorAll('#about-btn, #footer-about').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.getElementById('start-overlay').classList.remove('show');
     document.getElementById('about-overlay').classList.add('show');
   });
 });
@@ -1153,7 +1263,6 @@ const aboutClose = document.getElementById('about-close');
 if (aboutClose) {
   aboutClose.addEventListener('click', () => {
     document.getElementById('about-overlay').classList.remove('show');
-    document.getElementById('start-overlay').classList.add('show');
   });
 }
 

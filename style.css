@@ -129,7 +129,7 @@ header {
 
 .game-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 1fr 380px;
   gap: 32px;
   align-items: start;
 }
@@ -218,6 +218,27 @@ header {
   font-size: 0.82rem;
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.timer-value {
+  font-size: 1.2rem;
+  color: var(--teal);
+  font-weight: 700;
+  transition: color 0.3s ease;
+}
+
+.timer-value.warning {
+  color: var(--gold);
+}
+
+.timer-value.danger {
+  color: var(--red);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .progress-bar {
@@ -488,6 +509,102 @@ header {
   overflow: hidden;
   animation: fadeUp 0.4s ease backwards;
   animation-delay: 0.08s;
+}
+
+.welcome-screen {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 40px 30px;
+  animation: fadeUp 0.6s ease backwards;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.welcome-screen h2 {
+  font-family: 'Cinzel', serif;
+  font-size: 2rem;
+  color: var(--gold);
+  margin-bottom: 8px;
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+}
+
+.welcome-screen p {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.welcome-start-btn {
+  background: var(--gold);
+  border: none;
+  color: #0a0d16;
+  padding: 16px 32px;
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+
+.welcome-start-btn:hover {
+  background: var(--gold-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(197,158,75,0.3);
+}
+
+.welcome-secondary-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 12px 32px;
+  font-family: 'Cinzel', serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s;
+  text-transform: uppercase;
+}
+
+.welcome-secondary-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-dim);
+  transform: translateY(-2px);
+}
+
+.welcome-secondary-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 12px 32px;
+  font-family: 'Cinzel', serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s;
+  text-transform: uppercase;
+}
+
+.welcome-secondary-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-dim);
+  transform: translateY(-2px);
+}
+
+.panel.hidden {
+  display: none;
 }
 
 /* Corner decorations */
@@ -765,10 +882,11 @@ footer {
 
 .player-selection {
   display: flex;
+  flex-direction: row;
   gap: 20px;
   margin-top: 24px;
   justify-content: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .selection-card {
@@ -778,7 +896,7 @@ footer {
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 220px;
+  flex: 1;
   max-width: 260px;
   text-align: center;
   display: flex;
@@ -1051,10 +1169,13 @@ footer {
   justify-content: center;
   z-index: 10000;
   backdrop-filter: blur(10px);
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
 }
 
 .tutorial-overlay.show {
   display: flex;
+  opacity: 1;
   animation: fadeIn 0.4s ease-out;
 }
 
@@ -1091,6 +1212,124 @@ footer {
 .tutorial-close:hover {
   transform: rotate(90deg) scale(1.1);
   background: #ff1744;
+}
+
+.player-select-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(197,158,75,0.2);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player-select-close:hover {
+  transform: rotate(90deg) scale(1.1);
+  background: var(--gold);
+  color: #0a0d16;
+}
+
+/* Sign Up Form Styles */
+.signup-card {
+  max-width: 440px;
+}
+
+.signup-form {
+  margin-top: 24px;
+  text-align: left;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-family: 'Cinzel', serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-mid);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: 'Crimson Pro', serif;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--gold);
+  background: var(--bg-card-hover);
+  box-shadow: 0 0 0 3px rgba(197,158,75,0.1);
+}
+
+.form-group input::placeholder {
+  color: var(--text-muted);
+}
+
+.signup-submit-btn {
+  width: 100%;
+  padding: 14px;
+  background: var(--gold);
+  border: none;
+  border-radius: 8px;
+  color: #0a0d16;
+  font-family: 'Cinzel', serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-top: 8px;
+}
+
+.signup-submit-btn:hover {
+  background: var(--gold-light);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(197,158,75,0.3);
+}
+
+.signup-footer {
+  text-align: center;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.signup-footer p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.signup-footer a {
+  color: var(--gold);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.signup-footer a:hover {
+  color: var(--gold-light);
+  text-decoration: underline;
 }
 
 .tutorial-scroll {
