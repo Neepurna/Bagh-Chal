@@ -44,22 +44,36 @@ if (auth) {
 
 // Sign in with Google
 async function signInWithGoogle() {
-  if (!auth) return;
+  console.log('signInWithGoogle called');
+  if (!auth) {
+    console.error('Firebase auth not initialized');
+    alert('Authentication service not available. Please refresh the page.');
+    return;
+  }
   
   const provider = new firebase.auth.GoogleAuthProvider();
   try {
+    console.log('Starting Google sign-in popup...');
     const result = await auth.signInWithPopup(provider);
     const user = result.user;
+    console.log('Sign-in successful:', user.email);
+    
+    // Close the sign-in overlay
+    const signupOverlay = document.getElementById('signup-overlay');
+    if (signupOverlay) {
+      signupOverlay.classList.remove('show');
+    }
     
     // Check if user needs to set username
     const userDoc = await db.collection('users').doc(user.uid).get();
     if (!userDoc.exists) {
+      console.log('New user - showing username setup');
       // New user - show username setup
       showUsernameSetup();
     }
   } catch (error) {
     console.error('Sign-in error:', error);
-    alert('Failed to sign in with Google. Please try again.');
+    alert('Failed to sign in with Google: ' + error.message);
   }
 }
 
@@ -148,29 +162,39 @@ async function signOut() {
 
 // UI Updates
 function updateUIForSignedInUser() {
-  document.getElementById('sign-in-btn').style.display = 'none';
-  document.getElementById('profile-menu').style.display = 'block';
+  const signInBtn = document.getElementById('sign-in-btn');
+  const profileMenu = document.getElementById('profile-menu');
+  
+  if (signInBtn) signInBtn.style.display = 'none';
+  if (profileMenu) profileMenu.style.display = 'block';
   
   const profileImg = document.getElementById('profile-img');
   const profileUsername = document.getElementById('profile-username');
   
   if (currentUser) {
-    profileImg.src = currentUser.photoURL || 'https://via.placeholder.com/32';
-    profileUsername.textContent = userStats.username || currentUser.displayName || 'Player';
+    if (profileImg) profileImg.src = currentUser.photoURL || 'https://via.placeholder.com/32';
+    if (profileUsername) profileUsername.textContent = userStats.username || currentUser.displayName || 'Player';
   }
   
   updateStatsDisplay();
 }
 
 function updateUIForSignedOutUser() {
-  document.getElementById('sign-in-btn').style.display = 'block';
-  document.getElementById('profile-menu').style.display = 'none';
+  const signInBtn = document.getElementById('sign-in-btn');
+  const profileMenu = document.getElementById('profile-menu');
+  
+  if (signInBtn) signInBtn.style.display = 'block';
+  if (profileMenu) profileMenu.style.display = 'none';
 }
 
 function updateStatsDisplay() {
-  document.getElementById('stats-games').textContent = userStats.gamesPlayed;
-  document.getElementById('stats-tiger-wins').textContent = userStats.tigerWins;
-  document.getElementById('stats-goat-wins').textContent = userStats.goatWins;
+  const statsGames = document.getElementById('stats-games');
+  const statsTigerWins = document.getElementById('stats-tiger-wins');
+  const statsGoatWins = document.getElementById('stats-goat-wins');
+  
+  if (statsGames) statsGames.textContent = userStats.gamesPlayed;
+  if (statsTigerWins) statsTigerWins.textContent = userStats.tigerWins;
+  if (statsGoatWins) statsGoatWins.textContent = userStats.goatWins;
 }
 
 function showUsernameSetup() {
@@ -2106,3 +2130,6 @@ window.addEventListener('resize', resizeCanvas);
 // Initialize
 initGame();
 resizeCanvas();
+
+// Initialize auth UI on page load
+updateUIForSignedOutUser();
