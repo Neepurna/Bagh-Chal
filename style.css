@@ -1332,6 +1332,68 @@ footer {
   text-decoration: underline;
 }
 
+/* Difficulty Selection */
+.difficulty-selection {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.difficulty-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.difficulty-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.difficulty-btn {
+  flex: 1;
+  max-width: 140px;
+  padding: 14px 20px;
+  background: var(--bg-mid);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.difficulty-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--gold);
+  background: var(--bg-card-hover);
+}
+
+.difficulty-btn.active {
+  border-color: var(--gold);
+  background: var(--gold-dim);
+  box-shadow: 0 0 20px rgba(197,158,75,0.2);
+}
+
+.difficulty-icon {
+  font-size: 1.8rem;
+}
+
+.difficulty-name {
+  font-family: 'Cinzel', serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+}
+
 .tutorial-scroll {
   overflow-y: auto;
   max-height: 90vh;

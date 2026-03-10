@@ -72,12 +72,28 @@ const tigerImages = [0, 1, 2, 3]; // Maps tiger index to image index
 let playerSide = null; // Will be PIECE_TYPES.GOAT or PIECE_TYPES.TIGER
 let gameStarted = false;
 let isFirstAIMove = true;
+let aiDifficulty = 'easy'; // 'easy' or 'hard'
 
 // Timer settings
 let timerInterval = null;
 let currentTime = 30; // 30 seconds per move
 const TIME_PER_MOVE = 30;
 const TIME_INCREMENT = 3;
+
+// AI Configuration
+const AI_CONFIG = {
+  easy: {
+    depth: 0, // Random moves
+    thinkTime: 300
+  },
+  hard: {
+    tigerPlacementDepth: 1, // Tiger doesn't place, but for consistency
+    tigerMovementDepth: 2,  // Tiger attacks - moderate depth
+    goatPlacementDepth: 3,  // Goat defense needs planning - deeper search
+    goatMovementDepth: 3,   // Goat defense critical - deeper search
+    thinkTime: 500
+  }
+};
 
 // Game State
 let gameState = {
@@ -664,10 +680,440 @@ function aiMove() {
   
   setTimeout(() => {
     console.log('Executing AI move after delay');
-    executeAIMove();
+    if (aiDifficulty === 'hard') {
+      executeHardAIMove();
+    } else {
+      executeAIMove();
+    }
     hideAIThinking();
   }, delay);
 }
+
+// ===== HARD AI IMPLEMENTATION =====
+
+// Evaluate board state from perspective of given player
+function evaluateBoard(board, player, phase, goatsPlaced, goatsCaptured) {
+  let score = 0;
+  
+  if (player === PIECE_TYPES.TIGER) {
+    // Tiger evaluation
+    score += goatsCaptured * 100; // Captures are paramount
+    
+    // Count tiger mobility
+    let totalMobility = 0;
+    let trappedTigers = 0;
+    
+    for (let i = 0; i < 25; i++) {
+      if (board[i] === PIECE_TYPES.TIGER) {
+        const moves = getValidMovesForState(i, board);
+        totalMobility += moves.length;
+        
+        if (moves.length === 0) {
+          trappedTigers++;
+          score -= 500; // Heavily penalize trapped tigers
+        } else {
+          score += moves.length * 10; // Reward mobility
+        }
+        
+        // Reward center control
+        const pos = positions[i];
+        if (pos.row === 2 && pos.col === 2) {
+          score += 15;
+        } else if (Math.abs(pos.row - 2) <= 1 && Math.abs(pos.col - 2) <= 1) {
+          score += 5;
+        }
+        
+        // Count capture opportunities
+        const captureMoves = moves.filter(m => m.capture !== null);
+        score += captureMoves.length * 50;
+      }
+    }
+    
+    // Penalize if all tigers are trapped
+    if (trappedTigers === 4) {
+      score -= 10000;
+    }
+    
+  } else {
+    // Goat evaluation - DEFENSIVE PRIORITY
+    score -= goatsCaptured * 200; // Losing goats is very bad
+    
+    // Heavily penalize if close to losing (4 captures = game over at 5)
+    if (goatsCaptured >= 4) {
+      score -= 5000;
+    }
+    
+    // Count goat safety and formation
+    let safeGoats = 0;
+    let isolatedGoats = 0;
+    let tigerMobility = 0;
+    let tigerCaptureMoves = 0;
+    
+    for (let i = 0; i < 25; i++) {
+      if (board[i] === PIECE_TYPES.GOAT) {
+        const pos = positions[i];
+        const adjacent = getAdjacentForState(i, board);
+        
+        // Check if goat has backup (critical for defense)
+        let hasBackup = false;
+        let adjacentGoats = 0;
+        
+        for (const adj of adjacent) {
+          if (board[adj] === PIECE_TYPES.GOAT) {
+            adjacentGoats++;
+            hasBackup = true;
+          }
+        }
+        
+        if (hasBackup) {
+          safeGoats++;
+          score += 40; // Strong reward for goat formations
+        } else {
+          isolatedGoats++;
+          score -= 25; // Penalize isolated goats
+        }
+        
+        // Extra reward for goats in pairs/groups (2+ adjacent goats)
+        if (adjacentGoats >= 2) {
+          score += 30; // Strong defensive formation
+        }
+        
+        // Strategic positioning in placement phase
+        if (phase === PHASE.PLACEMENT) {
+          // Prioritize center and key blocking positions
+          if (pos.row === 2 && pos.col === 2) {
+            score += 35; // Center control
+          } else if (Math.abs(pos.row - 2) <= 1 && Math.abs(pos.col - 2) <= 1) {
+            score += 15; // Near center
+          }
+          
+          // Reward key diagonal intersections
+          if ((pos.row === 1 || pos.row === 3) && (pos.col === 1 || pos.col === 3)) {
+            score += 20;
+          }
+        }
+        
+        // In movement phase, prioritize trapping
+        if (phase === PHASE.MOVEMENT) {
+          // Reward positions that block tiger paths
+          const nearTiger = adjacent.some(adj => board[adj] === PIECE_TYPES.TIGER);
+          if (nearTiger && hasBackup) {
+            score += 35; // Blocking tiger with backup is excellent
+          }
+        }
+        
+        // Penalize vulnerable edge goats
+        if (pos.row === 0 || pos.row === 4 || pos.col === 0 || pos.col === 4) {
+          if (!hasBackup) {
+            score -= 15; // Isolated edge goats are very vulnerable
+          }
+        }
+      } else if (board[i] === PIECE_TYPES.TIGER) {
+        const moves = getValidMovesForState(i, board);
+        tigerMobility += moves.length;
+        
+        // Count capture opportunities for tigers
+        const captureMoves = moves.filter(m => m.capture !== null);
+        tigerCaptureMoves += captureMoves.length;
+      }
+    }
+    
+    // CRITICAL: Reward for restricting tiger movement (suffocation strategy)
+    score += (40 - tigerMobility) * 8; // Higher weight for suffocation
+    
+    // Penalize if tigers have capture opportunities
+    score -= tigerCaptureMoves * 60;
+    
+    // Bonus for trapping tigers completely
+    if (tigerMobility === 0 && phase === PHASE.MOVEMENT) {
+      score += 15000; // Winning position
+    }
+    
+    // Reward tight formations over isolated goats
+    score += safeGoats * 25;
+    score -= isolatedGoats * 20;
+  }
+  
+  return score;
+}
+
+// Get valid moves for a position in a given board state
+function getValidMovesForState(index, board) {
+  const piece = board[index];
+  if (piece === PIECE_TYPES.EMPTY) return [];
+  
+  const moves = [];
+  const adjacent = getAdjacentForState(index, board);
+  
+  for (const adj of adjacent) {
+    if (board[adj] === PIECE_TYPES.EMPTY) {
+      moves.push({ from: index, to: adj, capture: null });
+    } else if (piece === PIECE_TYPES.TIGER && board[adj] === PIECE_TYPES.GOAT) {
+      // Check for capture - calculate jump position
+      const { row: r1, col: c1 } = positions[index];
+      const { row: r2, col: c2 } = positions[adj];
+      const dr = r2 - r1;
+      const dc = c2 - c1;
+      const jumpRow = r2 + dr;
+      const jumpCol = c2 + dc;
+      
+      if (jumpRow >= 0 && jumpRow < GRID_SIZE && jumpCol >= 0 && jumpCol < GRID_SIZE) {
+        const jumpIndex = jumpRow * GRID_SIZE + jumpCol;
+        
+        if (board[jumpIndex] === PIECE_TYPES.EMPTY) {
+          const jumpAdjacent = getAdjacentForState(adj, board);
+          if (jumpAdjacent.includes(jumpIndex)) {
+            moves.push({ from: index, to: jumpIndex, capture: adj });
+          }
+        }
+      }
+    }
+  }
+  
+  return moves;
+}
+
+// Get adjacent positions for a given board state
+function getAdjacentForState(index, board) {
+  const pos = positions[index];
+  const adjacent = [];
+  
+  const directions = [
+    [-1, 0], [1, 0], [0, -1], [0, 1], // orthogonal
+    [-1, -1], [-1, 1], [1, -1], [1, 1] // diagonal
+  ];
+  
+  for (const [dr, dc] of directions) {
+    const newRow = pos.row + dr;
+    const newCol = pos.col + dc;
+    
+    if (newRow >= 0 && newRow < GRID_SIZE && newCol >= 0 && newCol < GRID_SIZE) {
+      const newIndex = newRow * GRID_SIZE + newCol;
+      
+      // Check if diagonal is valid
+      if (Math.abs(dr) === 1 && Math.abs(dc) === 1) {
+        if (isDiagonalConnected(pos.row, pos.col, newRow, newCol)) {
+          adjacent.push(newIndex);
+        }
+      } else {
+        adjacent.push(newIndex);
+      }
+    }
+  }
+  
+  return adjacent;
+}
+
+// Minimax with alpha-beta pruning
+function minimax(board, depth, alpha, beta, isMaximizing, player, phase, goatsPlaced, goatsCaptured) {
+  // Terminal conditions
+  if (depth === 0 || goatsCaptured >= 5) {
+    return evaluateBoard(board, player, phase, goatsPlaced, goatsCaptured);
+  }
+  
+  // Check if game is over (all tigers trapped)
+  if (phase === PHASE.MOVEMENT) {
+    let allTrapped = true;
+    for (let i = 0; i < 25; i++) {
+      if (board[i] === PIECE_TYPES.TIGER) {
+        const moves = getValidMovesForState(i, board);
+        if (moves.length > 0) {
+          allTrapped = false;
+          break;
+        }
+      }
+    }
+    if (allTrapped) {
+      return isMaximizing ? -10000 : 10000;
+    }
+  }
+  
+  const currentPlayer = isMaximizing ? player : (player === PIECE_TYPES.TIGER ? PIECE_TYPES.GOAT : PIECE_TYPES.TIGER);
+  
+  if (isMaximizing) {
+    let maxEval = -Infinity;
+    const moves = getAllPossibleMoves(board, currentPlayer, phase, goatsPlaced);
+    
+    for (const move of moves) {
+      const newState = applyMove(board, move, phase, goatsPlaced, goatsCaptured);
+      const evaluation = minimax(newState.board, depth - 1, alpha, beta, false, player, newState.phase, newState.goatsPlaced, newState.goatsCaptured);
+      maxEval = Math.max(maxEval, evaluation);
+      alpha = Math.max(alpha, evaluation);
+      if (beta <= alpha) break; // Prune
+    }
+    
+    return maxEval;
+  } else {
+    let minEval = Infinity;
+    const moves = getAllPossibleMoves(board, currentPlayer, phase, goatsPlaced);
+    
+    for (const move of moves) {
+      const newState = applyMove(board, move, phase, goatsPlaced, goatsCaptured);
+      const evaluation = minimax(newState.board, depth - 1, alpha, beta, true, player, newState.phase, newState.goatsPlaced, newState.goatsCaptured);
+      minEval = Math.min(minEval, evaluation);
+      beta = Math.min(beta, evaluation);
+      if (beta <= alpha) break; // Prune
+    }
+    
+    return minEval;
+  }
+}
+
+// Get all possible moves for a player
+function getAllPossibleMoves(board, player, phase, goatsPlaced) {
+  const moves = [];
+  
+  if (player === PIECE_TYPES.GOAT && phase === PHASE.PLACEMENT && goatsPlaced < 20) {
+    // Placement moves
+    for (let i = 0; i < 25; i++) {
+      if (board[i] === PIECE_TYPES.EMPTY) {
+        moves.push({ type: 'place', to: i });
+      }
+    }
+  } else {
+    // Movement moves
+    for (let i = 0; i < 25; i++) {
+      if (board[i] === player) {
+        const pieceMoves = getValidMovesForState(i, board);
+        moves.push(...pieceMoves);
+      }
+    }
+  }
+  
+  return moves;
+}
+
+// Apply a move to create a new board state
+function applyMove(board, move, phase, goatsPlaced, goatsCaptured) {
+  const newBoard = [...board];
+  let newPhase = phase;
+  let newGoatsPlaced = goatsPlaced;
+  let newGoatsCaptured = goatsCaptured;
+  
+  if (move.type === 'place') {
+    newBoard[move.to] = PIECE_TYPES.GOAT;
+    newGoatsPlaced++;
+    if (newGoatsPlaced === 20) {
+      newPhase = PHASE.MOVEMENT;
+    }
+  } else {
+    newBoard[move.to] = newBoard[move.from];
+    newBoard[move.from] = PIECE_TYPES.EMPTY;
+    if (move.capture !== null) {
+      newBoard[move.capture] = PIECE_TYPES.EMPTY;
+      newGoatsCaptured++;
+    }
+  }
+  
+  return { board: newBoard, phase: newPhase, goatsPlaced: newGoatsPlaced, goatsCaptured: newGoatsCaptured };
+}
+
+// Execute hard AI move using minimax
+function executeHardAIMove() {
+  if (gameState.gameOver) return;
+  
+  console.log('=== Hard AI Move Start ===');
+  const aiSide = playerSide === PIECE_TYPES.GOAT ? PIECE_TYPES.TIGER : PIECE_TYPES.GOAT;
+  console.log('AI Side:', aiSide === PIECE_TYPES.TIGER ? 'TIGER' : 'GOAT');
+  console.log('Phase:', gameState.phase);
+  
+  const allMoves = getAllPossibleMoves(gameState.board, aiSide, gameState.phase, gameState.goatsPlaced);
+  console.log('Total possible moves:', allMoves.length);
+  
+  if (allMoves.length === 0) {
+    console.log('No moves available!');
+    checkWin();
+    return;
+  }
+  
+  // Determine search depth based on AI side and phase
+  let searchDepth;
+  if (aiSide === PIECE_TYPES.GOAT) {
+    searchDepth = gameState.phase === PHASE.PLACEMENT ? 
+      AI_CONFIG.hard.goatPlacementDepth : 
+      AI_CONFIG.hard.goatMovementDepth;
+  } else {
+    searchDepth = gameState.phase === PHASE.PLACEMENT ? 
+      AI_CONFIG.hard.tigerPlacementDepth : 
+      AI_CONFIG.hard.tigerMovementDepth;
+  }
+  
+  console.log('Using search depth:', searchDepth);
+  
+  let bestMove = null;
+  let bestScore = -Infinity;
+  
+  // Use minimax search for accurate play
+  console.log('Evaluating moves with minimax...');
+  for (let i = 0; i < allMoves.length; i++) {
+    const move = allMoves[i];
+    const newState = applyMove(gameState.board, move, gameState.phase, gameState.goatsPlaced, gameState.goatsCaptured);
+    
+    // Use minimax to look ahead
+    const score = minimax(
+      newState.board, 
+      searchDepth - 1, 
+      -Infinity, 
+      Infinity, 
+      false, // Opponent's turn next
+      aiSide, 
+      newState.phase, 
+      newState.goatsPlaced, 
+      newState.goatsCaptured
+    );
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = move;
+    }
+  }
+  
+  console.log('Best move selected with score:', bestScore);
+  console.log('Move:', bestMove);
+  
+  // Apply the best move
+  if (bestMove) {
+    saveState();
+    
+    if (bestMove.type === 'place') {
+      console.log('Placing goat at position:', bestMove.to);
+      gameState.board[bestMove.to] = PIECE_TYPES.GOAT;
+      gameState.goatsPlaced++;
+      if (gameState.goatsPlaced === 20) {
+        gameState.phase = PHASE.MOVEMENT;
+      }
+      gameState.currentPlayer = PIECE_TYPES.TIGER;
+    } else {
+      console.log('Moving from', bestMove.from, 'to', bestMove.to);
+      if (gameState.board[bestMove.from] === PIECE_TYPES.TIGER) {
+        const tigerIdentity = gameState.tigerIdentities[bestMove.from];
+        gameState.tigerIdentities[bestMove.to] = tigerIdentity;
+        delete gameState.tigerIdentities[bestMove.from];
+      }
+      
+      gameState.board[bestMove.to] = gameState.board[bestMove.from];
+      gameState.board[bestMove.from] = PIECE_TYPES.EMPTY;
+      
+      if (bestMove.capture !== null) {
+        console.log('Captured piece at:', bestMove.capture);
+        gameState.board[bestMove.capture] = PIECE_TYPES.EMPTY;
+        gameState.goatsCaptured++;
+        playSound('tigerCapture');
+      }
+      
+      gameState.currentPlayer = aiSide === PIECE_TYPES.TIGER ? PIECE_TYPES.GOAT : PIECE_TYPES.TIGER;
+    }
+    
+    playSound('pieceMove');
+    updateUI();
+    draw();
+    console.log('=== Hard AI Move Complete ===');
+    checkWin();
+    onMoveMade();
+  }
+}
+
+// ===== ORIGINAL EASY AI =====
 
 function executeAIMove() {
   console.log('executeAIMove called');
@@ -1274,6 +1720,20 @@ if (aboutStart) {
     document.getElementById('player-select-overlay').classList.add('show');
   });
 }
+
+// Difficulty selection
+const difficultyButtons = document.querySelectorAll('.difficulty-btn');
+difficultyButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    // Remove active class from all buttons
+    difficultyButtons.forEach(b => b.classList.remove('active'));
+    // Add active class to clicked button
+    btn.classList.add('active');
+    // Set difficulty
+    aiDifficulty = btn.dataset.difficulty;
+    console.log('AI Difficulty set to:', aiDifficulty);
+  });
+});
 
 // Player selection
 document.getElementById('select-goat').addEventListener('click', () => {
