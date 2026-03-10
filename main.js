@@ -249,7 +249,9 @@ const soundUrls = {
   newGame:      '/music/newgamestart.mp3',
   pieceMove:    '/music/Piece-Move.mp3',
   tigerCapture: '/music/tiger-points.mp3',
-  winning:      '/music/winning-sound.mp3'
+  winning:      '/music/winning-sound.mp3',
+  hover:        '/music/Hover.mp3',
+  buttonClick:  '/music/Button Ui.mp3'
 };
 
 function playSound(name) {
@@ -1267,6 +1269,37 @@ function executeHardAIMove() {
   console.log('AI Side:', aiSide === PIECE_TYPES.TIGER ? 'TIGER' : 'GOAT');
   console.log('Phase:', gameState.phase);
   
+  // Special handling for first goat placement - randomize among 5 safe positions
+  if (aiSide === PIECE_TYPES.GOAT && gameState.phase === PHASE.PLACEMENT && gameState.goatsPlaced === 0) {
+    console.log('First goat placement - using safe positions');
+    const safePositions = [12, 2, 10, 14, 22]; // Center and 4 middle border positions
+    const availableSafePositions = safePositions.filter(pos => gameState.board[pos] === PIECE_TYPES.EMPTY);
+    
+    if (availableSafePositions.length > 0) {
+      const randomSafePos = availableSafePositions[Math.floor(Math.random() * availableSafePositions.length)];
+      console.log('Placing first goat at safe position:', randomSafePos);
+      
+      saveState();
+      gameState.board[randomSafePos] = PIECE_TYPES.GOAT;
+      gameState.goatsPlaced++;
+      playSound('pieceMove');
+      gameState.currentPlayer = PIECE_TYPES.TIGER;
+      
+      // Add position to history
+      positionHistory.push(getBoardHash(gameState.board));
+      if (positionHistory.length > MAX_POSITION_HISTORY) {
+        positionHistory.shift();
+      }
+      
+      updateUI();
+      draw();
+      checkWin();
+      hideAIThinking();
+      startTimer();
+      return;
+    }
+  }
+  
   const allMoves = getAllPossibleMoves(gameState.board, aiSide, gameState.phase, gameState.goatsPlaced);
   console.log('Total possible moves:', allMoves.length);
   
@@ -1685,14 +1718,30 @@ function draw() {
       const validMoves = getValidMoves(i);
       const isTrapped = validMoves.length === 0;
       
-      // Draw white circular chip with neon glow if selected
+      // Draw black circular chip with depth and shine
       const isSelected = gameState.selectedPiece === i;
       const isCurrentTurn = gameState.currentPlayer === PIECE_TYPES.TIGER;
       const pulseOffset = isCurrentTurn ? Math.sin(Date.now() / 300) * 0.05 : 0;
       const chipRadius = cellSize * (0.4 + pulseOffset);
       
-      // Fade color if trapped
-      ctx.fillStyle = isTrapped ? '#cccccc' : '#ffffff';
+      // Base shadow for depth
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 4;
+      
+      // Black backdrop for tiger
+      ctx.fillStyle = isTrapped ? '#555555' : '#000000';
+      
+      ctx.beginPath();
+      ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Reset shadow for border
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
       
       if (isSelected) {
         // Add neon gold glow effect
@@ -1701,15 +1750,28 @@ function draw() {
         ctx.strokeStyle = '#FFD700';
         ctx.lineWidth = 6;
       } else {
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = isTrapped ? '#666666' : (isCurrentTurn ? '#FF6B35' : '#2d3748');
+        ctx.strokeStyle = isTrapped ? '#666666' : (isCurrentTurn ? '#FF6B35' : '#333333');
         ctx.lineWidth = isCurrentTurn ? 4 : 3;
       }
       
       ctx.beginPath();
       ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
-      ctx.fill();
       ctx.stroke();
+      
+      // Add shine effect (gradient highlight)
+      if (!isTrapped) {
+        const gradient = ctx.createRadialGradient(
+          x - chipRadius * 0.3, y - chipRadius * 0.3, 0,
+          x, y, chipRadius
+        );
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+        gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
       
       // Reset shadow
       ctx.shadowBlur = 0;
@@ -1738,8 +1800,24 @@ function draw() {
       const pulseOffset = isCurrentTurn ? Math.sin(Date.now() / 300) * 0.05 : 0;
       const chipRadius = cellSize * (0.4 + pulseOffset);
       
-      // Draw white circular chip with neon glow if selected
+      // Base shadow for depth
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 4;
+      
+      // Draw white circular chip
       ctx.fillStyle = '#ffffff';
+      
+      ctx.beginPath();
+      ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Reset shadow for border
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
       
       if (isSelected) {
         // Add neon green glow effect
@@ -1748,15 +1826,26 @@ function draw() {
         ctx.strokeStyle = '#00ff88';
         ctx.lineWidth = 6;
       } else {
-        ctx.shadowBlur = 0;
         ctx.strokeStyle = isCurrentTurn ? '#4ECDC4' : '#2d3748';
         ctx.lineWidth = isCurrentTurn ? 4 : 3;
       }
       
       ctx.beginPath();
       ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
-      ctx.fill();
       ctx.stroke();
+      
+      // Add shine effect (gradient highlight)
+      const gradient = ctx.createRadialGradient(
+        x - chipRadius * 0.3, y - chipRadius * 0.3, 0,
+        x, y, chipRadius
+      );
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+      gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.3)');
+      gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
+      ctx.fill();
       
       // Reset shadow
       ctx.shadowBlur = 0;
@@ -2008,12 +2097,22 @@ document.getElementById('view-prev-btn').addEventListener('click', toggleViewPre
 // Welcome start button
 document.getElementById('welcome-start-btn').addEventListener('click', () => {
   document.getElementById('player-select-overlay').classList.add('show');
+  playSound('buttonClick');
+});
+
+// Welcome start button hover
+document.getElementById('welcome-start-btn').addEventListener('mouseenter', () => {
+  playSound('hover');
 });
 
 // Tutorial buttons (handle all instances)
 document.querySelectorAll('#tutorial-btn, #footer-tutorial').forEach(btn => {
   btn.addEventListener('click', () => {
     document.getElementById('tutorial-overlay').classList.add('show');
+    playSound('buttonClick');
+  });
+  btn.addEventListener('mouseenter', () => {
+    playSound('hover');
   });
 });
 
@@ -2048,6 +2147,10 @@ if (tutorialStart) {
 document.querySelectorAll('#about-btn, #footer-about').forEach(btn => {
   btn.addEventListener('click', () => {
     document.getElementById('about-overlay').classList.add('show');
+    playSound('buttonClick');
+  });
+  btn.addEventListener('mouseenter', () => {
+    playSound('hover');
   });
 });
 
@@ -2079,6 +2182,10 @@ difficultyButtons.forEach(btn => {
     // Set difficulty
     aiDifficulty = btn.dataset.difficulty;
     console.log('AI Difficulty set to:', aiDifficulty);
+    playSound('buttonClick');
+  });
+  btn.addEventListener('mouseenter', () => {
+    playSound('hover');
   });
 });
 
@@ -2089,6 +2196,11 @@ document.getElementById('select-goat').addEventListener('click', () => {
   isFirstAIMove = true;
   document.getElementById('player-select-overlay').classList.remove('show');
   initGame();
+  playSound('buttonClick');
+});
+
+document.getElementById('select-goat').addEventListener('mouseenter', () => {
+  playSound('hover');
 });
 
 document.getElementById('select-tiger').addEventListener('click', () => {
@@ -2097,6 +2209,11 @@ document.getElementById('select-tiger').addEventListener('click', () => {
   isFirstAIMove = true;
   document.getElementById('player-select-overlay').classList.remove('show');
   initGame();
+  playSound('buttonClick');
+});
+
+document.getElementById('select-tiger').addEventListener('mouseenter', () => {
+  playSound('hover');
 });
 
 function showPlayerSelect() {
