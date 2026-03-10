@@ -1918,19 +1918,34 @@ function resetGame() {
 // Event listeners
 canvas.addEventListener('click', handleClick);
 
-// Authentication event listeners
-document.getElementById('sign-in-btn').addEventListener('click', () => {
-  document.getElementById('signup-overlay').classList.add('show');
-});
+// Authentication event listeners (with safe checks)
+const signInBtn = document.getElementById('sign-in-btn');
+if (signInBtn) {
+  signInBtn.addEventListener('click', () => {
+    document.getElementById('signup-overlay').classList.add('show');
+  });
+}
 
-document.getElementById('google-signin-btn').addEventListener('click', signInWithGoogle);
+const googleSigninBtn = document.getElementById('google-signin-btn');
+if (googleSigninBtn) {
+  googleSigninBtn.addEventListener('click', signInWithGoogle);
+}
 
-document.getElementById('sign-out-btn').addEventListener('click', signOut);
+const signOutBtn = document.getElementById('sign-out-btn');
+if (signOutBtn) {
+  signOutBtn.addEventListener('click', signOut);
+}
 
 // Profile dropdown toggle
-document.getElementById('profile-btn').addEventListener('click', () => {
-  document.getElementById('profile-dropdown').classList.toggle('show');
-});
+const profileBtn = document.getElementById('profile-btn');
+if (profileBtn) {
+  profileBtn.addEventListener('click', () => {
+    const dropdown = document.getElementById('profile-dropdown');
+    if (dropdown) {
+      dropdown.classList.toggle('show');
+    }
+  });
+}
 
 // Close dropdown when clicking outside
 document.addEventListener('click', (e) => {
@@ -1942,15 +1957,21 @@ document.addEventListener('click', (e) => {
 });
 
 // Username setup form
-document.getElementById('username-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const username = document.getElementById('new-username').value.trim();
-  if (username.length >= 3) {
-    saveUsername(username);
-  } else {
-    alert('Username must be at least 3 characters long');
-  }
-});
+const usernameForm = document.getElementById('username-form');
+if (usernameForm) {
+  usernameForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const usernameInput = document.getElementById('new-username');
+    if (usernameInput) {
+      const username = usernameInput.value.trim();
+      if (username.length >= 3) {
+        saveUsername(username);
+      } else {
+        alert('Username must be at least 3 characters long');
+      }
+    }
+  });
+}
 
 // Sign up overlay close button
 document.getElementById('signup-close').addEventListener('click', () => {
@@ -1982,26 +2003,13 @@ document.getElementById('player-select-close').addEventListener('click', () => {
   document.getElementById('player-select-overlay').classList.remove('show');
 });
 
-// Sign up overlay close button
-document.getElementById('signup-close').addEventListener('click', () => {
-  document.getElementById('signup-overlay').classList.remove('show');
-});
-
-// Sign up form submission
-document.getElementById('signup-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  // Close sign up overlay and show player selection
-  document.getElementById('signup-overlay').classList.remove('show');
-  document.getElementById('player-select-overlay').classList.add('show');
-});
-
-// Sign in link (for users who already have account)
-document.getElementById('signin-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  // Close sign up and show player selection
-  document.getElementById('signup-overlay').classList.remove('show');
-  document.getElementById('player-select-overlay').classList.add('show');
-});
+// Sign up overlay close button (safe check for optional element)
+const signupClose = document.getElementById('signup-close');
+if (signupClose) {
+  signupClose.addEventListener('click', () => {
+    document.getElementById('signup-overlay').classList.remove('show');
+  });
+}
 
 // Tutorial start playing button
 const tutorialStart = document.getElementById('tutorial-start');
