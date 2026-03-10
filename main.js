@@ -1,15 +1,15 @@
 // Bagh Chal Game Logic
 
 // ===== FIREBASE AUTHENTICATION =====
-// Firebase configuration - UPDATE THESE VALUES FROM YOUR FIREBASE PROJECT
-// Go to Firebase Console > Project Settings > General > Your apps > Firebase SDK snippet
+// Firebase configuration
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCwZWRiXb_KwyNpUcQUfRNJQvQyf-o6x5g",
+  authDomain: "baghchal-26da2.firebaseapp.com",
+  projectId: "baghchal-26da2",
+  storageBucket: "baghchal-26da2.firebasestorage.app",
+  messagingSenderId: "342367298445",
+  appId: "1:342367298445:web:b30dc206c09e73ab24d3c4",
+  measurementId: "G-6VR5DSX8CT"
 };
 
 // Initialize Firebase
