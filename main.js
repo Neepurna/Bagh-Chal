@@ -1,4 +1,188 @@
 // Bagh Chal Game Logic
+
+// ===== FIREBASE AUTHENTICATION =====
+// Firebase configuration - UPDATE THESE VALUES FROM YOUR FIREBASE PROJECT
+// Go to Firebase Console > Project Settings > General > Your apps > Firebase SDK snippet
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY_HERE",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+// Initialize Firebase
+let auth, db;
+let currentUser = null;
+let userStats = { gamesPlayed: 0, tigerWins: 0, goatWins: 0 };
+
+try {
+  firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  db = firebase.firestore();
+  console.log('Firebase initialized successfully');
+} catch (error) {
+  console.error('Firebase initialization error:', error);
+}
+
+// Auth state observer
+if (auth) {
+  auth.onAuthStateChanged(async (user) => {
+    if (user) {
+      currentUser = user;
+      console.log('User signed in:', user.email);
+      await loadUserData(user);
+      updateUIForSignedInUser();
+    } else {
+      currentUser = null;
+      console.log('User signed out');
+      updateUIForSignedOutUser();
+    }
+  });
+}
+
+// Sign in with Google
+async function signInWithGoogle() {
+  if (!auth) return;
+  
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try {
+    const result = await auth.signInWithPopup(provider);
+    const user = result.user;
+    
+    // Check if user needs to set username
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    if (!userDoc.exists) {
+      // New user - show username setup
+      showUsernameSetup();
+    }
+  } catch (error) {
+    console.error('Sign-in error:', error);
+    alert('Failed to sign in with Google. Please try again.');
+  }
+}
+
+// Load user data from Firestore
+async function loadUserData(user) {
+  if (!db) return;
+  
+  try {
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    if (userDoc.exists) {
+      const data = userDoc.data();
+      userStats = {
+        gamesPlayed: data.gamesPlayed || 0,
+        tigerWins: data.tigerWins || 0,
+        goatWins: data.goatWins || 0,
+        username: data.username || user.displayName || 'Player'
+      };
+    } else {
+      userStats = { gamesPlayed: 0, tigerWins: 0, goatWins: 0, username: user.displayName || 'Player' };
+    }
+  } catch (error) {
+    console.error('Error loading user data:', error);
+  }
+}
+
+// Save username for new user
+async function saveUsername(username) {
+  if (!currentUser || !db) return;
+  
+  try {
+    await db.collection('users').doc(currentUser.uid).set({
+      username: username,
+      email: currentUser.email,
+      gamesPlayed: 0,
+      tigerWins: 0,
+      goatWins: 0,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    userStats.username = username;
+    hideUsernameSetup();
+    updateUIForSignedInUser();
+  } catch (error) {
+    console.error('Error saving username:', error);
+    alert('Failed to save username. Please try again.');
+  }
+}
+
+// Update stats after game
+async function updateUserStats(won, side) {
+  if (!currentUser || !db) return;
+  
+  try {
+    const userRef = db.collection('users').doc(currentUser.uid);
+    const updates = {
+      gamesPlayed: firebase.firestore.FieldValue.increment(1)
+    };
+    
+    if (won) {
+      if (side === 'tiger') {
+        updates.tigerWins = firebase.firestore.FieldValue.increment(1);
+        userStats.tigerWins++;
+      } else {
+        updates.goatWins = firebase.firestore.FieldValue.increment(1);
+        userStats.goatWins++;
+      }
+    }
+    
+    userStats.gamesPlayed++;
+    await userRef.update(updates);
+    updateStatsDisplay();
+  } catch (error) {
+    console.error('Error updating stats:', error);
+  }
+}
+
+// Sign out
+async function signOut() {
+  if (!auth) return;
+  
+  try {
+    await auth.signOut();
+  } catch (error) {
+    console.error('Sign-out error:', error);
+  }
+}
+
+// UI Updates
+function updateUIForSignedInUser() {
+  document.getElementById('sign-in-btn').style.display = 'none';
+  document.getElementById('profile-menu').style.display = 'block';
+  
+  const profileImg = document.getElementById('profile-img');
+  const profileUsername = document.getElementById('profile-username');
+  
+  if (currentUser) {
+    profileImg.src = currentUser.photoURL || 'https://via.placeholder.com/32';
+    profileUsername.textContent = userStats.username || currentUser.displayName || 'Player';
+  }
+  
+  updateStatsDisplay();
+}
+
+function updateUIForSignedOutUser() {
+  document.getElementById('sign-in-btn').style.display = 'block';
+  document.getElementById('profile-menu').style.display = 'none';
+}
+
+function updateStatsDisplay() {
+  document.getElementById('stats-games').textContent = userStats.gamesPlayed;
+  document.getElementById('stats-tiger-wins').textContent = userStats.tigerWins;
+  document.getElementById('stats-goat-wins').textContent = userStats.goatWins;
+}
+
+function showUsernameSetup() {
+  document.getElementById('username-setup-overlay').classList.add('show');
+}
+
+function hideUsernameSetup() {
+  document.getElementById('username-setup-overlay').classList.remove('show');
+}
+
+// ===== GAME LOGIC =====
+
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 
@@ -112,6 +296,15 @@ let gameHistory = [];
 let isViewingPrevious = false;
 let currentGameState = null;
 
+// Position history to detect repetitions
+let positionHistory = [];
+const MAX_POSITION_HISTORY = 10; // Track last 10 positions
+
+// Helper function to create board hash
+function getBoardHash(board) {
+  return board.join(',');
+}
+
 // Board positions (x, y coordinates for 5x5 grid)
 const positions = [];
 for (let row = 0; row < GRID_SIZE; row++) {
@@ -140,6 +333,9 @@ function initGame() {
   isViewingPrevious = false;
   currentGameState = null;
   updateViewPrevButton();
+  
+  // Clear position history
+  positionHistory = [];
 
   // Place tigers at corners with their identities
   gameState.board[0] = PIECE_TYPES.TIGER;  // Top-left - Congress
@@ -521,6 +717,14 @@ function handleClick(event) {
         }
         
         gameState.currentPlayer = PIECE_TYPES.TIGER;
+        
+        // Track position
+        const boardHash = getBoardHash(gameState.board);
+        positionHistory.push(boardHash);
+        if (positionHistory.length > MAX_POSITION_HISTORY) {
+          positionHistory.shift();
+        }
+        
         updateUI();
         onMoveMade();
         
@@ -560,6 +764,13 @@ function handleClick(event) {
           gameState.validMoves = [];
           gameState.currentPlayer = PIECE_TYPES.GOAT;
           
+          // Track position after tiger move in placement
+          const boardHashTigerPlace = getBoardHash(gameState.board);
+          positionHistory.push(boardHashTigerPlace);
+          if (positionHistory.length > MAX_POSITION_HISTORY) {
+            positionHistory.shift();
+          }
+          
           if (!checkWin()) {
             setTimeout(aiMove, getAIThinkingTime());
           }
@@ -594,6 +805,14 @@ function handleClick(event) {
           gameState.selectedPiece = null;
           gameState.validMoves = [];
           gameState.currentPlayer = PIECE_TYPES.TIGER;
+          
+          // Track position
+          const boardHash = getBoardHash(gameState.board);
+          positionHistory.push(boardHash);
+          if (positionHistory.length > MAX_POSITION_HISTORY) {
+            positionHistory.shift();
+          }
+          
           updateUI();
           
           if (!checkWin()) {
@@ -642,6 +861,13 @@ function handleClick(event) {
           gameState.selectedPiece = null;
           gameState.validMoves = [];
           gameState.currentPlayer = PIECE_TYPES.GOAT;
+          
+          // Track position after tiger move in movement phase
+          const boardHashTigerMove = getBoardHash(gameState.board);
+          positionHistory.push(boardHashTigerMove);
+          if (positionHistory.length > MAX_POSITION_HISTORY) {
+            positionHistory.shift();
+          }
           
           if (!checkWin()) {
             setTimeout(aiMove, getAIThinkingTime());
@@ -1042,12 +1268,17 @@ function executeHardAIMove() {
   
   let bestMove = null;
   let bestScore = -Infinity;
+  let alternativeMoves = []; // Track good alternative moves
   
   // Use minimax search for accurate play
   console.log('Evaluating moves with minimax...');
   for (let i = 0; i < allMoves.length; i++) {
     const move = allMoves[i];
     const newState = applyMove(gameState.board, move, gameState.phase, gameState.goatsPlaced, gameState.goatsCaptured);
+    
+    // Check if this position would repeat recent history
+    const newBoardHash = getBoardHash(newState.board);
+    const wouldRepeat = positionHistory.slice(-6).includes(newBoardHash); // Check last 6 positions
     
     // Use minimax to look ahead
     const score = minimax(
@@ -1062,9 +1293,39 @@ function executeHardAIMove() {
       newState.goatsCaptured
     );
     
-    if (score > bestScore) {
-      bestScore = score;
+    // Penalize repetitive moves for Goat AI
+    let adjustedScore = score;
+    if (aiSide === PIECE_TYPES.GOAT && wouldRepeat) {
+      adjustedScore -= 100; // Penalty for repetition
+      console.log('Move would repeat position, applying penalty');
+    }
+    
+    // Track alternative moves that are close to best
+    if (adjustedScore > bestScore - 50 && !wouldRepeat) {
+      alternativeMoves.push({ move, score: adjustedScore });
+    }
+    
+    if (adjustedScore > bestScore) {
+      bestScore = adjustedScore;
       bestMove = move;
+    }
+  }
+  
+  // If best move would cause repetition and we have alternatives, choose alternative
+  if (aiSide === PIECE_TYPES.GOAT && alternativeMoves.length > 1) {
+    // Sort alternatives by score
+    alternativeMoves.sort((a, b) => b.score - a.score);
+    
+    // Check if the top alternative is different from best move
+    const bestNewState = applyMove(gameState.board, bestMove, gameState.phase, gameState.goatsPlaced, gameState.goatsCaptured);
+    const bestHash = getBoardHash(bestNewState.board);
+    
+    if (positionHistory.slice(-4).includes(bestHash)) {
+      console.log('Choosing alternative move to avoid repetition');
+      // Pick second or third best move to add variety
+      const altIndex = Math.floor(Math.random() * Math.min(3, alternativeMoves.length));
+      bestMove = alternativeMoves[altIndex].move;
+      bestScore = alternativeMoves[altIndex].score;
     }
   }
   
@@ -1102,6 +1363,15 @@ function executeHardAIMove() {
       }
       
       gameState.currentPlayer = aiSide === PIECE_TYPES.TIGER ? PIECE_TYPES.GOAT : PIECE_TYPES.TIGER;
+    }
+    
+    // Track position to detect repetitions
+    const currentBoardHash = getBoardHash(gameState.board);
+    positionHistory.push(currentBoardHash);
+    
+    // Keep only recent history
+    if (positionHistory.length > MAX_POSITION_HISTORY) {
+      positionHistory.shift();
     }
     
     playSound('pieceMove');
@@ -1610,6 +1880,14 @@ function endGame(message, winner) {
   gameState.gameOver = true;
   playSound('winning');
   
+  // Update user stats if logged in
+  if (currentUser) {
+    const playerWon = (winner === 'tiger' && playerSide === PIECE_TYPES.TIGER) || 
+                      (winner === 'goat' && playerSide === PIECE_TYPES.GOAT);
+    const side = playerSide === PIECE_TYPES.TIGER ? 'tiger' : 'goat';
+    updateUserStats(playerWon, side);
+  }
+  
   const overlay = document.getElementById('winner-overlay');
   const winnerIcon = document.getElementById('winner-icon');
   const winnerText = document.getElementById('winner-text');
@@ -1639,9 +1917,46 @@ function resetGame() {
 
 // Event listeners
 canvas.addEventListener('click', handleClick);
-document.getElementById('reset-btn').addEventListener('click', () => {
+
+// Authentication event listeners
+document.getElementById('sign-in-btn').addEventListener('click', () => {
   document.getElementById('signup-overlay').classList.add('show');
 });
+
+document.getElementById('google-signin-btn').addEventListener('click', signInWithGoogle);
+
+document.getElementById('sign-out-btn').addEventListener('click', signOut);
+
+// Profile dropdown toggle
+document.getElementById('profile-btn').addEventListener('click', () => {
+  document.getElementById('profile-dropdown').classList.toggle('show');
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  const profileMenu = document.getElementById('profile-menu');
+  const dropdown = document.getElementById('profile-dropdown');
+  if (profileMenu && !profileMenu.contains(e.target)) {
+    dropdown.classList.remove('show');
+  }
+});
+
+// Username setup form
+document.getElementById('username-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const username = document.getElementById('new-username').value.trim();
+  if (username.length >= 3) {
+    saveUsername(username);
+  } else {
+    alert('Username must be at least 3 characters long');
+  }
+});
+
+// Sign up overlay close button
+document.getElementById('signup-close').addEventListener('click', () => {
+  document.getElementById('signup-overlay').classList.remove('show');
+});
+
 document.getElementById('play-again-btn').addEventListener('click', showPlayerSelect);
 document.getElementById('view-prev-btn').addEventListener('click', toggleViewPrevious);
 
