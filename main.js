@@ -216,23 +216,45 @@ canvas.height = 600;
 
 // Load images
 const images = {
-  goat: new Image(),
+  goats: [
+    new Image(),
+    new Image(),
+    new Image(),
+    new Image(),
+    new Image(),
+    new Image(),
+    new Image(),
+    new Image(),
+    new Image()
+  ],
   tigers: [
     new Image(),
     new Image(),
     new Image(),
     new Image()
-  ]
+  ],
+  backdrop: new Image(),
+  board: new Image()
 };
 
-images.goat.src = 'assets/Ghanti.png';
-images.tigers[0].src = 'assets/Congress.png';
-images.tigers[1].src = 'assets/Maoist.png';
-images.tigers[2].src = 'assets/RRP.png';
-images.tigers[3].src = 'assets/Surya.png';
+images.goats[0].src = 'assets/RSP/Ashika.png';
+images.goats[1].src = 'assets/RSP/Balen.png';
+images.goats[2].src = 'assets/RSP/Hari .png';
+images.goats[3].src = 'assets/RSP/Mahabir Pun.png';
+images.goats[4].src = 'assets/RSP/Sudan.png';
+images.goats[5].src = 'assets/RSP/Sushila Karki Pixel.png';
+images.goats[6].src = 'assets/RSP/Swornim.png';
+images.goats[7].src = 'assets/RSP/Toshima .png';
+images.goats[8].src = 'assets/RSP/Wagle.png';
+images.tigers[0].src = 'assets/Kp Oli.png';
+images.tigers[1].src = 'assets/Deuba.png';
+images.tigers[2].src = 'assets/Prachanda.png';
+images.tigers[3].src = 'assets/Gagan.png';
+images.backdrop.src = 'assets/Backdrop.png';
+images.board.src = 'assets/baghchal.png';
 
 let imagesLoaded = 0;
-const totalImages = 5;
+const totalImages = 15;
 
 function imageLoaded() {
   imagesLoaded++;
@@ -241,8 +263,12 @@ function imageLoaded() {
   }
 }
 
-images.goat.onload = imageLoaded;
+images.goats.forEach(img => img.onload = imageLoaded);
 images.tigers.forEach(img => img.onload = imageLoaded);
+images.backdrop.onload = imageLoaded;
+images.board.onload = imageLoaded;
+images.board.onload = imageLoaded;
+images.board.onload = imageLoaded;
 
 // Audio system
 const soundUrls = {
@@ -331,6 +357,11 @@ function getBoardHash(board) {
   return board.join(',');
 }
 
+// Helper function to get random RSP image index
+function getRandomRSPImage() {
+  return Math.floor(Math.random() * 9);
+}
+
 // Board positions (x, y coordinates for 5x5 grid)
 const positions = [];
 for (let row = 0; row < GRID_SIZE; row++) {
@@ -351,7 +382,8 @@ function initGame() {
     selectedPiece: null,
     validMoves: [],
     gameOver: false,
-    tigerIdentities: {} // Track which tiger logo is at which position
+    tigerIdentities: {}, // Track which tiger logo is at which position
+    goatIdentities: {} // Track which RSP image is at which goat position
   };
 
   // Clear history
@@ -372,6 +404,16 @@ function initGame() {
   gameState.tigerIdentities[20] = 2;
   gameState.board[24] = PIECE_TYPES.TIGER; // Bottom-right - Surya
   gameState.tigerIdentities[24] = 3;
+
+  // Add random goats for visual appeal on homepage (only if game hasn't started)
+  if (!gameStarted) {
+    const goatPositions = [6, 8, 12, 16, 18]; // Some strategic positions
+    goatPositions.forEach((pos, index) => {
+      gameState.board[pos] = PIECE_TYPES.GOAT;
+      gameState.goatsPlaced++;
+      gameState.goatIdentities[pos] = index % 9; // Cycle through RSP images
+    });
+  }
 
   if (gameStarted) {
     playSound('newGame');
@@ -682,7 +724,7 @@ function areGoatsTrapped() {
 
 // Check win conditions
 function checkWin() {
-  // Tigers win by capturing 5 goats
+  // Tigers win by capturing 5 goats (can happen in any phase)
   if (gameState.goatsCaptured >= 5) {
     endGame('Opposition Wins!', 'tiger');
     return true;
@@ -697,6 +739,12 @@ function checkWin() {
   // Tigers win by trapping all goats (rare case, only in movement phase)
   if (gameState.phase === PHASE.MOVEMENT && gameState.goatsPlaced === 20 && areGoatsTrapped()) {
     endGame('Opposition Wins!', 'tiger');
+    return true;
+  }
+  
+  // Check if tigers trapped during placement (goats on board but can't move)
+  if (gameState.phase === PHASE.PLACEMENT && gameState.goatsPlaced > 0 && areTigersTrapped()) {
+    endGame('Governing Parties Win!', 'goat');
     return true;
   }
 
@@ -735,6 +783,7 @@ function handleClick(event) {
       if (gameState.board[clickedIndex] === PIECE_TYPES.EMPTY) {
         saveState(); // Save state before move
         gameState.board[clickedIndex] = PIECE_TYPES.GOAT;
+        gameState.goatIdentities[clickedIndex] = getRandomRSPImage();
         gameState.goatsPlaced++;
         playSound('pieceMove');
         
@@ -781,6 +830,7 @@ function handleClick(event) {
           playSound('pieceMove');
           if (move.capture !== null) {
             gameState.board[move.capture] = PIECE_TYPES.EMPTY;
+            delete gameState.goatIdentities[move.capture];
             gameState.goatsCaptured++;
             playSound('tigerCapture');
             updateUI();
@@ -827,6 +877,9 @@ function handleClick(event) {
           saveState(); // Save state before move
           gameState.board[move.to] = PIECE_TYPES.GOAT;
           gameState.board[gameState.selectedPiece] = PIECE_TYPES.EMPTY;
+          // Transfer goat identity
+          gameState.goatIdentities[move.to] = gameState.goatIdentities[gameState.selectedPiece];
+          delete gameState.goatIdentities[gameState.selectedPiece];
           playSound('pieceMove');
           gameState.selectedPiece = null;
           gameState.validMoves = [];
@@ -879,6 +932,7 @@ function handleClick(event) {
           playSound('pieceMove');
           if (move.capture !== null) {
             gameState.board[move.capture] = PIECE_TYPES.EMPTY;
+            delete gameState.goatIdentities[move.capture];
             gameState.goatsCaptured++;
             playSound('tigerCapture');
             updateUI();
@@ -1281,6 +1335,7 @@ function executeHardAIMove() {
       
       saveState();
       gameState.board[randomSafePos] = PIECE_TYPES.GOAT;
+      gameState.goatIdentities[randomSafePos] = getRandomRSPImage();
       gameState.goatsPlaced++;
       playSound('pieceMove');
       gameState.currentPlayer = PIECE_TYPES.TIGER;
@@ -1396,6 +1451,7 @@ function executeHardAIMove() {
     if (bestMove.type === 'place') {
       console.log('Placing goat at position:', bestMove.to);
       gameState.board[bestMove.to] = PIECE_TYPES.GOAT;
+      gameState.goatIdentities[bestMove.to] = getRandomRSPImage();
       gameState.goatsPlaced++;
       if (gameState.goatsPlaced === 20) {
         gameState.phase = PHASE.MOVEMENT;
@@ -1407,6 +1463,10 @@ function executeHardAIMove() {
         const tigerIdentity = gameState.tigerIdentities[bestMove.from];
         gameState.tigerIdentities[bestMove.to] = tigerIdentity;
         delete gameState.tigerIdentities[bestMove.from];
+      } else if (gameState.board[bestMove.from] === PIECE_TYPES.GOAT) {
+        const goatIdentity = gameState.goatIdentities[bestMove.from];
+        gameState.goatIdentities[bestMove.to] = goatIdentity;
+        delete gameState.goatIdentities[bestMove.from];
       }
       
       gameState.board[bestMove.to] = gameState.board[bestMove.from];
@@ -1415,6 +1475,7 @@ function executeHardAIMove() {
       if (bestMove.capture !== null) {
         console.log('Captured piece at:', bestMove.capture);
         gameState.board[bestMove.capture] = PIECE_TYPES.EMPTY;
+        delete gameState.goatIdentities[bestMove.capture];
         gameState.goatsCaptured++;
         playSound('tigerCapture');
       }
@@ -1494,6 +1555,7 @@ function executeAITigerMove() {
       delete gameState.tigerIdentities[tiger.index];
       
       gameState.board[move.capture] = PIECE_TYPES.EMPTY;
+      delete gameState.goatIdentities[move.capture];
       gameState.goatsCaptured++;
       playSound('pieceMove');
       playSound('tigerCapture');
@@ -1550,6 +1612,7 @@ function executeAIGoatMove() {
       console.log('Placing goat at:', randomSpot);
       saveState(); // Save state before AI move
       gameState.board[randomSpot] = PIECE_TYPES.GOAT;
+      gameState.goatIdentities[randomSpot] = getRandomRSPImage();
       gameState.goatsPlaced++;
       playSound('pieceMove');
       
@@ -1631,7 +1694,9 @@ function getClickedPosition(x, y) {
 function draw() {
   const size = Math.min(canvas.width, canvas.height);
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Clear canvas with solid background color
+  ctx.fillStyle = '#141b2d';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const padding = size * 0.1;
   const cellSize = (size - 2 * padding) / (GRID_SIZE - 1);
@@ -1658,35 +1723,31 @@ function draw() {
   // Draw diagonals
   // Main diagonals from corners to center
   ctx.beginPath();
-  ctx.moveTo(padding, padding); // Top-left to bottom-right
+  ctx.moveTo(padding, padding);
   ctx.lineTo(padding + 4 * cellSize, padding + 4 * cellSize);
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.moveTo(padding + 4 * cellSize, padding); // Top-right to bottom-left
+  ctx.moveTo(padding + 4 * cellSize, padding);
   ctx.lineTo(padding, padding + 4 * cellSize);
   ctx.stroke();
 
-  // Inner square diagonals (connecting middle points of edges)
-  // Top-center to right-center
+  // Inner square diagonals
   ctx.beginPath();
   ctx.moveTo(padding + 2 * cellSize, padding);
   ctx.lineTo(padding + 4 * cellSize, padding + 2 * cellSize);
   ctx.stroke();
 
-  // Right-center to bottom-center
   ctx.beginPath();
   ctx.moveTo(padding + 4 * cellSize, padding + 2 * cellSize);
   ctx.lineTo(padding + 2 * cellSize, padding + 4 * cellSize);
   ctx.stroke();
 
-  // Bottom-center to left-center
   ctx.beginPath();
   ctx.moveTo(padding + 2 * cellSize, padding + 4 * cellSize);
   ctx.lineTo(padding, padding + 2 * cellSize);
   ctx.stroke();
 
-  // Left-center to top-center
   ctx.beginPath();
   ctx.moveTo(padding, padding + 2 * cellSize);
   ctx.lineTo(padding + 2 * cellSize, padding);
@@ -1714,25 +1775,21 @@ function draw() {
     const piece = gameState.board[i];
 
     if (piece === PIECE_TYPES.TIGER) {
-      // Check if tiger is trapped
       const validMoves = getValidMoves(i);
       const isTrapped = validMoves.length === 0;
       
-      // Draw black circular chip with depth and shine
       const isSelected = gameState.selectedPiece === i;
       const isCurrentTurn = gameState.currentPlayer === PIECE_TYPES.TIGER;
-      const pulseOffset = isCurrentTurn ? Math.sin(Date.now() / 300) * 0.05 : 0;
-      const chipRadius = cellSize * (0.4 + pulseOffset);
+      const chipRadius = cellSize * 0.4;
       
-      // Base shadow for depth
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-      ctx.shadowBlur = 8;
-      ctx.shadowOffsetX = 2;
-      ctx.shadowOffsetY = 4;
+      // Deep shadow for depth
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetX = 3;
+      ctx.shadowOffsetY = 5;
       
-      // Black backdrop for tiger
-      ctx.fillStyle = isTrapped ? '#555555' : '#000000';
-      
+      // Simple brown wood color - no gradients
+      ctx.fillStyle = isTrapped ? '#6b5744' : '#8b6f47';
       ctx.beginPath();
       ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
       ctx.fill();
@@ -1743,126 +1800,132 @@ function draw() {
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
       
+      // Border with golden accent or green for turn
       if (isSelected) {
-        // Add neon gold glow effect
         ctx.shadowColor = '#FFD700';
         ctx.shadowBlur = 20;
         ctx.strokeStyle = '#FFD700';
         ctx.lineWidth = 6;
+      } else if (isCurrentTurn) {
+        ctx.shadowColor = '#00ff88';
+        ctx.shadowBlur = 15;
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 5;
       } else {
-        ctx.strokeStyle = isTrapped ? '#666666' : (isCurrentTurn ? '#FF6B35' : '#333333');
-        ctx.lineWidth = isCurrentTurn ? 4 : 3;
+        ctx.strokeStyle = isTrapped ? '#4a3f35' : '#6b5233';
+        ctx.lineWidth = 3;
       }
       
       ctx.beginPath();
       ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
       ctx.stroke();
       
-      // Add shine effect (gradient highlight)
-      if (!isTrapped) {
-        const gradient = ctx.createRadialGradient(
-          x - chipRadius * 0.3, y - chipRadius * 0.3, 0,
-          x, y, chipRadius
-        );
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
-        gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
-        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      // Minimal shine effect - just a touch
+      ctx.fillStyle = 'rgba(255, 248, 220, 0.15)';
+      ctx.beginPath();
+      ctx.arc(x - chipRadius * 0.25, y - chipRadius * 0.25, chipRadius * 0.4, 0, Math.PI * 2);
+      ctx.fill();
       
-      // Reset shadow
       ctx.shadowBlur = 0;
       
-      // Draw tiger image on top with grayscale if trapped
+      // Draw politician image inside wooden circle
       const tigerIndex = getTigerImageIndex(i);
       const img = images.tigers[tigerIndex];
-      const imgSize = cellSize * 0.72;
+      const imgSize = cellSize * 0.65;
       
       if (img.complete) {
+        // Clip to circle to keep image inside
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, chipRadius * 0.85, 0, Math.PI * 2);
+        ctx.clip();
+        
         if (isTrapped) {
-          // Apply grayscale and fade effect
           ctx.globalAlpha = 0.5;
           ctx.filter = 'grayscale(100%)';
         }
         ctx.drawImage(img, x - imgSize / 2, y - imgSize / 2, imgSize, imgSize);
         if (isTrapped) {
-          // Reset filters
           ctx.globalAlpha = 1.0;
           ctx.filter = 'none';
         }
+        
+        ctx.restore();
       }
     } else if (piece === PIECE_TYPES.GOAT) {
       const isSelected = gameState.selectedPiece === i;
       const isCurrentTurn = gameState.currentPlayer === PIECE_TYPES.GOAT;
-      const pulseOffset = isCurrentTurn ? Math.sin(Date.now() / 300) * 0.05 : 0;
-      const chipRadius = cellSize * (0.4 + pulseOffset);
+      const chipRadius = cellSize * 0.4;
       
-      // Base shadow for depth
       ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
       ctx.shadowBlur = 8;
       ctx.shadowOffsetX = 2;
       ctx.shadowOffsetY = 4;
       
-      // Draw white circular chip
       ctx.fillStyle = '#ffffff';
-      
       ctx.beginPath();
       ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
       ctx.fill();
       
-      // Reset shadow for border
       ctx.shadowColor = 'transparent';
       ctx.shadowBlur = 0;
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
       
       if (isSelected) {
-        // Add neon green glow effect
         ctx.shadowColor = '#00ff88';
         ctx.shadowBlur = 20;
         ctx.strokeStyle = '#00ff88';
         ctx.lineWidth = 6;
+      } else if (isCurrentTurn) {
+        ctx.shadowColor = '#00ff88';
+        ctx.shadowBlur = 15;
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 5;
       } else {
-        ctx.strokeStyle = isCurrentTurn ? '#4ECDC4' : '#2d3748';
-        ctx.lineWidth = isCurrentTurn ? 4 : 3;
+        ctx.strokeStyle = '#2d3748';
+        ctx.lineWidth = 3;
       }
       
       ctx.beginPath();
       ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
       ctx.stroke();
       
-      // Add shine effect (gradient highlight)
+      // Simple shine effect - optimized
       const gradient = ctx.createRadialGradient(
         x - chipRadius * 0.3, y - chipRadius * 0.3, 0,
         x, y, chipRadius
       );
-      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-      gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.3)');
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
       gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
       ctx.fillStyle = gradient;
       ctx.beginPath();
       ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
       ctx.fill();
       
-      // Reset shadow
       ctx.shadowBlur = 0;
       
-      // Draw goat image on top
-      const imgSize = cellSize * 0.72;
+      // Draw RSP personality image inside goat circle
+      const goatIndex = gameState.goatIdentities[i] !== undefined ? gameState.goatIdentities[i] : 0;
+      const img = images.goats[goatIndex];
+      const imgSize = cellSize * 0.65;
       
-      if (images.goat.complete) {
-        ctx.drawImage(images.goat, x - imgSize / 2, y - imgSize / 2, imgSize, imgSize);
+      if (img && img.complete) {
+        // Clip to circle to keep image inside
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, chipRadius * 0.85, 0, Math.PI * 2);
+        ctx.clip();
+        
+        ctx.drawImage(img, x - imgSize / 2, y - imgSize / 2, imgSize, imgSize);
+        
+        ctx.restore();
       }
     }
   }
   
-  // Request animation frame for smooth blinking
-  if (!gameState.gameOver) {
-    requestAnimationFrame(draw);
-  }
+  // Continuous animation loop
+  requestAnimationFrame(draw);
 }
 
 // Update UI
