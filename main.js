@@ -214,47 +214,59 @@ const ctx = canvas.getContext('2d');
 canvas.width = 600;
 canvas.height = 600;
 
+// Country flags configuration
+// Tigers = big powerful countries: USA, China, Russia, India
+const TIGER_COUNTRIES = [
+  { code: 'us', name: 'USA' },
+  { code: 'cn', name: 'China' },
+  { code: 'ru', name: 'Russia' },
+  { code: 'in', name: 'India' }
+];
+// Goats = 20 small/oppressed countries
+const GOAT_COUNTRIES = [
+  { code: 'ir', name: 'Iran' },
+  { code: 'np', name: 'Nepal' },
+  { code: 'kr', name: 'South Korea' },
+  { code: 'ps', name: 'Palestine' },
+  { code: 'cu', name: 'Cuba' },
+  { code: 've', name: 'Venezuela' },
+  { code: 'sy', name: 'Syria' },
+  { code: 'mm', name: 'Myanmar' },
+  { code: 'by', name: 'Belarus' },
+  { code: 'bd', name: 'Bangladesh' },
+  { code: 'lk', name: 'Sri Lanka' },
+  { code: 'pk', name: 'Pakistan' },
+  { code: 'af', name: 'Afghanistan' },
+  { code: 'ye', name: 'Yemen' },
+  { code: 'ly', name: 'Libya' },
+  { code: 'so', name: 'Somalia' },
+  { code: 'et', name: 'Ethiopia' },
+  { code: 'bo', name: 'Bolivia' },
+  { code: 'vn', name: 'Vietnam' },
+  { code: 'kh', name: 'Cambodia' }
+];
+
 // Load images
 const images = {
-  goats: [
-    new Image(),
-    new Image(),
-    new Image(),
-    new Image(),
-    new Image(),
-    new Image(),
-    new Image(),
-    new Image(),
-    new Image()
-  ],
-  tigers: [
-    new Image(),
-    new Image(),
-    new Image(),
-    new Image()
-  ],
+  goats: Array.from({ length: 20 }, () => new Image()),
+  tigers: Array.from({ length: 4 }, () => new Image()),
   backdrop: new Image(),
   board: new Image()
 };
 
-images.goats[0].src = 'assets/RSP/Ashika.png';
-images.goats[1].src = 'assets/RSP/Balen.png';
-images.goats[2].src = 'assets/RSP/Hari .png';
-images.goats[3].src = 'assets/RSP/Mahabir Pun.png';
-images.goats[4].src = 'assets/RSP/Sudan.png';
-images.goats[5].src = 'assets/RSP/Sushila Karki Pixel.png';
-images.goats[6].src = 'assets/RSP/Swornim.png';
-images.goats[7].src = 'assets/RSP/Toshima .png';
-images.goats[8].src = 'assets/RSP/Wagle.png';
-images.tigers[0].src = 'assets/Kp Oli.png';
-images.tigers[1].src = 'assets/Deuba.png';
-images.tigers[2].src = 'assets/Prachanda.png';
-images.tigers[3].src = 'assets/Gagan.png';
+// Load tiger flags (big countries)
+TIGER_COUNTRIES.forEach((country, i) => {
+  images.tigers[i].src = `https://flagcdn.com/w160/${country.code}.png`;
+});
+// Load goat flags (small/oppressed countries)
+GOAT_COUNTRIES.forEach((country, i) => {
+  images.goats[i].src = `https://flagcdn.com/w160/${country.code}.png`;
+});
 images.backdrop.src = 'assets/Backdrop.png';
 images.board.src = 'assets/baghchal.png';
 
 let imagesLoaded = 0;
-const totalImages = 15;
+const totalImages = 26;
 
 function imageLoaded() {
   imagesLoaded++;
@@ -266,8 +278,6 @@ function imageLoaded() {
 images.goats.forEach(img => img.onload = imageLoaded);
 images.tigers.forEach(img => img.onload = imageLoaded);
 images.backdrop.onload = imageLoaded;
-images.board.onload = imageLoaded;
-images.board.onload = imageLoaded;
 images.board.onload = imageLoaded;
 
 // Audio system
@@ -357,9 +367,12 @@ function getBoardHash(board) {
   return board.join(',');
 }
 
-// Helper function to get random RSP image index
-function getRandomRSPImage() {
-  return Math.floor(Math.random() * 9);
+// Sequential goat flag counter (cycles through all 20 countries)
+let goatFlagCounter = 0;
+function getNextGoatFlag() {
+  const idx = goatFlagCounter % 20;
+  goatFlagCounter++;
+  return idx;
 }
 
 // Board positions (x, y coordinates for 5x5 grid)
@@ -395,6 +408,9 @@ function initGame() {
   // Clear position history
   positionHistory = [];
 
+  // Reset goat flag counter
+  goatFlagCounter = 0;
+
   // Place tigers at corners with their identities
   gameState.board[0] = PIECE_TYPES.TIGER;  // Top-left - Congress
   gameState.tigerIdentities[0] = 0;
@@ -411,7 +427,7 @@ function initGame() {
     goatPositions.forEach((pos, index) => {
       gameState.board[pos] = PIECE_TYPES.GOAT;
       gameState.goatsPlaced++;
-      gameState.goatIdentities[pos] = index % 9; // Cycle through RSP images
+      gameState.goatIdentities[pos] = index % 20; // Cycle through country flags
     });
   }
 
@@ -783,7 +799,7 @@ function handleClick(event) {
       if (gameState.board[clickedIndex] === PIECE_TYPES.EMPTY) {
         saveState(); // Save state before move
         gameState.board[clickedIndex] = PIECE_TYPES.GOAT;
-        gameState.goatIdentities[clickedIndex] = getRandomRSPImage();
+        gameState.goatIdentities[clickedIndex] = getNextGoatFlag();
         gameState.goatsPlaced++;
         playSound('pieceMove');
         
@@ -1335,7 +1351,7 @@ function executeHardAIMove() {
       
       saveState();
       gameState.board[randomSafePos] = PIECE_TYPES.GOAT;
-      gameState.goatIdentities[randomSafePos] = getRandomRSPImage();
+      gameState.goatIdentities[randomSafePos] = getNextGoatFlag();
       gameState.goatsPlaced++;
       playSound('pieceMove');
       gameState.currentPlayer = PIECE_TYPES.TIGER;
@@ -1451,7 +1467,7 @@ function executeHardAIMove() {
     if (bestMove.type === 'place') {
       console.log('Placing goat at position:', bestMove.to);
       gameState.board[bestMove.to] = PIECE_TYPES.GOAT;
-      gameState.goatIdentities[bestMove.to] = getRandomRSPImage();
+      gameState.goatIdentities[bestMove.to] = getNextGoatFlag();
       gameState.goatsPlaced++;
       if (gameState.goatsPlaced === 20) {
         gameState.phase = PHASE.MOVEMENT;
@@ -1612,7 +1628,7 @@ function executeAIGoatMove() {
       console.log('Placing goat at:', randomSpot);
       saveState(); // Save state before AI move
       gameState.board[randomSpot] = PIECE_TYPES.GOAT;
-      gameState.goatIdentities[randomSpot] = getRandomRSPImage();
+      gameState.goatIdentities[randomSpot] = getNextGoatFlag();
       gameState.goatsPlaced++;
       playSound('pieceMove');
       
@@ -1782,145 +1798,103 @@ function draw() {
       const isCurrentTurn = gameState.currentPlayer === PIECE_TYPES.TIGER;
       const chipRadius = cellSize * 0.4;
       
-      // Deep shadow for depth
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-      ctx.shadowBlur = 12;
-      ctx.shadowOffsetX = 3;
-      ctx.shadowOffsetY = 5;
-      
-      // Simple brown wood color - no gradients
-      ctx.fillStyle = isTrapped ? '#6b5744' : '#8b6f47';
+      // Black background chip for tigers
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 4;
+      ctx.fillStyle = '#111111';
       ctx.beginPath();
       ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
       ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
       
-      // Reset shadow for border
-      ctx.shadowColor = 'transparent';
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-      
-      // Border with golden accent or green for turn
-      if (isSelected) {
-        ctx.shadowColor = '#FFD700';
-        ctx.shadowBlur = 20;
-        ctx.strokeStyle = '#FFD700';
-        ctx.lineWidth = 6;
-      } else if (isCurrentTurn) {
-        ctx.shadowColor = '#00ff88';
-        ctx.shadowBlur = 15;
-        ctx.strokeStyle = '#00ff88';
-        ctx.lineWidth = 5;
-      } else {
-        ctx.strokeStyle = isTrapped ? '#4a3f35' : '#6b5233';
-        ctx.lineWidth = 3;
+      // Draw flag clipped to a slightly smaller inner circle
+      const tigerIndex = getTigerImageIndex(i);
+      const tigerImg = images.tigers[tigerIndex];
+      const innerR = chipRadius * 0.82;
+      if (tigerImg && tigerImg.complete) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, innerR, 0, Math.PI * 2);
+        ctx.clip();
+        if (isTrapped) { ctx.globalAlpha = 0.45; ctx.filter = 'grayscale(100%)'; }
+        ctx.drawImage(tigerImg, x - innerR, y - innerR, innerR * 2, innerR * 2);
+        if (isTrapped) { ctx.globalAlpha = 1.0; ctx.filter = 'none'; }
+        ctx.restore();
       }
       
+      // Border
+      if (isSelected) {
+        ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 20;
+        ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 4;
+      } else if (isCurrentTurn) {
+        ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 14;
+        ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 4;
+      } else {
+        ctx.strokeStyle = isTrapped ? '#555' : 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 2;
+      }
       ctx.beginPath();
       ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
       
-      // Minimal shine effect - just a touch
-      ctx.fillStyle = 'rgba(255, 248, 220, 0.15)';
+      // Subtle shine overlay
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
       ctx.beginPath();
-      ctx.arc(x - chipRadius * 0.25, y - chipRadius * 0.25, chipRadius * 0.4, 0, Math.PI * 2);
+      ctx.arc(x - chipRadius * 0.28, y - chipRadius * 0.32, chipRadius * 0.42, 0, Math.PI * 2);
       ctx.fill();
-      
-      ctx.shadowBlur = 0;
-      
-      // Draw politician image inside wooden circle
-      const tigerIndex = getTigerImageIndex(i);
-      const img = images.tigers[tigerIndex];
-      const imgSize = cellSize * 0.65;
-      
-      if (img.complete) {
-        // Clip to circle to keep image inside
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(x, y, chipRadius * 0.85, 0, Math.PI * 2);
-        ctx.clip();
-        
-        if (isTrapped) {
-          ctx.globalAlpha = 0.5;
-          ctx.filter = 'grayscale(100%)';
-        }
-        ctx.drawImage(img, x - imgSize / 2, y - imgSize / 2, imgSize, imgSize);
-        if (isTrapped) {
-          ctx.globalAlpha = 1.0;
-          ctx.filter = 'none';
-        }
-        
-        ctx.restore();
-      }
     } else if (piece === PIECE_TYPES.GOAT) {
       const isSelected = gameState.selectedPiece === i;
       const isCurrentTurn = gameState.currentPlayer === PIECE_TYPES.GOAT;
       const chipRadius = cellSize * 0.4;
       
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+      // White background chip for goats
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
       ctx.shadowBlur = 8;
       ctx.shadowOffsetX = 2;
       ctx.shadowOffsetY = 4;
-      
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
       ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
       
-      ctx.shadowColor = 'transparent';
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-      
-      if (isSelected) {
-        ctx.shadowColor = '#00ff88';
-        ctx.shadowBlur = 20;
-        ctx.strokeStyle = '#00ff88';
-        ctx.lineWidth = 6;
-      } else if (isCurrentTurn) {
-        ctx.shadowColor = '#00ff88';
-        ctx.shadowBlur = 15;
-        ctx.strokeStyle = '#00ff88';
-        ctx.lineWidth = 5;
-      } else {
-        ctx.strokeStyle = '#2d3748';
-        ctx.lineWidth = 3;
+      // Draw flag clipped to a slightly smaller inner circle
+      const goatIndex = gameState.goatIdentities[i] !== undefined ? gameState.goatIdentities[i] : 0;
+      const goatImg = images.goats[goatIndex];
+      const goatInnerR = chipRadius * 0.82;
+      if (goatImg && goatImg.complete) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, goatInnerR, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(goatImg, x - goatInnerR, y - goatInnerR, goatInnerR * 2, goatInnerR * 2);
+        ctx.restore();
       }
       
+      // Border
+      if (isSelected) {
+        ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 20;
+        ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 4;
+      } else if (isCurrentTurn) {
+        ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 14;
+        ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 4;
+      } else {
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 2;
+      }
       ctx.beginPath();
       ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
       
-      // Simple shine effect - optimized
-      const gradient = ctx.createRadialGradient(
-        x - chipRadius * 0.3, y - chipRadius * 0.3, 0,
-        x, y, chipRadius
-      );
-      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
-      gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = gradient;
+      // Subtle shine overlay
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
       ctx.beginPath();
-      ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
+      ctx.arc(x - chipRadius * 0.28, y - chipRadius * 0.32, chipRadius * 0.42, 0, Math.PI * 2);
       ctx.fill();
-      
-      ctx.shadowBlur = 0;
-      
-      // Draw RSP personality image inside goat circle
-      const goatIndex = gameState.goatIdentities[i] !== undefined ? gameState.goatIdentities[i] : 0;
-      const img = images.goats[goatIndex];
-      const imgSize = cellSize * 0.65;
-      
-      if (img && img.complete) {
-        // Clip to circle to keep image inside
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(x, y, chipRadius * 0.85, 0, Math.PI * 2);
-        ctx.clip();
-        
-        ctx.drawImage(img, x - imgSize / 2, y - imgSize / 2, imgSize, imgSize);
-        
-        ctx.restore();
-      }
     }
   }
   
