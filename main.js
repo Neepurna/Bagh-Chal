@@ -91,6 +91,16 @@ async function loadUserData(user) {
         goatWins: data.goatWins || 0,
         username: data.username || user.displayName || 'Player'
       };
+
+      // Backfill username index for older accounts that predate usernames/{username}
+      if (data.username) {
+        const clean = String(data.username).trim().toLowerCase();
+        const idxRef = db.collection('usernames').doc(clean);
+        const idxSnap = await idxRef.get();
+        if (!idxSnap.exists) {
+          await idxRef.set({ uid: user.uid }).catch(() => {});
+        }
+      }
     } else {
       userStats = { gamesPlayed: 0, tigerWins: 0, goatWins: 0, username: user.displayName || 'Player' };
     }
@@ -99,27 +109,575 @@ async function loadUserData(user) {
   }
 }
 
-// Save username for new user
+// Save username for new user — enforces uniqueness via usernames/{username} index
 async function saveUsername(username) {
   if (!currentUser || !db) return;
-  
+  const clean = username.trim().toLowerCase();
+
+  // Check uniqueness
+  const existing = await db.collection('usernames').doc(clean).get();
+  if (existing.exists) {
+    const errEl = document.getElementById('username-error');
+    if (errEl) { errEl.textContent = '❌ Username already taken — try another.'; errEl.style.display = 'block'; }
+    return;
+  }
+
   try {
-    await db.collection('users').doc(currentUser.uid).set({
-      username: username,
+    const batch = db.batch();
+    batch.set(db.collection('users').doc(currentUser.uid), {
+      username: clean,
+      displayUsername: username.trim(),
       email: currentUser.email,
+      photoURL: currentUser.photoURL || '',
       gamesPlayed: 0,
       tigerWins: 0,
       goatWins: 0,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
-    userStats.username = username;
+    batch.set(db.collection('usernames').doc(clean), { uid: currentUser.uid });
+    await batch.commit();
+    userStats.username = clean;
     hideUsernameSetup();
     updateUIForSignedInUser();
+    startSocialListeners();
   } catch (error) {
     console.error('Error saving username:', error);
-    alert('Failed to save username. Please try again.');
+    const errEl = document.getElementById('username-error');
+    if (errEl) { errEl.textContent = '❌ Error saving — try again.'; errEl.style.display = 'block'; }
   }
 }
+
+// ===== SOCIAL LISTENERS (start after login) =====
+let unsubFriends = null;
+let unsubNotifs = null;
+let pendingChallengeId = null;
+
+function startSocialListeners() {
+  if (!currentUser || !db) return;
+  stopSocialListeners();
+  listenFriends();
+  listenNotifications();
+}
+
+function stopSocialListeners() {
+  if (unsubFriends) { unsubFriends(); unsubFriends = null; }
+  if (unsubNotifs) { unsubNotifs(); unsubNotifs = null; }
+}
+
+// ===== SEARCH USER =====
+async function searchUser(username) {
+  const resultsEl = document.getElementById('search-results');
+  resultsEl.innerHTML = '<p class="friends-empty">Searching…</p>';
+  const clean = username.trim().toLowerCase();
+  if (!clean) { resultsEl.innerHTML = ''; return; }
+
+  try {
+    let uid = null;
+    let data = null;
+
+    // Fast path: usernames index
+    const snap = await db.collection('usernames').doc(clean).get();
+    if (snap.exists) {
+      uid = snap.data().uid;
+      const userSnap = await db.collection('users').doc(uid).get();
+      data = userSnap.exists ? userSnap.data() : null;
+    }
+
+    // Fallback for legacy users missing usernames index or mixed-case usernames
+    if (!uid || !data) {
+      const legacySnap = await db.collection('users').limit(200).get();
+      const hit = legacySnap.docs.find(doc => {
+        const u = doc.data() || {};
+        const u1 = (u.username || '').toString().trim().toLowerCase();
+        const u2 = (u.displayUsername || '').toString().trim().toLowerCase();
+        return u1 === clean || u2 === clean;
+      });
+
+      if (hit) {
+        uid = hit.id;
+        data = hit.data();
+      }
+    }
+
+    if (!uid || !data) {
+      resultsEl.innerHTML = '<p class="friends-empty">No user found with that username.</p>';
+      return;
+    }
+
+    if (uid === currentUser.uid) {
+      resultsEl.innerHTML = '<p class="friends-empty">That\'s you! 😄</p>';
+      return;
+    }
+
+    // Check existing friend status
+    const friendSnap = await db.collection('friends').doc(currentUser.uid).collection('list').doc(uid).get();
+    let actionHtml = '';
+    if (friendSnap.exists) {
+      const st = friendSnap.data().status;
+      if (st === 'accepted') actionHtml = `<button class="fa-btn already">✓ Friends</button>`;
+      else if (st === 'pending') actionHtml = `<button class="fa-btn pending">Pending…</button>`;
+    } else {
+      actionHtml = `<button class="fa-btn add" onclick="sendFriendRequest('${uid}','${data.displayUsername || data.username || 'Player'}')">+ Add Friend</button>`;
+    }
+
+    resultsEl.innerHTML = `
+      <div class="friend-row">
+        <div class="friend-avatar">${data.photoURL ? `<img src="${data.photoURL}">` : '👤'}</div>
+        <div class="friend-info">
+          <div class="friend-name">${data.displayUsername || data.username || 'Player'}</div>
+          <div class="friend-sub">@${data.username || 'user'}</div>
+        </div>
+        <div class="friend-actions">${actionHtml}</div>
+      </div>`;
+  } catch (err) {
+    console.error('searchUser error:', err);
+    resultsEl.innerHTML = '<p class="friends-empty">Search failed. Please try again.</p>';
+  }
+}
+
+// ===== SEND FRIEND REQUEST =====
+async function sendFriendRequest(toUid, toUsername) {
+  if (!currentUser || !db) return;
+  const batch = db.batch();
+  // Mark in sender's list as pending
+  batch.set(db.collection('friends').doc(currentUser.uid).collection('list').doc(toUid), {
+    status: 'pending', direction: 'sent', username: toUsername, addedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  // Create notification for recipient
+  batch.set(db.collection('notifications').doc(toUid).collection('items').doc(), {
+    type: 'friend_request',
+    from: currentUser.uid,
+    fromUsername: userStats.username,
+    fromDisplay: userStats.username,
+    fromPhoto: currentUser.photoURL || '',
+    status: 'pending',
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  await batch.commit();
+  // Refresh search results
+  document.getElementById('friend-search-btn').click();
+}
+
+// ===== ACCEPT FRIEND REQUEST =====
+async function acceptFriendRequest(fromUid, fromUsername, notifId) {
+  if (!currentUser || !db) return;
+  try {
+    const batch = db.batch();
+
+    // Mark accepted in CURRENT user's own friend list (allowed by rules)
+    batch.set(db.collection('friends').doc(currentUser.uid).collection('list').doc(fromUid), {
+      status: 'accepted',
+      username: fromUsername,
+      addedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    // Remove incoming request notification
+    batch.delete(db.collection('notifications').doc(currentUser.uid).collection('items').doc(notifId));
+
+    // Notify requester so they can mark their own side as accepted
+    batch.set(db.collection('notifications').doc(fromUid).collection('items').doc(), {
+      type: 'friend_accepted',
+      from: currentUser.uid,
+      fromUsername: userStats.username,
+      fromPhoto: currentUser.photoURL || '',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    await batch.commit();
+  } catch (error) {
+    console.error('acceptFriendRequest error:', error);
+    alert('Could not accept request. Please try again.');
+  }
+}
+
+// ===== DECLINE FRIEND REQUEST =====
+async function declineFriendRequest(fromUid, notifId) {
+  if (!currentUser || !db) return;
+  await db.collection('notifications').doc(currentUser.uid).collection('items').doc(notifId).delete();
+}
+
+// ===== LISTEN TO FRIENDS =====
+function listenFriends() {
+  if (!currentUser || !db) return;
+  unsubFriends = db.collection('friends').doc(currentUser.uid).collection('list')
+    .where('status', '==', 'accepted')
+    .onSnapshot(snap => {
+      renderFriendsList(snap.docs.map(d => ({ uid: d.id, ...d.data() })));
+    });
+}
+
+function renderFriendsList(friends) {
+  const el = document.getElementById('friends-list');
+  if (!friends.length) {
+    el.innerHTML = '<p class="friends-empty">No friends yet — search for players to add!</p>';
+    return;
+  }
+  el.innerHTML = friends.map(f => `
+    <div class="friend-row">
+      <div class="friend-avatar">👤</div>
+      <div class="friend-info">
+        <div class="friend-name">${f.username}</div>
+        <div class="friend-sub">@${f.username}</div>
+      </div>
+      <div class="friend-actions">
+        <button class="fa-btn challenge" onclick="openChallengeFlow('${f.uid}','${f.username}')">⚔️ Custom Challenge</button>
+      </div>
+    </div>`).join('');
+}
+
+// ===== CHALLENGE FLOW =====
+let challengeTargetUid = null;
+let challengeTargetName = null;
+let challengeSide = null;
+let challengeTime = '5m';
+
+function openChallengeFlow(toUid, toUsername) {
+  challengeTargetUid = toUid;
+  challengeTargetName = toUsername;
+  challengeSide = 'random';
+  challengeTime = '5m';
+  // Close friends overlay, show a mini modal inside winner-overlay reuse
+  document.getElementById('friends-overlay').classList.remove('show');
+
+  // Build a quick challenge side-picker overlay
+  const overlay = document.getElementById('challenge-sent-overlay');
+  document.getElementById('challenge-sent-text').textContent = `Challenge ${toUsername}`;
+  document.getElementById('challenge-sent-sub').innerHTML = `
+    <div style="margin:10px 0 4px;font-size:0.85rem;color:var(--text-secondary);">Choose side:</div>
+    <div class="challenge-side-picker">
+      <button class="csp-btn" id="csp-tiger" onclick="selectChallengeSide('tiger')">🐯 Tiger</button>
+      <button class="csp-btn" id="csp-goat" onclick="selectChallengeSide('goat')">🐐 Goat</button>
+      <button class="csp-btn active" id="csp-random" onclick="selectChallengeSide('random')">🎲 Random</button>
+    </div>
+    <div style="margin:8px 0 4px;font-size:0.85rem;color:var(--text-secondary);">Time control:</div>
+    <div class="challenge-time-picker">
+      <button class="csp-btn" id="ctime-3m" onclick="selectChallengeTime('3m')">3m</button>
+      <button class="csp-btn active" id="ctime-5m" onclick="selectChallengeTime('5m')">5m</button>
+      <button class="csp-btn" id="ctime-10m" onclick="selectChallengeTime('10m')">10m</button>
+      <button class="csp-btn" id="ctime-infinite" onclick="selectChallengeTime('infinite')">∞</button>
+    </div>
+    <button class="room-btn create" style="margin-top:12px;max-width:100%;" onclick="sendChallenge()">Send Challenge ⚔️</button>
+  `;
+  // Hide the spinner until they send
+  overlay.querySelector('.waiting-spinner').style.display = 'none';
+  overlay.classList.add('show');
+}
+
+function selectChallengeSide(side) {
+  challengeSide = side;
+  document.getElementById('csp-tiger').classList.toggle('active', side === 'tiger');
+  document.getElementById('csp-goat').classList.toggle('active', side === 'goat');
+  document.getElementById('csp-random').classList.toggle('active', side === 'random');
+}
+
+function selectChallengeTime(time) {
+  challengeTime = time;
+  ['3m', '5m', '10m', 'infinite'].forEach(t => {
+    const btn = document.getElementById(`ctime-${t}`);
+    if (btn) btn.classList.toggle('active', t === time);
+  });
+}
+
+async function sendChallenge() {
+  if (!currentUser || !db) return;
+
+  const selectedChallengerSide = challengeSide === 'random'
+    ? (Math.random() > 0.5 ? 'tiger' : 'goat')
+    : challengeSide;
+  const opponentSide = selectedChallengerSide === 'tiger' ? 'goat' : 'tiger';
+  const notifRef = db.collection('notifications').doc(challengeTargetUid).collection('items').doc();
+  pendingChallengeId = notifRef.id;
+
+  await notifRef.set({
+    type: 'challenge',
+    from: currentUser.uid,
+    fromUsername: userStats.username,
+    fromPhoto: currentUser.photoURL || '',
+    challengerSide: selectedChallengerSide,
+    opponentSide: opponentSide,       // opponent plays this
+    challengeTime: challengeTime,
+    challengeId: pendingChallengeId,
+    status: 'pending',
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  // Update overlay to show waiting
+  const overlay = document.getElementById('challenge-sent-overlay');
+  document.getElementById('challenge-sent-text').textContent = '⚔️ Challenge sent!';
+  document.getElementById('challenge-sent-sub').innerHTML = `<strong>${challengeTargetName}</strong> plays as ${opponentSide} — you play as ${selectedChallengerSide} · ${challengeTime}`;
+  overlay.querySelector('.waiting-spinner').style.display = '';
+}
+
+document.getElementById('cancel-challenge-btn').addEventListener('click', async () => {
+  document.getElementById('challenge-sent-overlay').classList.remove('show');
+  // Clean up the pending challenge notification if still pending
+  if (pendingChallengeId && challengeTargetUid) {
+    await db.collection('notifications').doc(challengeTargetUid).collection('items').doc(pendingChallengeId).delete().catch(() => {});
+    pendingChallengeId = null;
+  }
+});
+
+// ===== LISTEN TO NOTIFICATIONS =====
+function listenNotifications() {
+  if (!currentUser || !db) return;
+  unsubNotifs = db.collection('notifications').doc(currentUser.uid).collection('items')
+    .orderBy('createdAt', 'desc')
+    .onSnapshot(snap => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Auto-finalize sender side when a friend_accepted notification arrives
+      items.filter(n => n.type === 'friend_accepted').forEach(n => {
+        db.collection('friends').doc(currentUser.uid).collection('list').doc(n.from).set({
+          status: 'accepted',
+          username: n.fromUsername || 'Friend',
+          addedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true }).catch(err => console.error('friend_accepted sync error:', err));
+      });
+
+      renderNotifications(items);
+      updateNotifBadge(items);
+
+      // Auto-handle accepted challenges (room created by opponent)
+      items.filter(n => n.type === 'challenge_accepted').forEach(n => {
+        handleChallengeAccepted(n);
+      });
+    });
+}
+
+function updateNotifBadge(items) {
+  const badge = document.getElementById('notif-badge');
+  const friendsBadge = document.getElementById('friend-req-badge');
+  const reqCount = items.filter(n => n.type === 'friend_request').length;
+  const challCount = items.filter(n => n.type === 'challenge').length;
+  const actionableCount = reqCount + challCount;
+
+  badge.textContent = actionableCount;
+  badge.classList.toggle('hidden', actionableCount === 0);
+
+  friendsBadge.textContent = reqCount;
+  friendsBadge.classList.toggle('hidden', reqCount === 0);
+
+  const reqTabBadge = document.getElementById('req-tab-badge');
+  if (reqTabBadge) {
+    reqTabBadge.textContent = reqCount;
+    reqTabBadge.classList.toggle('hidden', reqCount === 0);
+  }
+
+  const challTabBadge = document.getElementById('chall-tab-badge');
+  if (challTabBadge) {
+    challTabBadge.textContent = challCount;
+    challTabBadge.classList.toggle('hidden', challCount === 0);
+  }
+}
+
+function renderNotifications(items) {
+  const el = document.getElementById('notif-list');
+  if (!items.length) { el.innerHTML = '<p class="friends-empty">No notifications</p>'; return; }
+
+  el.innerHTML = items.map(n => {
+    const time = n.createdAt ? timeAgo(n.createdAt.toDate()) : '';
+    if (n.type === 'friend_request') {
+      return `<div class="notif-row">
+        <div class="notif-icon">👤</div>
+        <div class="notif-body">
+          <div class="notif-text"><strong>${n.fromUsername}</strong> sent you a friend request</div>
+          <div class="notif-time">${time}</div>
+          <div class="notif-actions">
+            <button class="fa-btn accept" onclick="acceptFriendRequest('${n.from}','${n.fromUsername}','${n.id}')">Accept</button>
+            <button class="fa-btn decline" onclick="declineFriendRequest('${n.from}','${n.id}')">Decline</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    if (n.type === 'friend_accepted') {
+      return `<div class="notif-row">
+        <div class="notif-icon">🤝</div>
+        <div class="notif-body">
+          <div class="notif-text"><strong>${n.fromUsername}</strong> accepted your friend request!</div>
+          <div class="notif-time">${time}</div>
+          <div class="notif-actions">
+            <button class="fa-btn decline" onclick="dismissNotif('${n.id}')">Dismiss</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    if (n.type === 'challenge') {
+      return `<div class="notif-row">
+        <div class="notif-icon">⚔️</div>
+        <div class="notif-body">
+          <div class="notif-text"><strong>${n.fromUsername}</strong> challenges you! You play as <strong>${n.opponentSide}</strong>${n.challengeTime ? ` · ${n.challengeTime}` : ''}</div>
+          <div class="notif-time">${time}</div>
+          <div class="notif-actions">
+            <button class="fa-btn accept" onclick="acceptChallenge('${n.id}','${n.from}','${n.fromUsername}','${n.opponentSide}','${n.challengerSide}','${n.challengeTime || '5m'}')">Accept ⚔️</button>
+            <button class="fa-btn decline" onclick="declineChallenge('${n.id}','${n.from}')">Decline</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    if (n.type === 'challenge_declined') {
+      return `<div class="notif-row">
+        <div class="notif-icon">🙅</div>
+        <div class="notif-body">
+          <div class="notif-text"><strong>${n.fromUsername}</strong> declined your challenge.</div>
+          <div class="notif-time">${time}</div>
+          <div class="notif-actions">
+            <button class="fa-btn decline" onclick="dismissNotif('${n.id}')">Dismiss</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    return '';
+  }).join('');
+
+  // Also update the requests tab in friends panel
+  renderRequestsTab(items.filter(n => n.type === 'friend_request'));
+  renderChallengesTab(items.filter(n => n.type === 'challenge'));
+}
+
+function renderRequestsTab(reqs) {
+  const el = document.getElementById('requests-list');
+  if (!reqs.length) { el.innerHTML = '<p class="friends-empty">No pending friend requests</p>'; return; }
+  el.innerHTML = reqs.map(n => `
+    <div class="friend-row">
+      <div class="friend-avatar">${n.fromPhoto ? `<img src="${n.fromPhoto}">` : '👤'}</div>
+      <div class="friend-info">
+        <div class="friend-name">${n.fromUsername}</div>
+        <div class="friend-sub">wants to be friends</div>
+      </div>
+      <div class="friend-actions">
+        <button class="fa-btn accept" onclick="acceptFriendRequest('${n.from}','${n.fromUsername}','${n.id}')">Accept</button>
+        <button class="fa-btn decline" onclick="declineFriendRequest('${n.from}','${n.id}')">Decline</button>
+      </div>
+    </div>`).join('');
+}
+
+async function dismissNotif(notifId) {
+  await db.collection('notifications').doc(currentUser.uid).collection('items').doc(notifId).delete();
+}
+
+function renderChallengesTab(challenges) {
+  const el = document.getElementById('challenges-list');
+  if (!el) return;
+  if (!challenges.length) {
+    el.innerHTML = '<p class="friends-empty">No incoming challenges</p>';
+    return;
+  }
+  el.innerHTML = challenges.map(n => {
+    const time = n.createdAt ? timeAgo(n.createdAt.toDate()) : '';
+    return `
+      <div class="friend-row">
+        <div class="friend-avatar">⚔️</div>
+        <div class="friend-info">
+          <div class="friend-name">${n.fromUsername}</div>
+          <div class="friend-sub">You: ${n.opponentSide}${n.challengeTime ? ` · ${n.challengeTime}` : ''} · ${time}</div>
+        </div>
+        <div class="friend-actions">
+          <button class="fa-btn accept" onclick="acceptChallenge('${n.id}','${n.from}','${n.fromUsername}','${n.opponentSide}','${n.challengerSide}','${n.challengeTime || '5m'}')">Accept</button>
+          <button class="fa-btn decline" onclick="declineChallenge('${n.id}','${n.from}')">Decline</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ===== ACCEPT / DECLINE CHALLENGE =====
+async function acceptChallenge(notifId, challengerUid, challengerUsername, mySide, theirSide, challengeTimeSelected = '5m') {
+  if (!currentUser || !db) return;
+  // Create room
+  const roomRef = db.collection('rooms').doc();
+  const roomId = roomRef.id;
+  const initial = buildInitialRoomState();
+
+  await roomRef.set({
+    hostUid: challengerUid,
+    guestUid: currentUser.uid,
+    hostSide: theirSide,
+    guestSide: mySide,
+    timeControl: challengeTimeSelected,
+    status: 'playing',
+    ...initial,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  // Notify challenger that challenge was accepted, include roomId
+  await db.collection('notifications').doc(challengerUid).collection('items').doc().set({
+    type: 'challenge_accepted',
+    from: currentUser.uid,
+    fromUsername: userStats.username,
+    roomId: roomId,
+    mySide: theirSide,
+    challengeTime: challengeTimeSelected,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  // Remove challenge notification
+  await db.collection('notifications').doc(currentUser.uid).collection('items').doc(notifId).delete();
+
+  // Start game for this player
+  document.getElementById('notif-overlay').classList.remove('show');
+  startMultiplayerGame(roomId, mySide, challengeTimeSelected);
+}
+
+async function declineChallenge(notifId, challengerUid) {
+  await db.collection('notifications').doc(currentUser.uid).collection('items').doc(notifId).delete();
+  // Optionally notify challenger
+  await db.collection('notifications').doc(challengerUid).collection('items').doc().set({
+    type: 'challenge_declined',
+    from: currentUser.uid,
+    fromUsername: userStats.username,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+function handleChallengeAccepted(notif) {
+  // Close challenge-sent overlay, start game
+  document.getElementById('challenge-sent-overlay').classList.remove('show');
+  pendingChallengeId = null;
+  // Remove this notification
+  db.collection('notifications').doc(currentUser.uid).collection('items').doc(notif.id).delete();
+  startMultiplayerGame(notif.roomId, notif.mySide, notif.challengeTime || '5m');
+}
+
+// ===== START MULTIPLAYER GAME (stub — wired in Step 6) =====
+function startMultiplayerGame(roomId, side, timeControl = '5m') {
+  console.log('[MP] Starting multiplayer game. Room:', roomId, 'Side:', side);
+  currentRoomId = roomId;
+  multiplayerTimeControl = timeControl || '5m';
+  playerSide = side === 'tiger' ? PIECE_TYPES.TIGER : PIECE_TYPES.GOAT;
+  gameMode = 'multiplayer';
+  gameStarted = true;
+  isFirstAIMove = false;
+  stopRoomSyncListeners();
+  subscribeToRoom(roomId);
+
+  document.getElementById('room-options').classList.add('hidden');
+  document.getElementById('room-waiting').classList.add('hidden');
+  document.getElementById('player-select-overlay').classList.remove('show');
+  initGame();
+}
+
+// ===== TIME AGO HELPER =====
+function timeAgo(date) {
+  const diff = Math.floor((Date.now() - date) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+// Expose social action handlers for dynamic inline buttons (script runs as type="module")
+Object.assign(window, {
+  sendFriendRequest,
+  acceptFriendRequest,
+  declineFriendRequest,
+  openChallengeFlow,
+  selectChallengeSide,
+  selectChallengeTime,
+  sendChallenge,
+  dismissNotif,
+  acceptChallenge,
+  declineChallenge
+});
 
 // Update stats after game
 async function updateUserStats(won, side) {
@@ -154,6 +712,9 @@ async function signOut() {
   if (!auth) return;
   
   try {
+    stopRoomSyncListeners();
+    currentRoomId = null;
+    currentRoomCode = null;
     await auth.signOut();
   } catch (error) {
     console.error('Sign-out error:', error);
@@ -167,6 +728,12 @@ function updateUIForSignedInUser() {
   
   if (signInBtn) signInBtn.style.display = 'none';
   if (profileMenu) profileMenu.style.display = 'block';
+
+  // Show social header buttons
+  const notifBell = document.getElementById('notif-bell');
+  const friendsNavBtn = document.getElementById('friends-nav-btn');
+  if (notifBell) notifBell.style.display = 'flex';
+  if (friendsNavBtn) friendsNavBtn.style.display = 'flex';
   
   const profileImg = document.getElementById('profile-img');
   const profileUsername = document.getElementById('profile-username');
@@ -177,6 +744,7 @@ function updateUIForSignedInUser() {
   }
   
   updateStatsDisplay();
+  startSocialListeners();
 }
 
 function updateUIForSignedOutUser() {
@@ -185,6 +753,14 @@ function updateUIForSignedOutUser() {
   
   if (signInBtn) signInBtn.style.display = 'block';
   if (profileMenu) profileMenu.style.display = 'none';
+
+  // Hide social header buttons
+  const notifBell = document.getElementById('notif-bell');
+  const friendsNavBtn = document.getElementById('friends-nav-btn');
+  if (notifBell) notifBell.style.display = 'none';
+  if (friendsNavBtn) friendsNavBtn.style.display = 'none';
+
+  stopSocialListeners();
 }
 
 function updateStatsDisplay() {
@@ -214,71 +790,29 @@ const ctx = canvas.getContext('2d');
 canvas.width = 600;
 canvas.height = 600;
 
-// Country flags configuration
-// Tigers = big powerful countries: USA, China, Russia, India
-const TIGER_COUNTRIES = [
-  { code: 'us', name: 'USA' },
-  { code: 'cn', name: 'China' },
-  { code: 'ru', name: 'Russia' },
-  { code: 'in', name: 'India' }
-];
-// Goats = 20 small/oppressed countries
-const GOAT_COUNTRIES = [
-  { code: 'ir', name: 'Iran' },
-  { code: 'np', name: 'Nepal' },
-  { code: 'kr', name: 'South Korea' },
-  { code: 'ps', name: 'Palestine' },
-  { code: 'cu', name: 'Cuba' },
-  { code: 've', name: 'Venezuela' },
-  { code: 'sy', name: 'Syria' },
-  { code: 'mm', name: 'Myanmar' },
-  { code: 'by', name: 'Belarus' },
-  { code: 'bd', name: 'Bangladesh' },
-  { code: 'lk', name: 'Sri Lanka' },
-  { code: 'pk', name: 'Pakistan' },
-  { code: 'af', name: 'Afghanistan' },
-  { code: 'ye', name: 'Yemen' },
-  { code: 'ly', name: 'Libya' },
-  { code: 'so', name: 'Somalia' },
-  { code: 'et', name: 'Ethiopia' },
-  { code: 'bo', name: 'Bolivia' },
-  { code: 'vn', name: 'Vietnam' },
-  { code: 'kh', name: 'Cambodia' }
-];
-
 // Load images
 const images = {
-  goats: Array.from({ length: 20 }, () => new Image()),
-  tigers: Array.from({ length: 4 }, () => new Image()),
+  tigerPiece: new Image(),
+  goatPiece: new Image(),
   backdrop: new Image(),
   board: new Image()
 };
 
-// Load tiger flags (big countries)
-TIGER_COUNTRIES.forEach((country, i) => {
-  images.tigers[i].src = `https://flagcdn.com/w160/${country.code}.png`;
-});
-// Load goat flags (small/oppressed countries)
-GOAT_COUNTRIES.forEach((country, i) => {
-  images.goats[i].src = `https://flagcdn.com/w160/${country.code}.png`;
-});
+// Front-facing gameplay pieces (same image for all tigers/goats)
+images.tigerPiece.src = 'assets/bagh.png';
+images.goatPiece.src = 'assets/bhakhra.png';
 images.backdrop.src = 'assets/Backdrop.png';
 images.board.src = 'assets/baghchal.png';
 
+// Don't gate rendering on image loading — draw() handles missing images gracefully.
+// Images will appear as they load since draw() runs in a requestAnimationFrame loop.
 let imagesLoaded = 0;
-const totalImages = 26;
-
-function imageLoaded() {
-  imagesLoaded++;
-  if (imagesLoaded === totalImages) {
-    draw();
-  }
-}
-
-images.goats.forEach(img => img.onload = imageLoaded);
-images.tigers.forEach(img => img.onload = imageLoaded);
-images.backdrop.onload = imageLoaded;
-images.board.onload = imageLoaded;
+const totalImages = 4;
+function imageLoaded() { imagesLoaded++; }
+images.tigerPiece.onload = imageLoaded; images.tigerPiece.onerror = imageLoaded;
+images.goatPiece.onload = imageLoaded; images.goatPiece.onerror = imageLoaded;
+images.backdrop.onload = imageLoaded; images.backdrop.onerror = imageLoaded;
+images.board.onload = imageLoaded; images.board.onerror = imageLoaded;
 
 // Audio system
 const soundUrls = {
@@ -286,16 +820,53 @@ const soundUrls = {
   pieceMove:    '/music/Piece-Move.mp3',
   tigerCapture: '/music/tiger-points.mp3',
   winning:      '/music/winning-sound.mp3',
-  hover:        '/music/Hover.mp3',
-  buttonClick:  '/music/Button Ui.mp3'
+  hover:        '/music/hover.mp3',
+  buttonClick:  '/music/click.mp3'
 };
 
+const soundCache = {};
+let audioUnlocked = false;
+
+function attemptAudioUnlock() {
+  if (audioUnlocked) return;
+  const hover = soundCache.hover;
+  if (!hover) return;
+
+  // Try to unlock audio playback as soon as the browser allows.
+  hover.volume = 0;
+  hover.play()
+    .then(() => {
+      hover.pause();
+      hover.currentTime = 0;
+      hover.volume = 1;
+      audioUnlocked = true;
+    })
+    .catch(() => {
+      hover.volume = 1;
+    });
+}
+
+function initAudioSystem() {
+  Object.entries(soundUrls).forEach(([name, url]) => {
+    const audio = new Audio(url);
+    audio.preload = 'auto';
+    audio.load();
+    soundCache[name] = audio;
+  });
+
+  // Bind broad early-intent listeners so hover can work immediately after first user intent.
+  ['pointerenter', 'mousemove', 'pointerdown', 'mousedown', 'keydown', 'touchstart'].forEach(evt => {
+    window.addEventListener(evt, attemptAudioUnlock, { passive: true });
+  });
+}
+
 function playSound(name) {
-  const url = soundUrls[name];
-  if (url) {
-    const snd = new Audio(url);
-    snd.play().catch(() => {});
-  }
+  const base = soundCache[name];
+  if (!base) return;
+
+  const snd = base.cloneNode();
+  snd.volume = name === 'hover' ? 0.8 : 1;
+  snd.play().catch(() => {});
 }
 
 // Game Constants
@@ -316,15 +887,32 @@ const tigerImages = [0, 1, 2, 3]; // Maps tiger index to image index
 
 // Player settings
 let playerSide = null; // Will be PIECE_TYPES.GOAT or PIECE_TYPES.TIGER
+let gameMode = 'ai';   // 'ai' or 'multiplayer'
+let multiplayerSide = null; // chosen side in multiplayer mode
 let gameStarted = false;
 let isFirstAIMove = true;
 let aiDifficulty = 'easy'; // 'easy' or 'hard'
 
+// Multiplayer room sync state
+let currentRoomId = null;
+let currentRoomCode = null;
+let currentRoomUnsub = null;
+let roomLobbyUnsub = null;
+let isApplyingRoomSnapshot = false;
+
 // Timer settings
 let timerInterval = null;
 let currentTime = 30; // 30 seconds per move
+let multiplayerTimeControl = '5m';
 const TIME_PER_MOVE = 30;
 const TIME_INCREMENT = 3;
+
+function getMultiplayerTurnSeconds() {
+  if (multiplayerTimeControl === '3m') return 180;
+  if (multiplayerTimeControl === '10m') return 600;
+  if (multiplayerTimeControl === '5m') return 300;
+  return Infinity; // 'infinite'
+}
 
 // AI Configuration
 const AI_CONFIG = {
@@ -340,6 +928,93 @@ const AI_CONFIG = {
     thinkTime: 500
   }
 };
+
+function stopRoomSyncListeners() {
+  if (currentRoomUnsub) {
+    currentRoomUnsub();
+    currentRoomUnsub = null;
+  }
+  if (roomLobbyUnsub) {
+    roomLobbyUnsub();
+    roomLobbyUnsub = null;
+  }
+}
+
+function buildInitialRoomState() {
+  const board = Array(25).fill(PIECE_TYPES.EMPTY);
+  board[0] = PIECE_TYPES.TIGER;
+  board[4] = PIECE_TYPES.TIGER;
+  board[20] = PIECE_TYPES.TIGER;
+  board[24] = PIECE_TYPES.TIGER;
+
+  return {
+    board,
+    currentPlayer: PIECE_TYPES.GOAT,
+    phase: PHASE.PLACEMENT,
+    goatsPlaced: 0,
+    goatsCaptured: 0,
+    goatIdentities: {},
+    tigerIdentities: { '0': 0, '4': 1, '20': 2, '24': 3 }
+  };
+}
+
+function getCurrentMultiplayerPayload(extra = {}) {
+  return {
+    board: [...gameState.board],
+    currentPlayer: gameState.currentPlayer,
+    phase: gameState.phase,
+    goatsPlaced: gameState.goatsPlaced,
+    goatsCaptured: gameState.goatsCaptured,
+    goatIdentities: { ...(gameState.goatIdentities || {}) },
+    tigerIdentities: { ...(gameState.tigerIdentities || {}) },
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    ...extra
+  };
+}
+
+async function syncMultiplayerState(extra = {}) {
+  if (!db || !currentRoomId || gameMode !== 'multiplayer' || isApplyingRoomSnapshot) return;
+  await db.collection('rooms').doc(currentRoomId).set(getCurrentMultiplayerPayload(extra), { merge: true });
+}
+
+function applyRoomStateToLocal(roomData) {
+  if (!roomData || !roomData.board) return;
+  isApplyingRoomSnapshot = true;
+  gameState.board = [...roomData.board];
+  gameState.currentPlayer = roomData.currentPlayer ?? PIECE_TYPES.GOAT;
+  gameState.phase = roomData.phase || PHASE.PLACEMENT;
+  gameState.goatsPlaced = roomData.goatsPlaced || 0;
+  gameState.goatsCaptured = roomData.goatsCaptured || 0;
+  gameState.goatIdentities = { ...(roomData.goatIdentities || {}) };
+  gameState.tigerIdentities = { ...(roomData.tigerIdentities || {}) };
+  gameState.selectedPiece = null;
+  gameState.validMoves = [];
+  gameState.gameOver = roomData.status === 'finished';
+  isApplyingRoomSnapshot = false;
+  updateUI();
+  draw();
+}
+
+function subscribeToRoom(roomId) {
+  if (!db || !roomId) return;
+  if (currentRoomUnsub) currentRoomUnsub();
+
+  currentRoomUnsub = db.collection('rooms').doc(roomId).onSnapshot((snap) => {
+    if (!snap.exists) return;
+    const room = snap.data();
+
+    if (room.board) {
+      applyRoomStateToLocal(room);
+    }
+
+    if (room.status === 'finished' && room.winner && !gameState.gameOver) {
+      const msg = room.winnerMessage || (room.winner === 'tiger' ? 'Opposition Wins!' : 'Governing Parties Win!');
+      endGame(msg, room.winner);
+    }
+  }, (err) => {
+    console.error('[MP] Room listener error:', err);
+  });
+}
 
 // Game State
 let gameState = {
@@ -452,8 +1127,8 @@ function initGame() {
     document.getElementById('goatPanel').classList.add('hidden');
   }
   
-  // If player is tiger, goats go first (AI)
-  if (gameStarted && playerSide === PIECE_TYPES.TIGER) {
+  // If player is tiger, goats go first (AI mode only)
+  if (gameStarted && gameMode === 'ai' && playerSide === PIECE_TYPES.TIGER) {
     setTimeout(() => aiMove(), getAIThinkingTime());
   }
 }
@@ -461,8 +1136,13 @@ function initGame() {
 // Timer functions
 function startTimer() {
   stopTimer();
-  currentTime = TIME_PER_MOVE;
+  currentTime = gameMode === 'multiplayer' ? getMultiplayerTurnSeconds() : TIME_PER_MOVE;
   updateTimerDisplay();
+
+  // Infinite time control: display only, no countdown.
+  if (!Number.isFinite(currentTime)) {
+    return;
+  }
   
   timerInterval = setInterval(() => {
     currentTime -= 0.1;
@@ -483,20 +1163,33 @@ function stopTimer() {
 }
 
 function resetTimer() {
-  currentTime = TIME_PER_MOVE + TIME_INCREMENT;
+  if (gameMode === 'multiplayer') {
+    currentTime = getMultiplayerTurnSeconds();
+  } else {
+    currentTime = TIME_PER_MOVE + TIME_INCREMENT;
+  }
   updateTimerDisplay();
 }
 
 function updateTimerDisplay() {
   const timerElement = document.getElementById('timer-text');
   if (timerElement) {
-    timerElement.textContent = currentTime.toFixed(1);
+    if (!Number.isFinite(currentTime)) {
+      timerElement.textContent = '∞';
+      timerElement.classList.remove('warning', 'danger');
+      return;
+    }
+
+    const totalSec = Math.max(0, Math.ceil(currentTime));
+    const mins = Math.floor(totalSec / 60);
+    const secs = String(totalSec % 60).padStart(2, '0');
+    timerElement.textContent = `${mins}:${secs}`;
     
     // Update color based on time remaining
     timerElement.classList.remove('warning', 'danger');
-    if (currentTime <= 5) {
+    if (currentTime <= 10) {
       timerElement.classList.add('danger');
-    } else if (currentTime <= 10) {
+    } else if (currentTime <= 30) {
       timerElement.classList.add('warning');
     }
   }
@@ -820,7 +1513,11 @@ function handleClick(event) {
         onMoveMade();
         
         if (!checkWin()) {
-          setTimeout(aiMove, getAIThinkingTime());
+          if (gameMode === 'multiplayer') {
+            syncMultiplayerState().catch(err => console.error('[MP] Failed to sync move:', err));
+          } else {
+            setTimeout(aiMove, getAIThinkingTime());
+          }
         }
       }
     } else if (gameState.currentPlayer === PIECE_TYPES.TIGER && playerSide === PIECE_TYPES.TIGER) {
@@ -864,7 +1561,11 @@ function handleClick(event) {
           }
           
           if (!checkWin()) {
-            setTimeout(aiMove, getAIThinkingTime());
+            if (gameMode === 'multiplayer') {
+              syncMultiplayerState().catch(err => console.error('[MP] Failed to sync move:', err));
+            } else {
+              setTimeout(aiMove, getAIThinkingTime());
+            }
           }
         } else if (gameState.board[clickedIndex] === PIECE_TYPES.TIGER) {
           // Select different tiger
@@ -911,7 +1612,11 @@ function handleClick(event) {
           updateUI();
           
           if (!checkWin()) {
-            setTimeout(aiMove, getAIThinkingTime());
+            if (gameMode === 'multiplayer') {
+              syncMultiplayerState().catch(err => console.error('[MP] Failed to sync move:', err));
+            } else {
+              setTimeout(aiMove, getAIThinkingTime());
+            }
           }
         } else if (gameState.board[clickedIndex] === PIECE_TYPES.GOAT) {
           // Select different goat
@@ -966,7 +1671,11 @@ function handleClick(event) {
           }
           
           if (!checkWin()) {
-            setTimeout(aiMove, getAIThinkingTime());
+            if (gameMode === 'multiplayer') {
+              syncMultiplayerState().catch(err => console.error('[MP] Failed to sync move:', err));
+            } else {
+              setTimeout(aiMove, getAIThinkingTime());
+            }
           }
         } else if (gameState.board[clickedIndex] === PIECE_TYPES.TIGER) {
           // Select different tiger
@@ -1668,24 +2377,6 @@ function executeAIGoatMove() {
   checkWin();
 }
 
-// Get tiger image index based on position
-function getTigerImageIndex(position) {
-  // Use the tracked tiger identity
-  if (gameState.tigerIdentities && gameState.tigerIdentities[position] !== undefined) {
-    return gameState.tigerIdentities[position];
-  }
-  
-  // Fallback to position-based for backwards compatibility
-  const cornerMap = {
-    0: 0,   // Top-left -> Congress
-    4: 1,   // Top-right -> Maoist
-    20: 2,  // Bottom-left -> RRP
-    24: 3   // Bottom-right -> Surya
-  };
-  
-  return cornerMap[position] !== undefined ? cornerMap[position] : 0;
-}
-
 // Get clicked position
 function getClickedPosition(x, y) {
   const size = Math.min(canvas.width, canvas.height);
@@ -1707,6 +2398,23 @@ function getClickedPosition(x, y) {
 }
 
 // Drawing functions
+function drawOctagonPath(x, y, radius) {
+  const sides = 8;
+  const startAngle = Math.PI / 8;
+  ctx.beginPath();
+  for (let side = 0; side < sides; side++) {
+    const angle = startAngle + (side * Math.PI * 2) / sides;
+    const pointX = x + Math.cos(angle) * radius;
+    const pointY = y + Math.sin(angle) * radius;
+    if (side === 0) {
+      ctx.moveTo(pointX, pointY);
+    } else {
+      ctx.lineTo(pointX, pointY);
+    }
+  }
+  ctx.closePath();
+}
+
 function draw() {
   const size = Math.min(canvas.width, canvas.height);
 
@@ -1804,19 +2512,16 @@ function draw() {
       ctx.shadowOffsetX = 2;
       ctx.shadowOffsetY = 4;
       ctx.fillStyle = '#111111';
-      ctx.beginPath();
-      ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
+      drawOctagonPath(x, y, chipRadius);
       ctx.fill();
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
       
-      // Draw flag clipped to a slightly smaller inner circle
-      const tigerIndex = getTigerImageIndex(i);
-      const tigerImg = images.tigers[tigerIndex];
+      // Draw tiger image clipped to a slightly smaller inner octagon
+      const tigerImg = images.tigerPiece;
       const innerR = chipRadius * 0.82;
       if (tigerImg && tigerImg.complete) {
         ctx.save();
-        ctx.beginPath();
-        ctx.arc(x, y, innerR, 0, Math.PI * 2);
+        drawOctagonPath(x, y, innerR);
         ctx.clip();
         if (isTrapped) { ctx.globalAlpha = 0.45; ctx.filter = 'grayscale(100%)'; }
         ctx.drawImage(tigerImg, x - innerR, y - innerR, innerR * 2, innerR * 2);
@@ -1835,8 +2540,7 @@ function draw() {
         ctx.strokeStyle = isTrapped ? '#555' : 'rgba(255,255,255,0.7)';
         ctx.lineWidth = 2;
       }
-      ctx.beginPath();
-      ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
+      drawOctagonPath(x, y, chipRadius);
       ctx.stroke();
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
       
@@ -1861,9 +2565,8 @@ function draw() {
       ctx.fill();
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
       
-      // Draw flag clipped to a slightly smaller inner circle
-      const goatIndex = gameState.goatIdentities[i] !== undefined ? gameState.goatIdentities[i] : 0;
-      const goatImg = images.goats[goatIndex];
+      // Draw goat image clipped to a slightly smaller inner circle
+      const goatImg = images.goatPiece;
       const goatInnerR = chipRadius * 0.82;
       if (goatImg && goatImg.complete) {
         ctx.save();
@@ -2029,6 +2732,15 @@ function updateViewPrevButton() {
 function endGame(message, winner) {
   gameState.gameOver = true;
   playSound('winning');
+
+  if (gameMode === 'multiplayer' && currentRoomId && db && !isApplyingRoomSnapshot) {
+    db.collection('rooms').doc(currentRoomId).set({
+      status: 'finished',
+      winner,
+      winnerMessage: message,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true }).catch(err => console.error('[MP] Failed to finalize room:', err));
+  }
   
   // Update user stats if logged in
   if (currentUser) {
@@ -2112,16 +2824,94 @@ if (usernameForm) {
   usernameForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const usernameInput = document.getElementById('new-username');
+    const errEl = document.getElementById('username-error');
+    if (errEl) errEl.style.display = 'none';
     if (usernameInput) {
       const username = usernameInput.value.trim();
       if (username.length >= 3) {
         saveUsername(username);
       } else {
-        alert('Username must be at least 3 characters long');
+        if (errEl) { errEl.textContent = 'Username must be at least 3 characters.'; errEl.style.display = 'block'; }
       }
     }
   });
 }
+
+// ===== SOCIAL UI EVENT LISTENERS =====
+
+// --- Notification bell ---
+const notifBellBtn = document.getElementById('notif-bell');
+if (notifBellBtn) {
+  notifBellBtn.addEventListener('click', () => {
+    document.getElementById('notif-overlay').classList.add('show');
+    playSound('buttonClick');
+  });
+}
+
+const notifCloseBtn = document.getElementById('notif-close');
+if (notifCloseBtn) {
+  notifCloseBtn.addEventListener('click', () => {
+    document.getElementById('notif-overlay').classList.remove('show');
+  });
+}
+
+// --- Friends nav button ---
+const friendsNavBtnEl = document.getElementById('friends-nav-btn');
+if (friendsNavBtnEl) {
+  friendsNavBtnEl.addEventListener('click', () => {
+    document.getElementById('friends-overlay').classList.add('show');
+    switchFriendsTab('friends');
+    playSound('buttonClick');
+  });
+}
+
+const friendsCloseBtn = document.getElementById('friends-close');
+if (friendsCloseBtn) {
+  friendsCloseBtn.addEventListener('click', () => {
+    document.getElementById('friends-overlay').classList.remove('show');
+  });
+}
+
+// --- Friends overlay tabs ---
+['friends', 'search', 'requests', 'challenges'].forEach(tab => {
+  const btn = document.getElementById(`ftab-${tab}`);
+  if (btn) btn.addEventListener('click', () => { switchFriendsTab(tab); playSound('buttonClick'); });
+});
+
+function switchFriendsTab(tab) {
+  ['friends', 'search', 'requests', 'challenges'].forEach(t => {
+    const btn = document.getElementById(`ftab-${t}`);
+    const panel = document.getElementById(`ftab-${t}-content`);
+    if (btn) btn.classList.toggle('active', t === tab);
+    if (panel) panel.classList.toggle('hidden', t !== tab);
+  });
+}
+
+// --- Friend search ---
+const friendSearchBtn = document.getElementById('friend-search-btn');
+if (friendSearchBtn) {
+  friendSearchBtn.addEventListener('click', () => {
+    const val = document.getElementById('friend-search-input').value;
+    searchUser(val);
+  });
+}
+
+const friendSearchInput = document.getElementById('friend-search-input');
+if (friendSearchInput) {
+  friendSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); searchUser(e.target.value); }
+  });
+}
+
+// Close overlays on backdrop click
+['friends-overlay', 'notif-overlay'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('click', (e) => {
+      if (e.target === el) el.classList.remove('show');
+    });
+  }
+});
 
 // Sign up overlay close button
 document.getElementById('signup-close').addEventListener('click', () => {
@@ -2226,8 +3016,218 @@ difficultyButtons.forEach(btn => {
   });
 });
 
+// ===== MODE TABS =====
+document.getElementById('mode-tab-ai').addEventListener('click', () => {
+  gameMode = 'ai';
+  document.getElementById('mode-tab-ai').classList.add('active');
+  document.getElementById('mode-tab-player').classList.remove('active');
+  document.getElementById('difficulty-section').style.display = '';
+  document.getElementById('multiplayer-section').classList.add('hidden');
+  // Reset multiplayer UI state
+  resetMultiplayerUI();
+  playSound('buttonClick');
+});
+
+document.getElementById('mode-tab-player').addEventListener('click', () => {
+  gameMode = 'multiplayer';
+  document.getElementById('mode-tab-player').classList.add('active');
+  document.getElementById('mode-tab-ai').classList.remove('active');
+  document.getElementById('difficulty-section').style.display = 'none';
+  document.getElementById('multiplayer-section').classList.remove('hidden');
+  playSound('buttonClick');
+});
+
+function resetMultiplayerUI() {
+  stopRoomSyncListeners();
+  currentRoomId = null;
+  currentRoomCode = null;
+  multiplayerSide = null;
+  document.querySelectorAll('#select-goat, #select-tiger').forEach(c => c.classList.remove('mp-selected'));
+  document.getElementById('room-options').classList.remove('hidden');
+  document.getElementById('room-waiting').classList.add('hidden');
+  document.getElementById('room-code-input').value = '';
+}
+
+// ===== MULTIPLAYER SIDE SELECTION highlight =====
+function highlightMPSide(side) {
+  multiplayerSide = side;
+  document.getElementById('select-goat').classList.toggle('mp-selected', side === PIECE_TYPES.GOAT);
+  document.getElementById('select-tiger').classList.toggle('mp-selected', side === PIECE_TYPES.TIGER);
+}
+
+// ===== ROOM ACTIONS =====
+function generateRoomCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+function sideToString(side) {
+  return side === PIECE_TYPES.TIGER ? 'tiger' : 'goat';
+}
+
+document.getElementById('create-room-btn').addEventListener('click', async () => {
+  if (!currentUser || !db) {
+    alert('Please sign in first to play multiplayer.');
+    return;
+  }
+  if (!multiplayerSide) {
+    // Pulse the side selection to hint user
+    document.querySelector('.player-selection').style.animation = 'none';
+    document.querySelector('.player-selection').offsetHeight; // reflow
+    document.querySelector('.mp-hint').textContent = '⬆ Pick a side first!';
+    document.querySelector('.mp-hint').style.color = 'var(--gold)';
+    return;
+  }
+  const code = generateRoomCode();
+  const hostSide = sideToString(multiplayerSide);
+  const guestSide = hostSide === 'tiger' ? 'goat' : 'tiger';
+
+  try {
+    const roomRef = db.collection('rooms').doc();
+    const initial = buildInitialRoomState();
+    await roomRef.set({
+      roomCode: code,
+      hostUid: currentUser.uid,
+      guestUid: null,
+      hostSide,
+      guestSide,
+      timeControl: '5m',
+      status: 'waiting',
+      ...initial,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    currentRoomId = roomRef.id;
+    currentRoomCode = code;
+    document.getElementById('room-code-display').textContent = code;
+    document.getElementById('room-options').classList.add('hidden');
+    document.getElementById('room-waiting').classList.remove('hidden');
+    playSound('buttonClick');
+
+    if (roomLobbyUnsub) roomLobbyUnsub();
+    roomLobbyUnsub = roomRef.onSnapshot((snap) => {
+      if (!snap.exists) return;
+      const room = snap.data();
+      if (room.status === 'playing' && room.guestUid) {
+        if (roomLobbyUnsub) {
+          roomLobbyUnsub();
+          roomLobbyUnsub = null;
+        }
+        startMultiplayerGame(roomRef.id, hostSide, room.timeControl || '5m');
+      }
+    }, (err) => {
+      console.error('[MP] Lobby listener error:', err);
+    });
+
+    console.log('[Multiplayer] Room created:', code, 'Side:', hostSide);
+  } catch (err) {
+    console.error('[Multiplayer] Failed creating room:', err);
+    alert('Failed to create room. Please try again.');
+  }
+});
+
+document.getElementById('join-room-btn').addEventListener('click', async () => {
+  if (!currentUser || !db) {
+    alert('Please sign in first to play multiplayer.');
+    return;
+  }
+  if (!multiplayerSide) {
+    document.querySelector('.mp-hint').textContent = '⬆ Pick a side first!';
+    document.querySelector('.mp-hint').style.color = 'var(--gold)';
+    return;
+  }
+  const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+  if (code.length < 4) {
+    document.getElementById('room-code-input').style.borderColor = 'var(--red, #e94560)';
+    return;
+  }
+  document.getElementById('room-code-input').style.borderColor = '';
+  playSound('buttonClick');
+
+  try {
+    const wantedSide = sideToString(multiplayerSide);
+    const snap = await db.collection('rooms')
+      .where('roomCode', '==', code)
+      .limit(1)
+      .get();
+
+    if (snap.empty) {
+      alert('Room not found or already started.');
+      return;
+    }
+
+    const roomDoc = snap.docs[0];
+    const room = roomDoc.data();
+
+    if (room.status !== 'waiting' || room.guestUid) {
+      alert('Room not available to join anymore.');
+      return;
+    }
+
+    if (room.hostUid === currentUser.uid) {
+      alert('You cannot join your own room from this account.');
+      return;
+    }
+
+    if (room.guestSide !== wantedSide) {
+      alert(`Host reserved ${room.hostSide.toUpperCase()}. Please pick ${room.guestSide.toUpperCase()} to join.`);
+      return;
+    }
+
+    await db.collection('rooms').doc(roomDoc.id).set({
+      guestUid: currentUser.uid,
+      status: 'playing',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    currentRoomId = roomDoc.id;
+    currentRoomCode = code;
+    console.log('[Multiplayer] Joined room:', code, 'Side:', wantedSide);
+    startMultiplayerGame(roomDoc.id, wantedSide, room.timeControl || '5m');
+  } catch (err) {
+    console.error('[Multiplayer] Failed joining room:', err);
+    alert('Failed to join room. Check rules and try again.');
+  }
+});
+
+document.getElementById('copy-code-btn').addEventListener('click', () => {
+  const code = document.getElementById('room-code-display').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.getElementById('copy-code-btn');
+    btn.textContent = '✅ Copied';
+    setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+  });
+});
+
+document.getElementById('cancel-room-btn').addEventListener('click', async () => {
+  try {
+    if (db && currentRoomId) {
+      const roomSnap = await db.collection('rooms').doc(currentRoomId).get();
+      if (roomSnap.exists) {
+        const room = roomSnap.data();
+        if (room.hostUid === currentUser?.uid && room.status === 'waiting') {
+          await db.collection('rooms').doc(currentRoomId).delete();
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[MP] Failed cancelling room:', err);
+  }
+
+  if (roomLobbyUnsub) { roomLobbyUnsub(); roomLobbyUnsub = null; }
+  currentRoomId = null;
+  currentRoomCode = null;
+  resetMultiplayerUI();
+  playSound('buttonClick');
+});
+
 // Player selection
 document.getElementById('select-goat').addEventListener('click', () => {
+  if (gameMode === 'multiplayer') {
+    highlightMPSide(PIECE_TYPES.GOAT);
+    playSound('buttonClick');
+    return;
+  }
   playerSide = PIECE_TYPES.GOAT;
   gameStarted = true;
   isFirstAIMove = true;
@@ -2241,6 +3241,11 @@ document.getElementById('select-goat').addEventListener('mouseenter', () => {
 });
 
 document.getElementById('select-tiger').addEventListener('click', () => {
+  if (gameMode === 'multiplayer') {
+    highlightMPSide(PIECE_TYPES.TIGER);
+    playSound('buttonClick');
+    return;
+  }
   playerSide = PIECE_TYPES.TIGER;
   gameStarted = true;
   isFirstAIMove = true;
@@ -2255,8 +3260,18 @@ document.getElementById('select-tiger').addEventListener('mouseenter', () => {
 
 function showPlayerSelect() {
   gameStarted = false;
+  gameMode = 'ai';
+  stopRoomSyncListeners();
+  currentRoomId = null;
+  currentRoomCode = null;
   document.getElementById('winner-overlay').classList.remove('show');
   document.getElementById('player-select-overlay').classList.add('show');
+  // Reset to AI mode tab
+  document.getElementById('mode-tab-ai').classList.add('active');
+  document.getElementById('mode-tab-player').classList.remove('active');
+  document.getElementById('difficulty-section').style.display = '';
+  document.getElementById('multiplayer-section').classList.add('hidden');
+  resetMultiplayerUI();
 }
 
 // Footer links
@@ -2282,8 +3297,10 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 
 // Initialize
+initAudioSystem();
 initGame();
 resizeCanvas();
+draw(); // Ensure initial draw even if images haven't loaded yet
 
 // Initialize auth UI on page load
 updateUIForSignedOutUser();
