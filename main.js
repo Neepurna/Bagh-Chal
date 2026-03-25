@@ -650,8 +650,10 @@ function startMultiplayerGame(roomId, side, timeControl = '5m') {
   stopRoomSyncListeners();
   subscribeToRoom(roomId);
 
-  document.getElementById('room-options').classList.add('hidden');
-  document.getElementById('room-waiting').classList.add('hidden');
+  const roomOptions = document.getElementById('room-options');
+  const roomWaiting = document.getElementById('room-waiting');
+  if (roomOptions) roomOptions.classList.add('hidden');
+  if (roomWaiting) roomWaiting.classList.add('hidden');
   document.getElementById('player-select-overlay').classList.remove('show');
   initGame();
 }
@@ -1008,7 +1010,7 @@ function subscribeToRoom(roomId) {
     }
 
     if (room.status === 'finished' && room.winner && !gameState.gameOver) {
-      const msg = room.winnerMessage || (room.winner === 'tiger' ? 'Opposition Wins!' : 'Governing Parties Win!');
+      const msg = room.winnerMessage || (room.winner === 'tiger' ? 'Congratulations Tiger won!' : 'Congratulations Goat won!');
       endGame(msg, room.winner);
     }
   }, (err) => {
@@ -1028,10 +1030,11 @@ let gameState = {
   gameOver: false
 };
 
-// History for viewing previous move
+// History for viewing previous moves (up to 5)
 let gameHistory = [];
-let isViewingPrevious = false;
+let currentMoveIndex = -1; // -1 means we're at the current move
 let currentGameState = null;
+let savedGameState = null;
 
 // Position history to detect repetitions
 let positionHistory = [];
@@ -1076,9 +1079,8 @@ function initGame() {
 
   // Clear history
   gameHistory = [];
-  isViewingPrevious = false;
-  currentGameState = null;
-  updateViewPrevButton();
+  currentMoveIndex = -1;
+  savedGameState = null;
   
   // Clear position history
   positionHistory = [];
@@ -1086,14 +1088,14 @@ function initGame() {
   // Reset goat flag counter
   goatFlagCounter = 0;
 
-  // Place tigers at corners with their identities
-  gameState.board[0] = PIECE_TYPES.TIGER;  // Top-left - Congress
+  // Place tigers at corners
+  gameState.board[0] = PIECE_TYPES.TIGER;  // Top-left
   gameState.tigerIdentities[0] = 0;
-  gameState.board[4] = PIECE_TYPES.TIGER;  // Top-right - Maoist
+  gameState.board[4] = PIECE_TYPES.TIGER;  // Top-right
   gameState.tigerIdentities[4] = 1;
-  gameState.board[20] = PIECE_TYPES.TIGER; // Bottom-left - RRP
+  gameState.board[20] = PIECE_TYPES.TIGER; // Bottom-left
   gameState.tigerIdentities[20] = 2;
-  gameState.board[24] = PIECE_TYPES.TIGER; // Bottom-right - Surya
+  gameState.board[24] = PIECE_TYPES.TIGER; // Bottom-right
   gameState.tigerIdentities[24] = 3;
 
   // Add random goats for visual appeal on homepage (only if game hasn't started)
@@ -1119,12 +1121,14 @@ function initGame() {
     document.getElementById('gameStatePanel').classList.remove('hidden');
     document.getElementById('tigerPanel').classList.remove('hidden');
     document.getElementById('goatPanel').classList.remove('hidden');
+    toggleMoveNavigation(true);
     startTimer();
   } else {
     document.getElementById('welcome-screen').style.display = 'flex';
     document.getElementById('gameStatePanel').classList.add('hidden');
     document.getElementById('tigerPanel').classList.add('hidden');
     document.getElementById('goatPanel').classList.add('hidden');
+    toggleMoveNavigation(false);
   }
   
   // If player is tiger, goats go first (AI mode only)
@@ -1203,8 +1207,8 @@ function handleTimeOut() {
   // Current player loses
   const winner = gameState.currentPlayer === PIECE_TYPES.GOAT ? 'tiger' : 'goat';
   const message = gameState.currentPlayer === PIECE_TYPES.GOAT 
-    ? 'Opposition Wins - Time Out!' 
-    : 'Governing Parties Win - Time Out!';
+    ? 'Tiger wins - Time Out!' 
+    : 'Goat wins - Time Out!';
   
   endGame(message, winner);
 }
@@ -1435,19 +1439,19 @@ function areGoatsTrapped() {
 function checkWin() {
   // Tigers win by capturing 5 goats (can happen in any phase)
   if (gameState.goatsCaptured >= 5) {
-    endGame('Opposition Wins!', 'tiger');
+    endGame('Congratulations Tiger won!', 'tiger');
     return true;
   }
 
   // Goats win by trapping all tigers (only in movement phase)
   if (gameState.phase === PHASE.MOVEMENT && areTigersTrapped()) {
-    endGame('Governing Parties Win!', 'goat');
+    endGame('Congratulations Goat won!', 'goat');
     return true;
   }
 
   // Tigers win by trapping all goats (rare case, only in movement phase)
   if (gameState.phase === PHASE.MOVEMENT && gameState.goatsPlaced === 20 && areGoatsTrapped()) {
-    endGame('Opposition Wins!', 'tiger');
+    endGame('Congratulations Tiger won!', 'tiger');
     return true;
   }
   
@@ -1462,7 +1466,7 @@ function checkWin() {
 
 // Handle board click
 function handleClick(event) {
-  if (gameState.gameOver || !gameStarted || isViewingPrevious) return;
+  if (gameState.gameOver || !gameStarted || currentMoveIndex !== -1) return;
   
   // Don't allow clicks if it's not player's turn
   if (gameState.currentPlayer !== playerSide) {
@@ -2616,9 +2620,9 @@ function updateUI() {
 
   // Update turn text
   if (gameState.currentPlayer === PIECE_TYPES.TIGER) {
-    turnText.textContent = 'Opposition';
+    turnText.textContent = 'Tiger';
   } else {
-    turnText.textContent = 'Governing Parties';
+    turnText.textContent = 'Goat';
   }
 
   // Update phase text
@@ -2659,22 +2663,24 @@ function saveState() {
     tigerIdentities: {...gameState.tigerIdentities}
   };
   gameHistory.push(stateCopy);
-  // Keep only last move
-  if (gameHistory.length > 1) {
+  // Keep only last 5 moves
+  if (gameHistory.length > 5) {
     gameHistory.shift();
   }
-  updateViewPrevButton();
+  // Reset to viewing current move when a new move is made
+  currentMoveIndex = -1;
+  updateMoveNavigation();
 }
 
 // Toggle viewing previous move
-function toggleViewPrevious() {
-  if (gameHistory.length === 0 || gameState.gameOver) return;
+
+// Navigate to previous move
+function prevMove() {
+  if (currentMoveIndex === -1 && gameHistory.length === 0) return;
   
-  const btn = document.getElementById('view-prev-btn');
-  
-  if (!isViewingPrevious) {
-    // Save current state and show previous
-    currentGameState = {
+  if (currentMoveIndex === -1) {
+    // Save current state first time
+    savedGameState = {
       board: [...gameState.board],
       currentPlayer: gameState.currentPlayer,
       phase: gameState.phase,
@@ -2684,8 +2690,13 @@ function toggleViewPrevious() {
       selectedPiece: gameState.selectedPiece,
       validMoves: [...gameState.validMoves]
     };
-    
-    const previousState = gameHistory[0];
+    currentMoveIndex = gameHistory.length - 1;
+  } else if (currentMoveIndex > 0) {
+    currentMoveIndex--;
+  }
+  
+  if (currentMoveIndex >= 0) {
+    const previousState = gameHistory[currentMoveIndex];
     gameState.board = [...previousState.board];
     gameState.currentPlayer = previousState.currentPlayer;
     gameState.phase = previousState.phase;
@@ -2694,37 +2705,92 @@ function toggleViewPrevious() {
     gameState.tigerIdentities = {...previousState.tigerIdentities};
     gameState.selectedPiece = null;
     gameState.validMoves = [];
-    
-    isViewingPrevious = true;
-    btn.classList.add('viewing');
-  } else {
-    // Restore current state
-    gameState.board = [...currentGameState.board];
-    gameState.currentPlayer = currentGameState.currentPlayer;
-    gameState.phase = currentGameState.phase;
-    gameState.goatsPlaced = currentGameState.goatsPlaced;
-    gameState.goatsCaptured = currentGameState.goatsCaptured;
-    gameState.tigerIdentities = {...currentGameState.tigerIdentities};
-    gameState.selectedPiece = currentGameState.selectedPiece;
-    gameState.validMoves = [...currentGameState.validMoves];
-    
-    isViewingPrevious = false;
-    btn.classList.remove('viewing');
   }
   
+  updateMoveNavigation();
   updateUI();
   draw();
 }
 
-// Update view previous button state
-function updateViewPrevButton() {
-  const btn = document.getElementById('view-prev-btn');
-  if (btn) {
-    btn.disabled = gameHistory.length === 0 || gameState.gameOver;
-    if (gameHistory.length === 0 || gameState.gameOver) {
-      btn.classList.remove('viewing');
-      isViewingPrevious = false;
+// Navigate to next move
+function nextMove() {
+  if (savedGameState && currentMoveIndex !== -1) {
+    if (currentMoveIndex < gameHistory.length - 1) {
+      currentMoveIndex++;
+      const previousState = gameHistory[currentMoveIndex];
+      gameState.board = [...previousState.board];
+      gameState.currentPlayer = previousState.currentPlayer;
+      gameState.phase = previousState.phase;
+      gameState.goatsPlaced = previousState.goatsPlaced;
+      gameState.goatsCaptured = previousState.goatsCaptured;
+      gameState.tigerIdentities = {...previousState.tigerIdentities};
+      gameState.selectedPiece = null;
+      gameState.validMoves = [];
+    } else {
+      // Return to current state
+      currentMoveIndex = -1;
+      gameState.board = [...savedGameState.board];
+      gameState.currentPlayer = savedGameState.currentPlayer;
+      gameState.phase = savedGameState.phase;
+      gameState.goatsPlaced = savedGameState.goatsPlaced;
+      gameState.goatsCaptured = savedGameState.goatsCaptured;
+      gameState.tigerIdentities = {...savedGameState.tigerIdentities};
+      gameState.selectedPiece = savedGameState.selectedPiece;
+      gameState.validMoves = [...savedGameState.validMoves];
+      savedGameState = null;
     }
+  }
+  
+  updateMoveNavigation();
+  updateUI();
+  draw();
+}
+
+// Update move navigation UI
+function updateMoveNavigation() {
+  const container = document.getElementById('move-nav-container');
+  if (!container) return;
+  
+  const prevBtn = document.getElementById('prev-move-btn');
+  const nextBtn = document.getElementById('next-move-btn');
+  const counter = document.getElementById('move-counter');
+  
+  // Show container only if game has started and there's history
+  if (!gameStarted || gameHistory.length === 0) {
+    container.classList.add('hidden');
+    return;
+  }
+  
+  container.classList.remove('hidden');
+  
+  // Calculate display numbers (1-indexed from the end)
+  const displayIndex = currentMoveIndex === -1 ? gameHistory.length : currentMoveIndex + 1;
+  if (counter) {
+    counter.textContent = `${displayIndex} / ${gameHistory.length}`;
+  }
+  
+  // Disable prev button if at start
+  if (prevBtn) {
+    prevBtn.disabled = currentMoveIndex === 0;
+  }
+  
+  // Disable next button if at current move
+  if (nextBtn) {
+    nextBtn.disabled = currentMoveIndex === -1;
+  }
+}
+
+// Show/hide move navigation when game starts/ends
+function toggleMoveNavigation(show) {
+  const container = document.getElementById('move-nav-container');
+  if (!container) return;
+  
+  if (show) {
+    updateMoveNavigation();
+  } else {
+    container.classList.add('hidden');
+    currentMoveIndex = -1;
+    savedGameState = null;
   }
 }
 
@@ -2758,18 +2824,16 @@ function endGame(message, winner) {
   if (winner === 'tiger') {
     winnerIcon.innerHTML = `
       <div class="winner-logos">
-        <img src="assets/Congress.png" class="winner-logo">
-        <img src="assets/Maoist.png" class="winner-logo">
-        <img src="assets/RRP.png" class="winner-logo">
-        <img src="assets/Surya.png" class="winner-logo">
+        <img src="assets/bagh.png" class="winner-logo">
       </div>
     `;
   } else {
-    winnerIcon.innerHTML = '<img src="assets/Ghanti.png" class="winner-logo-single">';
+    winnerIcon.innerHTML = '<img src="assets/bhakhra.png" class="winner-logo-single">';
   }
   
   winnerText.textContent = message;
   overlay.classList.add('show');
+  toggleMoveNavigation(false);
 }
 
 // Reset game
@@ -2873,13 +2937,13 @@ if (friendsCloseBtn) {
 }
 
 // --- Friends overlay tabs ---
-['friends', 'search', 'requests', 'challenges'].forEach(tab => {
+['friends', 'search', 'requests'].forEach(tab => {
   const btn = document.getElementById(`ftab-${tab}`);
   if (btn) btn.addEventListener('click', () => { switchFriendsTab(tab); playSound('buttonClick'); });
 });
 
 function switchFriendsTab(tab) {
-  ['friends', 'search', 'requests', 'challenges'].forEach(t => {
+  ['friends', 'search', 'requests'].forEach(t => {
     const btn = document.getElementById(`ftab-${t}`);
     const panel = document.getElementById(`ftab-${t}-content`);
     if (btn) btn.classList.toggle('active', t === tab);
@@ -2919,7 +2983,17 @@ document.getElementById('signup-close').addEventListener('click', () => {
 });
 
 document.getElementById('play-again-btn').addEventListener('click', showPlayerSelect);
-document.getElementById('view-prev-btn').addEventListener('click', toggleViewPrevious);
+document.getElementById('exit-btn').addEventListener('click', exitToHome);
+
+const prevMoveBtn = document.getElementById('prev-move-btn');
+if (prevMoveBtn) {
+  prevMoveBtn.addEventListener('click', prevMove);
+}
+
+const nextMoveBtn = document.getElementById('next-move-btn');
+if (nextMoveBtn) {
+  nextMoveBtn.addEventListener('click', nextMove);
+}
 
 // Welcome start button
 document.getElementById('welcome-start-btn').addEventListener('click', () => {
@@ -3043,9 +3117,12 @@ function resetMultiplayerUI() {
   currentRoomCode = null;
   multiplayerSide = null;
   document.querySelectorAll('#select-goat, #select-tiger').forEach(c => c.classList.remove('mp-selected'));
-  document.getElementById('room-options').classList.remove('hidden');
-  document.getElementById('room-waiting').classList.add('hidden');
-  document.getElementById('room-code-input').value = '';
+  const roomOptions = document.getElementById('room-options');
+  const roomWaiting = document.getElementById('room-waiting');
+  const roomCodeInput = document.getElementById('room-code-input');
+  if (roomOptions) roomOptions.classList.remove('hidden');
+  if (roomWaiting) roomWaiting.classList.add('hidden');
+  if (roomCodeInput) roomCodeInput.value = '';
 }
 
 // ===== MULTIPLAYER SIDE SELECTION highlight =====
@@ -3064,162 +3141,191 @@ function sideToString(side) {
   return side === PIECE_TYPES.TIGER ? 'tiger' : 'goat';
 }
 
-document.getElementById('create-room-btn').addEventListener('click', async () => {
-  if (!currentUser || !db) {
-    alert('Please sign in first to play multiplayer.');
-    return;
-  }
-  if (!multiplayerSide) {
-    // Pulse the side selection to hint user
-    document.querySelector('.player-selection').style.animation = 'none';
-    document.querySelector('.player-selection').offsetHeight; // reflow
-    document.querySelector('.mp-hint').textContent = '⬆ Pick a side first!';
-    document.querySelector('.mp-hint').style.color = 'var(--gold)';
-    return;
-  }
-  const code = generateRoomCode();
-  const hostSide = sideToString(multiplayerSide);
-  const guestSide = hostSide === 'tiger' ? 'goat' : 'tiger';
+// Create room button
+const createRoomBtn = document.getElementById('create-room-btn');
+if (createRoomBtn) {
+  createRoomBtn.addEventListener('click', async () => {
+    if (!currentUser || !db) {
+      alert('Please sign in first to play multiplayer.');
+      return;
+    }
+    if (!multiplayerSide) {
+      // Pulse the side selection to hint user
+      document.querySelector('.player-selection').style.animation = 'none';
+      document.querySelector('.player-selection').offsetHeight; // reflow
+      const mpHint = document.querySelector('.mp-hint');
+      if (mpHint) {
+        mpHint.textContent = '⬆ Pick a side first!';
+        mpHint.style.color = 'var(--gold)';
+      }
+      return;
+    }
+    const code = generateRoomCode();
+    const hostSide = sideToString(multiplayerSide);
+    const guestSide = hostSide === 'tiger' ? 'goat' : 'tiger';
 
-  try {
-    const roomRef = db.collection('rooms').doc();
-    const initial = buildInitialRoomState();
-    await roomRef.set({
-      roomCode: code,
-      hostUid: currentUser.uid,
-      guestUid: null,
-      hostSide,
-      guestSide,
-      timeControl: '5m',
-      status: 'waiting',
-      ...initial,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    try {
+      const roomRef = db.collection('rooms').doc();
+      const initial = buildInitialRoomState();
+      await roomRef.set({
+        roomCode: code,
+        hostUid: currentUser.uid,
+        guestUid: null,
+        hostSide,
+        guestSide,
+        timeControl: '5m',
+        status: 'waiting',
+        ...initial,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
 
-    currentRoomId = roomRef.id;
-    currentRoomCode = code;
-    document.getElementById('room-code-display').textContent = code;
-    document.getElementById('room-options').classList.add('hidden');
-    document.getElementById('room-waiting').classList.remove('hidden');
+      currentRoomId = roomRef.id;
+      currentRoomCode = code;
+      const roomCodeDisplay = document.getElementById('room-code-display');
+      if (roomCodeDisplay) roomCodeDisplay.textContent = code;
+      const roomOptions = document.getElementById('room-options');
+      const roomWaiting = document.getElementById('room-waiting');
+      if (roomOptions) roomOptions.classList.add('hidden');
+      if (roomWaiting) roomWaiting.classList.remove('hidden');
+      playSound('buttonClick');
+
+      if (roomLobbyUnsub) roomLobbyUnsub();
+      roomLobbyUnsub = roomRef.onSnapshot((snap) => {
+        if (!snap.exists) return;
+        const room = snap.data();
+        if (room.status === 'playing' && room.guestUid) {
+          if (roomLobbyUnsub) {
+            roomLobbyUnsub();
+            roomLobbyUnsub = null;
+          }
+          startMultiplayerGame(roomRef.id, hostSide, room.timeControl || '5m');
+        }
+      }, (err) => {
+        console.error('[MP] Lobby listener error:', err);
+      });
+
+      console.log('[Multiplayer] Room created:', code, 'Side:', hostSide);
+    } catch (err) {
+      console.error('[Multiplayer] Failed creating room:', err);
+      alert('Failed to create room. Please try again.');
+    }
+  });
+}
+
+// Join room button
+const joinRoomBtn = document.getElementById('join-room-btn');
+if (joinRoomBtn) {
+  joinRoomBtn.addEventListener('click', async () => {
+    if (!currentUser || !db) {
+      alert('Please sign in first to play multiplayer.');
+      return;
+    }
+    if (!multiplayerSide) {
+      const mpHint = document.querySelector('.mp-hint');
+      if (mpHint) {
+        mpHint.textContent = '⬆ Pick a side first!';
+        mpHint.style.color = 'var(--gold)';
+      }
+      return;
+    }
+    const roomCodeInput = document.getElementById('room-code-input');
+    const code = roomCodeInput ? roomCodeInput.value.trim().toUpperCase() : '';
+    if (code.length < 4) {
+      if (roomCodeInput) roomCodeInput.style.borderColor = 'var(--red, #e94560)';
+      return;
+    }
+    if (roomCodeInput) roomCodeInput.style.borderColor = '';
     playSound('buttonClick');
 
-    if (roomLobbyUnsub) roomLobbyUnsub();
-    roomLobbyUnsub = roomRef.onSnapshot((snap) => {
-      if (!snap.exists) return;
-      const room = snap.data();
-      if (room.status === 'playing' && room.guestUid) {
-        if (roomLobbyUnsub) {
-          roomLobbyUnsub();
-          roomLobbyUnsub = null;
-        }
-        startMultiplayerGame(roomRef.id, hostSide, room.timeControl || '5m');
+    try {
+      const wantedSide = sideToString(multiplayerSide);
+      const snap = await db.collection('rooms')
+        .where('roomCode', '==', code)
+        .limit(1)
+        .get();
+
+      if (snap.empty) {
+        alert('Room not found or already started.');
+        return;
       }
-    }, (err) => {
-      console.error('[MP] Lobby listener error:', err);
-    });
 
-    console.log('[Multiplayer] Room created:', code, 'Side:', hostSide);
-  } catch (err) {
-    console.error('[Multiplayer] Failed creating room:', err);
-    alert('Failed to create room. Please try again.');
-  }
-});
+      const roomDoc = snap.docs[0];
+      const room = roomDoc.data();
 
-document.getElementById('join-room-btn').addEventListener('click', async () => {
-  if (!currentUser || !db) {
-    alert('Please sign in first to play multiplayer.');
-    return;
-  }
-  if (!multiplayerSide) {
-    document.querySelector('.mp-hint').textContent = '⬆ Pick a side first!';
-    document.querySelector('.mp-hint').style.color = 'var(--gold)';
-    return;
-  }
-  const code = document.getElementById('room-code-input').value.trim().toUpperCase();
-  if (code.length < 4) {
-    document.getElementById('room-code-input').style.borderColor = 'var(--red, #e94560)';
-    return;
-  }
-  document.getElementById('room-code-input').style.borderColor = '';
-  playSound('buttonClick');
+      if (room.status !== 'waiting' || room.guestUid) {
+        alert('Room not available to join anymore.');
+        return;
+      }
 
-  try {
-    const wantedSide = sideToString(multiplayerSide);
-    const snap = await db.collection('rooms')
-      .where('roomCode', '==', code)
-      .limit(1)
-      .get();
+      if (room.hostUid === currentUser.uid) {
+        alert('You cannot join your own room from this account.');
+        return;
+      }
 
-    if (snap.empty) {
-      alert('Room not found or already started.');
-      return;
+      if (room.guestSide !== wantedSide) {
+        alert(`Host reserved ${room.hostSide.toUpperCase()}. Please pick ${room.guestSide.toUpperCase()} to join.`);
+        return;
+      }
+
+      await db.collection('rooms').doc(roomDoc.id).set({
+        guestUid: currentUser.uid,
+        status: 'playing',
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      currentRoomId = roomDoc.id;
+      currentRoomCode = code;
+      console.log('[Multiplayer] Joined room:', code, 'Side:', wantedSide);
+      startMultiplayerGame(roomDoc.id, wantedSide, room.timeControl || '5m');
+    } catch (err) {
+      console.error('[Multiplayer] Failed joining room:', err);
+      alert('Failed to join room. Check rules and try again.');
     }
-
-    const roomDoc = snap.docs[0];
-    const room = roomDoc.data();
-
-    if (room.status !== 'waiting' || room.guestUid) {
-      alert('Room not available to join anymore.');
-      return;
-    }
-
-    if (room.hostUid === currentUser.uid) {
-      alert('You cannot join your own room from this account.');
-      return;
-    }
-
-    if (room.guestSide !== wantedSide) {
-      alert(`Host reserved ${room.hostSide.toUpperCase()}. Please pick ${room.guestSide.toUpperCase()} to join.`);
-      return;
-    }
-
-    await db.collection('rooms').doc(roomDoc.id).set({
-      guestUid: currentUser.uid,
-      status: 'playing',
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-
-    currentRoomId = roomDoc.id;
-    currentRoomCode = code;
-    console.log('[Multiplayer] Joined room:', code, 'Side:', wantedSide);
-    startMultiplayerGame(roomDoc.id, wantedSide, room.timeControl || '5m');
-  } catch (err) {
-    console.error('[Multiplayer] Failed joining room:', err);
-    alert('Failed to join room. Check rules and try again.');
-  }
-});
-
-document.getElementById('copy-code-btn').addEventListener('click', () => {
-  const code = document.getElementById('room-code-display').textContent;
-  navigator.clipboard.writeText(code).then(() => {
-    const btn = document.getElementById('copy-code-btn');
-    btn.textContent = '✅ Copied';
-    setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
   });
-});
+}
 
-document.getElementById('cancel-room-btn').addEventListener('click', async () => {
-  try {
-    if (db && currentRoomId) {
-      const roomSnap = await db.collection('rooms').doc(currentRoomId).get();
-      if (roomSnap.exists) {
-        const room = roomSnap.data();
-        if (room.hostUid === currentUser?.uid && room.status === 'waiting') {
-          await db.collection('rooms').doc(currentRoomId).delete();
+// Copy code button
+const copyCodeBtn = document.getElementById('copy-code-btn');
+if (copyCodeBtn) {
+  copyCodeBtn.addEventListener('click', () => {
+    const codeDisplay = document.getElementById('room-code-display');
+    const code = codeDisplay ? codeDisplay.textContent : '';
+    navigator.clipboard.writeText(code).then(() => {
+      const btn = document.getElementById('copy-code-btn');
+      if (btn) {
+        btn.textContent = '✅ Copied';
+        setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+      }
+    });
+  });
+}
+
+// Cancel room button
+const cancelRoomBtn = document.getElementById('cancel-room-btn');
+if (cancelRoomBtn) {
+  cancelRoomBtn.addEventListener('click', async () => {
+    try {
+      if (db && currentRoomId) {
+        const roomSnap = await db.collection('rooms').doc(currentRoomId).get();
+        if (roomSnap.exists) {
+          const room = roomSnap.data();
+          if (room.hostUid === currentUser?.uid && room.status === 'waiting') {
+            await db.collection('rooms').doc(currentRoomId).delete();
+          }
         }
       }
+    } catch (err) {
+      console.error('[MP] Failed cancelling room:', err);
     }
-  } catch (err) {
-    console.error('[MP] Failed cancelling room:', err);
-  }
 
-  if (roomLobbyUnsub) { roomLobbyUnsub(); roomLobbyUnsub = null; }
-  currentRoomId = null;
-  currentRoomCode = null;
-  resetMultiplayerUI();
-  playSound('buttonClick');
-});
+    if (roomLobbyUnsub) { roomLobbyUnsub(); roomLobbyUnsub = null; }
+    currentRoomId = null;
+    currentRoomCode = null;
+    resetMultiplayerUI();
+    playSound('buttonClick');
+  });
+}
 
 // Player selection
 document.getElementById('select-goat').addEventListener('click', () => {
@@ -3258,6 +3364,23 @@ document.getElementById('select-tiger').addEventListener('mouseenter', () => {
   playSound('hover');
 });
 
+function exitToHome() {
+  gameStarted = false;
+  gameMode = 'ai';
+  stopRoomSyncListeners();
+  currentRoomId = null;
+  currentRoomCode = null;
+  document.getElementById('winner-overlay').classList.remove('show');
+  document.getElementById('player-select-overlay').classList.remove('show');
+  document.getElementById('welcome-screen').style.display = 'flex';
+  document.getElementById('gameStatePanel').classList.add('hidden');
+  document.getElementById('tigerPanel').classList.add('hidden');
+  document.getElementById('goatPanel').classList.add('hidden');
+  toggleMoveNavigation(false);
+  resetMultiplayerUI();
+  playSound('buttonClick');
+}
+
 function showPlayerSelect() {
   gameStarted = false;
   gameMode = 'ai';
@@ -3266,6 +3389,7 @@ function showPlayerSelect() {
   currentRoomCode = null;
   document.getElementById('winner-overlay').classList.remove('show');
   document.getElementById('player-select-overlay').classList.add('show');
+  toggleMoveNavigation(false);
   // Reset to AI mode tab
   document.getElementById('mode-tab-ai').classList.add('active');
   document.getElementById('mode-tab-player').classList.remove('active');

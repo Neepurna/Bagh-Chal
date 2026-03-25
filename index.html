@@ -20,8 +20,8 @@
   <div class="container">
     <header>
       <div class="header-brand">
-        <div class="header-title">🐯 Bagh Chal 🐐</div>
-        <div class="header-subtitle">A Political Allegory of Nepal</div>
+        <div class="header-title">Bagh Chal</div>
+        <div class="header-subtitle">Master the Ancient Game</div>
       </div>
       <nav class="header-nav">
         <!-- Sign In Button (shown when not logged in) -->
@@ -77,8 +77,8 @@
       <aside class="sidebar">
         <!-- Welcome Screen -->
         <div class="welcome-screen" id="welcome-screen">
-          <h2>🐯 Welcome to Bagh Chal 🐐</h2>
-          <p>A traditional Nepali board game reimagined as a political allegory. Choose your side and begin your strategic journey.</p>
+          <h2>Welcome to Bagh Chal</h2>
+          <p>Experience the timeless strategy of an ancient Nepali game. Master the art of tactics and claim victory.</p>
           <button class="welcome-start-btn" id="welcome-start-btn">Start Game</button>
           <button class="welcome-secondary-btn" id="tutorial-btn">Tutorial</button>
           <button class="welcome-secondary-btn" id="about-btn">About</button>
@@ -108,11 +108,11 @@
           </div>
         </div>
 
-        <!-- Opposition Panel -->
+        <!-- Tiger Panel -->
         <div class="panel hidden" id="tigerPanel">
           <div class="panel-header">
             <div class="panel-icon red">🐯</div>
-            <div class="panel-label">Opposition</div>
+            <div class="panel-label">Tiger</div>
             <div class="panel-tag" id="tigerTag">Captures: 0 / 5</div>
           </div>
           <div class="panel-body">
@@ -143,7 +143,7 @@
               <span class="stat-value" id="goats-remaining">20</span>
             </div>
             <div class="stat-row">
-              <span class="stat-label">Opposition Trapped</span>
+              <span class="stat-label">Tiger Trapped</span>
               <span class="stat-value" id="tigers-trapped">0 / 4</span>
             </div>
             <div class="progress-bar">
@@ -161,7 +161,7 @@
             <!-- Mode Tabs -->
             <div class="mode-tabs">
               <button class="mode-tab active" id="mode-tab-ai">VS AI</button>
-              <button class="mode-tab" id="mode-tab-player">VS PLAYER</button>
+              <button class="mode-tab" id="mode-tab-player">TOURNAMENTS</button>
             </div>
 
             <!-- AI Difficulty (visible in AI mode) -->
@@ -188,27 +188,26 @@
               </div>
             </div>
 
-            <!-- Multiplayer Room Section (visible in vs Player mode) -->
+            <!-- Multiplayer Room Section (visible in Tournaments mode) -->
             <div class="multiplayer-section hidden" id="multiplayer-section">
-              <p class="mp-hint">Pick a side above, then create or join a room</p>
-              <div class="room-options" id="room-options">
-                <button class="room-btn create" id="create-room-btn">Create Room</button>
-                <div class="room-divider">or</div>
-                <div class="join-room-form">
-                  <input type="text" id="room-code-input" placeholder="Room Code" maxlength="6" autocomplete="off">
-                  <button class="room-btn join" id="join-room-btn">Join →</button>
+              <div class="tournament-coming-soon">
+                <h3 class="coming-soon-title">🏆 Tournaments - Coming Soon</h3>
+                <p class="coming-soon-text">Compete with players worldwide and win exciting prizes!</p>
+                <div class="prize-info">
+                  <div class="prize-card">
+                    <span class="prize-badge">1st</span>
+                    <span class="prize-amount">Cash Prize</span>
+                  </div>
+                  <div class="prize-card">
+                    <span class="prize-badge">2nd</span>
+                    <span class="prize-amount">Cash Prize</span>
+                  </div>
+                  <div class="prize-card">
+                    <span class="prize-badge">3rd</span>
+                    <span class="prize-amount">Cash Prize</span>
+                  </div>
                 </div>
-              </div>
-              <!-- Waiting state shown after room creation -->
-              <div class="room-waiting hidden" id="room-waiting">
-                <div class="waiting-code-wrap">
-                  <span class="waiting-label">Share this code:</span>
-                  <span class="waiting-code" id="room-code-display">------</span>
-                  <button class="copy-code-btn" id="copy-code-btn">📋 Copy</button>
-                </div>
-                <div class="waiting-spinner"></div>
-                <p class="waiting-text">Waiting for opponent…</p>
-                <button class="cancel-room-btn" id="cancel-room-btn">Cancel</button>
+                <p class="tournament-alert">Feature launching soon. Stay tuned!</p>
               </div>
             </div>
           </div>
@@ -268,7 +267,6 @@
               <button class="mode-tab active" id="ftab-friends">Friends</button>
               <button class="mode-tab" id="ftab-search">Search</button>
               <button class="mode-tab" id="ftab-requests">Requests <span class="req-tab-badge hidden" id="req-tab-badge"></span></button>
-              <button class="mode-tab" id="ftab-challenges">Challenges <span class="req-tab-badge hidden" id="chall-tab-badge"></span></button>
             </div>
 
             <!-- Friends List -->
@@ -291,13 +289,6 @@
             <div class="friends-tab-content hidden" id="ftab-requests-content">
               <div id="requests-list" class="friends-list">
                 <p class="friends-empty">No pending friend requests</p>
-              </div>
-            </div>
-
-            <!-- Challenges Tab -->
-            <div class="friends-tab-content hidden" id="ftab-challenges-content">
-              <div id="challenges-list" class="friends-list">
-                <p class="friends-empty">No incoming challenges</p>
               </div>
             </div>
           </div>
@@ -331,18 +322,24 @@
             <div class="winner-icon" id="winner-icon"></div>
             <h2 id="winner-text"></h2>
             <button class="play-again-btn" id="play-again-btn">Play Again</button>
+            <button class="exit-btn" id="exit-btn">Exit</button>
           </div>
         </div>
         
-        <!-- View Previous Move Button -->
-        <button class="view-prev-btn" id="view-prev-btn" title="View previous move">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="arrow-left">
-            <path d="M15 18l-6-6 6-6"/>
-          </svg>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="arrow-right">
-            <path d="M9 18l6-6-6-6"/>
-          </svg>
-        </button>
+        <!-- Move Navigation Buttons -->
+        <div class="move-nav-container hidden" id="move-nav-container">
+          <button class="move-nav-btn" id="prev-move-btn" title="Previous move">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M15 18l-6-6 6-6"/>
+            </svg>
+          </button>
+          <span class="move-counter" id="move-counter">0 / 0</span>
+          <button class="move-nav-btn" id="next-move-btn" title="Next move">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -370,7 +367,7 @@
           <div class="visual-grid">
             <div class="visual-card">
               <div class="visual-icon">🎯</div>
-              <h3>Opposition</h3>
+              <h3>Tiger</h3>
               <p><strong>4 pieces</strong></p>
               <p>Start at corners</p>
               <div class="game-board-demo">
@@ -511,8 +508,8 @@
             </div>
             <div class="demo-step">
               <div class="dice-step">🎲 2</div>
-              <h3>Opposition Moves</h3>
-              <p>After each placement, opposition can move or capture</p>
+              <h3>Tiger Moves</h3>
+              <p>After each placement, tiger can move or capture</p>
               <div class="game-board-demo small">
                 <svg viewBox="0 0 200 200" class="board-svg">
                   <line x1="10" y1="10" x2="190" y2="10" stroke="#4a5568" stroke-width="2"/>
@@ -589,7 +586,7 @@
           <div class="movement-grid">
             <div class="move-card">
               <div class="dice-step">🎲 4</div>
-              <h3>🎯 Opposition Capture</h3>
+              <h3>🎯 Tiger Capture</h3>
               <p><strong>Jump over candidate to capture</strong></p>
               <div class="game-board-demo small">
                 <svg viewBox="0 0 200 200" class="board-svg">
@@ -656,7 +653,7 @@
           <div class="win-grid">
             <div class="win-card opposition">
               <div class="win-icon">🎯</div>
-              <h3>Opposition Wins</h3>
+              <h3>Tiger Wins</h3>
               <div class="win-counter">5 Captures</div>
               <p>Eliminate 5 candidates</p>
             </div>
@@ -664,7 +661,7 @@
               <div class="win-icon">🔔</div>
               <h3>Candidates Win</h3>
               <div class="win-counter">0 Moves</div>
-              <p>Trap all opposition (no legal moves)</p>
+              <p>Trap all tigers (no legal moves)</p>
             </div>
           </div>
         </section>
@@ -672,7 +669,7 @@
         <section class="tutorial-section visual">
           <h2>💡 Quick Tips</h2>
           <div class="tips-grid">
-            <div class="tip-item">🎯 <strong>For Opposition:</strong> Be aggressive early, capture during placement</div>
+            <div class="tip-item">🎯 <strong>For Tiger:</strong> Be aggressive early, capture during placement</div>
             <div class="tip-item">🔔 <strong>For Candidates:</strong> Control center, build walls, be patient</div>
             <div class="tip-item">🚫 <strong>Remember:</strong> Can't capture from corners</div>
             <div class="tip-item">🎮 <strong>Strategy:</strong> Think 3 moves ahead</div>
@@ -690,72 +687,66 @@
       <button class="tutorial-close" id="about-close">✕</button>
       
       <div class="tutorial-scroll">
-        <h1 class="tutorial-title">🐅 Bagh Chal 🐐</h1>
-        <p class="tutorial-subtitle">Nepal's Ancient Strategic Game</p>
+        <h1 class="tutorial-title">Bagh Chal</h1>
+        <p class="tutorial-subtitle">The Ancient Game of Strategic Wisdom</p>
 
         <section class="tutorial-section">
           <h2>📜 Origin & History</h2>
-          <p>Bagh Chal ("Moving Tigers") is a traditional board game from Nepal with centuries of history. This strategic game has been passed down through generations, played in villages across the Himalayan nation. The game represents the eternal struggle between the powerful few (tigers) and the many who must work together (goats).</p>
-          <p>Originally played on hand-drawn boards with stones or seeds, Bagh Chal has become a cultural symbol of Nepal, teaching strategic thinking and patience to players of all ages.</p>
+          <p>Bagh Chal ("Tiger's Move") is one of the world's oldest strategic board games, with roots stretching back over a thousand years in the Himalayan region of Nepal. Created by Himalayan shepherds, this game was born from the harsh realities of mountain life—where a handful of tigers threatened large herds of goats.</p>
+          <p>The game has deep cultural significance in Nepali heritage. According to local folklore and ancient traditions, this game has been cherished by generations and was valued not just as entertainment, but as a teaching tool for strategic wisdom and the power of unity.</p>
+          <p>Originally played on simple boards scratched into stone or earth with pebbles as pieces, Bagh Chal remains virtually unchanged after centuries, a testament to its brilliant design and enduring appeal.</p>
         </section>
 
         <section class="tutorial-section highlight">
-          <h2>🏛️ Political Allegory: Nepal's Current Scenario</h2>
-          <p><strong>This game mirrors Nepal's contemporary political landscape</strong>, where the <strong>Rastriya Swatantra Party (RSP)</strong> acts as the "goats" - the emerging force working strategically to surround and limit the traditional opposition parties ("tigers").</p>
+          <h2>🎯 The Core Philosophy</h2>
+          <p><strong>Bagh Chal teaches one of life's most profound lessons: Individual strength cannot overcome organized cooperation.</strong></p>
           
-          <div class="political-analogy">
-            <div class="analogy-card">
-              <h3>🔔 The Governing Parties (Goats/RSP)</h3>
-              <p>Like goats in the game, RSP represents the new political movement that starts with nothing but gains strength through strategic placement and coordination. They must work together, positioning themselves carefully to limit the movement of established parties.</p>
-              <ul>
-                <li>Start weak but grow through strategy</li>
-                <li>Must work as a unified force</li>
-                <li>Victory comes from patience and positioning</li>
-                <li>Represent change and new political thinking</li>
-              </ul>
-            </div>
-            
-            <div class="analogy-card">
-              <h3>🐅 The Opposition (Tigers)</h3>
-              <p>Traditional opposition parties - Congress, Maoist, RPP, and others - are like tigers: powerful, established, and aggressive. They start with significant advantages but can be outmaneuvered by coordinated strategy.</p>
-              <ul>
-                <li>Start with power and established positions</li>
-                <li>Can eliminate opponents quickly</li>
-                <li>Must be aggressive to win</li>
-                <li>Represent traditional political establishment</li>
-              </ul>
-            </div>
+          <div class="philosophy-card">
+            <h3>🐯 The Tiger's Paradox</h3>
+            <p>The tiger is powerful, agile, and individually superior to any single goat. Yet with just 5 captures, the tiger loses. Power alone is not enough.</p>
           </div>
 
-          <p class="political-lesson">🎓 <strong>Strategic Lesson:</strong> This game teaches that in politics, as in Bagh Chal, power isn't just about strength - it's about positioning, timing, and working together. Learn how smaller, coordinated forces can challenge established power structures through strategic thinking.</p>
+          <div class="philosophy-card">
+            <h3>🐐 The Strength of Unity</h3>
+            <p>The goats start with nothing—they cannot jump, they cannot capture. Their weakness is absolute. Yet together, through coordination and strategic positioning, they can trap and defeat the mighty tiger.</p>
+          </div>
+
+          <div class="philosophy-card">
+            <h3>💡 The Universal Truth</h3>
+            <p>This is not merely a game mechanic—it is a reflection of a universal principle: <strong>When individuals work together with purpose and strategy, they can overcome any single force, no matter how powerful.</strong></p>
+          </div>
         </section>
 
-        <section class="tutorial-section political">
-          <h2>🗳️ Learn Politics Through Play</h2>
-          <p>Bagh Chal isn't just a game - it's a lens to understand Nepal's political dynamics:</p>
+        <section class="tutorial-section">
+          <h2>🌏 A Lesson in Teamwork</h2>
+          <p>Playing as the goats reveals a critical insight: victory requires that every piece plays its role. A single misplaced goat breaks the formation. One forgotten move allows the tiger to escape.</p>
           
           <div class="lesson-box">
-            <h3>Power Dynamics</h3>
-            <p>See how established powers (opposition) can be challenged by organized newcomers (RSP/candidates). The game shows that victory isn't predetermined by starting strength.</p>
+            <h3>Coordination Over Strength</h3>
+            <p>You cannot defeat the tiger with a powerful single piece because you have none. You must think collectively, move collectively, and defend collectively.</p>
           </div>
 
           <div class="lesson-box">
-            <h3>Strategic Thinking</h3>
-            <p>Learn political strategy: positioning, timing, coalition-building, and patience. These skills apply both in the game and in understanding real political movements.</p>
+            <h3>Patience and Positioning</h3>
+            <p>The goat player wins not through aggression, but through careful positioning and patient encirclement. Every piece must know its place in the larger strategy.</p>
           </div>
 
           <div class="lesson-box">
-            <h3>Historical Context</h3>
-            <p>Nepal's political landscape mirrors the game's dynamics - from monarchy to democracy, from established parties to emerging forces like RSP. Each move in politics, like in Bagh Chal, shapes the future.</p>
+            <h3>Shared Victory</h3>
+            <p>Unlike games where one hero saves the day, Bagh Chal teaches that true victory belongs to those who move as one. No single goat wins—the herd wins together.</p>
           </div>
+        </section>
 
-          <p class="conclusion">Play Bagh Chal to sharpen your strategic mind while gaining insight into the fascinating world of Nepali politics. Every game is a lesson in power, strategy, and the art of the possible.</p>
+        <section class="tutorial-section">
+          <h2>📚 Cultural Significance</h2>
+          <p>For over a millennium, Bagh Chal has been more than a game—it is a cultural artifact that encodes Nepali wisdom. Played in villages, temples, and public spaces across Nepal, it has withstood the test of time, passed down by elders to new generations.</p>
+          <p>This ancient game reminds us that the greatest strategic minds are not those with the most power, but those who understand coordination, timing, and the strength of unity.</p>
         </section>
 
         <section class="tutorial-section">
           <h2>👥 About This Project</h2>
-          <p>This digital adaptation brings the ancient game of Bagh Chal into the modern era, making it accessible to players worldwide while preserving its cultural significance and teaching valuable lessons about strategy and politics.</p>
-          <p>Created with passion to celebrate Nepali culture and promote strategic thinking through gameplay.</p>
+          <p>This digital adaptation brings the timeless game of Bagh Chal into the modern era, making it accessible to players worldwide while preserving its cultural heritage and timeless lessons about strategy, teamwork, and the triumph of coordinated intelligence over raw power.</p>
+          <p>Experience a thousand years of strategic wisdom. Play the game that teaches us: together, we are unbeatable.</p>
         </section>
 
         <button class="play-again-btn tutorial-start" id="about-start">Start Playing!</button>
