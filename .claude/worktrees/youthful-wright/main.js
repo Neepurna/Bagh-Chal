@@ -924,75 +924,12 @@ const AI_CONFIG = {
   },
   hard: {
     tigerPlacementDepth: 1, // Tiger doesn't place, but for consistency
-    tigerMovementDepth: 2,  // Tiger attacks - moderate depth (optimized for speed)
-    goatPlacementDepth: 2,  // Goat defense (reduced from 3 for speed)
-    goatMovementDepth: 2,   // Goat defense (reduced from 3 for speed)
-    thinkTime: 400          // Reduced from 500ms for snappier response
+    tigerMovementDepth: 2,  // Tiger attacks - moderate depth
+    goatPlacementDepth: 3,  // Goat defense needs planning - deeper search
+    goatMovementDepth: 3,   // Goat defense critical - deeper search
+    thinkTime: 500
   }
 };
-
-// ===== WEBWORKER AI OPTIMIZATION =====
-let aiWorker = null;
-let workerSupported = typeof Worker !== 'undefined';
-
-// Initialize WebWorker for off-thread AI computation
-function initializeAIWorker() {
-  if (!workerSupported) {
-    console.log('WebWorkers not supported - using inline AI');
-    return;
-  }
-  
-  try {
-    aiWorker = new Worker('ai-worker.js');
-    aiWorker.onerror = (error) => {
-      console.error('Worker error:', error);
-      aiWorker = null;
-    };
-    console.log('AI WebWorker initialized successfully');
-  } catch (error) {
-    console.error('Failed to initialize WebWorker:', error);
-    aiWorker = null;
-  }
-}
-
-// Call worker with timeout fallback
-function getAIMoveFromWorker(gameState, aiSide, callback) {
-  if (!aiWorker) {
-    callback(null);
-    return;
-  }
-  
-  const timeout = setTimeout(() => {
-    console.warn('Worker timeout - computing AI move locally');
-    callback(null);
-  }, AI_CONFIG.hard.thinkTime + 100);
-  
-  const handler = (event) => {
-    clearTimeout(timeout);
-    aiWorker.removeEventListener('message', handler);
-    
-    if (event.data.success) {
-      callback(event.data.move);
-    } else {
-      console.error('Worker AI failed:', event.data.error);
-      callback(null);
-    }
-  };
-  
-  aiWorker.addEventListener('message', handler);
-  aiWorker.postMessage({
-    board: gameState.board,
-    phase: gameState.phase,
-    goatsPlaced: gameState.goatsPlaced,
-    goatsCaptured: gameState.goatsCaptured,
-    aiSide: aiSide,
-    gameState: gameState
-  });
-}
-
-// Transposition table for local AI (memoization cache)
-const aiTranspositionTable = new Map();
-const TRANSPOSITION_TABLE_SIZE = 50000;
 
 function stopRoomSyncListeners() {
   if (currentRoomUnsub) {
@@ -1177,11 +1114,6 @@ function initGame() {
 
   updateUI();
   draw();
-  
-  // Initialize AI worker for optimized computation (only once)
-  if (!aiWorker && workerSupported) {
-    initializeAIWorker();
-  }
   
   // Show/hide panels based on game state
   if (gameStarted) {
@@ -2078,12 +2010,6 @@ function getAllPossibleMoves(board, player, phase, goatsPlaced) {
     for (let i = 0; i < 25; i++) {
       if (board[i] === player) {
         const pieceMoves = getValidMovesForState(i, board);
-        // Ensure moves have type field
-        for (const move of pieceMoves) {
-          if (!move.type) {
-            move.type = 'move';
-          }
-        }
         moves.push(...pieceMoves);
       }
     }
@@ -2117,27 +2043,49 @@ function applyMove(board, move, phase, goatsPlaced, goatsCaptured) {
   return { board: newBoard, phase: newPhase, goatsPlaced: newGoatsPlaced, goatsCaptured: newGoatsCaptured };
 }
 
-// Execute hard AI move - optimized with WebWorker support
+// Execute hard AI move using minimax
 function executeHardAIMove() {
   if (gameState.gameOver) return;
   
-  console.log('=== Hard AI Move Start (Optimized) ===');
+  console.log('=== Hard AI Move Start ===');
   const aiSide = playerSide === PIECE_TYPES.GOAT ? PIECE_TYPES.TIGER : PIECE_TYPES.GOAT;
-  console.log('AI Side:', aiSide === PIECE_TYPES.TIGER ? 'TIGER' : 'GOAT', 'Phase:', gameState.phase);
+  console.log('AI Side:', aiSide === PIECE_TYPES.TIGER ? 'TIGER' : 'GOAT');
+  console.log('Phase:', gameState.phase);
   
-  // Special handling for first goat placement
+  // Special handling for first goat placement - randomize among 5 safe positions
   if (aiSide === PIECE_TYPES.GOAT && gameState.phase === PHASE.PLACEMENT && gameState.goatsPlaced === 0) {
-    const safePositions = [12, 2, 10, 14, 22];
+    console.log('First goat placement - using safe positions');
+    const safePositions = [12, 2, 10, 14, 22]; // Center and 4 middle border positions
     const availableSafePositions = safePositions.filter(pos => gameState.board[pos] === PIECE_TYPES.EMPTY);
     
     if (availableSafePositions.length > 0) {
       const randomSafePos = availableSafePositions[Math.floor(Math.random() * availableSafePositions.length)];
-      applyHardAIMove({ type: 'place', to: randomSafePos }, aiSide);
+      console.log('Placing first goat at safe position:', randomSafePos);
+      
+      saveState();
+      gameState.board[randomSafePos] = PIECE_TYPES.GOAT;
+      gameState.goatIdentities[randomSafePos] = getNextGoatFlag();
+      gameState.goatsPlaced++;
+      playSound('pieceMove');
+      gameState.currentPlayer = PIECE_TYPES.TIGER;
+      
+      // Add position to history
+      positionHistory.push(getBoardHash(gameState.board));
+      if (positionHistory.length > MAX_POSITION_HISTORY) {
+        positionHistory.shift();
+      }
+      
+      updateUI();
+      draw();
+      checkWin();
+      hideAIThinking();
+      startTimer();
       return;
     }
   }
   
   const allMoves = getAllPossibleMoves(gameState.board, aiSide, gameState.phase, gameState.goatsPlaced);
+  console.log('Total possible moves:', allMoves.length);
   
   if (allMoves.length === 0) {
     console.log('No moves available!');
@@ -2145,31 +2093,7 @@ function executeHardAIMove() {
     return;
   }
   
-  // Try worker-based AI if available (non-blocking)
-  if (aiWorker) {
-    getAIMoveFromWorker(gameState, aiSide, (workerMove) => {
-      if (workerMove) {
-        console.log('Using worker-computed move');
-        applyHardAIMove(workerMove, aiSide);
-      } else {
-        // Fallback to optimized local minimax
-        console.log('Worker unavailable, using local optimized search');
-        executeHardAIMoveLocal(allMoves, aiSide);
-      }
-    });
-  } else {
-    // Use optimized local minimax
-    executeHardAIMoveLocal(allMoves, aiSide);
-  }
-}
-
-// Optimized local minimax with move ordering and transposition table
-function executeHardAIMoveLocal(allMoves, aiSide) {
-  console.log('Evaluating', allMoves.length, 'moves with optimized minimax...');
-  
-  // Sort moves using heuristic ordering for better pruning
-  const orderedMoves = orderMovesByHeuristic(allMoves, aiSide);
-  
+  // Determine search depth based on AI side and phase
   let searchDepth;
   if (aiSide === PIECE_TYPES.GOAT) {
     searchDepth = gameState.phase === PHASE.PLACEMENT ? 
@@ -2181,46 +2105,43 @@ function executeHardAIMoveLocal(allMoves, aiSide) {
       AI_CONFIG.hard.tigerMovementDepth;
   }
   
+  console.log('Using search depth:', searchDepth);
+  
   let bestMove = null;
   let bestScore = -Infinity;
-  let alternativeMoves = [];
+  let alternativeMoves = []; // Track good alternative moves
   
-  const startTime = Date.now();
-  const timeLimit = AI_CONFIG.hard.thinkTime;
-  
-  // Evaluate moves with time limit
-  for (let i = 0; i < orderedMoves.length; i++) {
-    // Check time budget
-    if (Date.now() - startTime > timeLimit * 0.9) {
-      console.log('Time limit reached, using best move found');
-      break;
-    }
-    
-    const move = orderedMoves[i];
+  // Use minimax search for accurate play
+  console.log('Evaluating moves with minimax...');
+  for (let i = 0; i < allMoves.length; i++) {
+    const move = allMoves[i];
     const newState = applyMove(gameState.board, move, gameState.phase, gameState.goatsPlaced, gameState.goatsCaptured);
     
-    // Check repetition
+    // Check if this position would repeat recent history
     const newBoardHash = getBoardHash(newState.board);
-    const wouldRepeat = positionHistory.slice(-6).includes(newBoardHash);
+    const wouldRepeat = positionHistory.slice(-6).includes(newBoardHash); // Check last 6 positions
     
-    // Optimized minimax with memo
-    const score = minimaxOptimized(
+    // Use minimax to look ahead
+    const score = minimax(
       newState.board, 
       searchDepth - 1, 
       -Infinity, 
       Infinity, 
-      false,
+      false, // Opponent's turn next
       aiSide, 
       newState.phase, 
       newState.goatsPlaced, 
       newState.goatsCaptured
     );
     
+    // Penalize repetitive moves for Goat AI
     let adjustedScore = score;
     if (aiSide === PIECE_TYPES.GOAT && wouldRepeat) {
-      adjustedScore -= 100;
+      adjustedScore -= 100; // Penalty for repetition
+      console.log('Move would repeat position, applying penalty');
     }
     
+    // Track alternative moves that are close to best
     if (adjustedScore > bestScore - 50 && !wouldRepeat) {
       alternativeMoves.push({ move, score: adjustedScore });
     }
@@ -2231,170 +2152,83 @@ function executeHardAIMoveLocal(allMoves, aiSide) {
     }
   }
   
-  // Avoid repetition for goat AI
+  // If best move would cause repetition and we have alternatives, choose alternative
   if (aiSide === PIECE_TYPES.GOAT && alternativeMoves.length > 1) {
+    // Sort alternatives by score
     alternativeMoves.sort((a, b) => b.score - a.score);
+    
+    // Check if the top alternative is different from best move
     const bestNewState = applyMove(gameState.board, bestMove, gameState.phase, gameState.goatsPlaced, gameState.goatsCaptured);
     const bestHash = getBoardHash(bestNewState.board);
     
     if (positionHistory.slice(-4).includes(bestHash)) {
+      console.log('Choosing alternative move to avoid repetition');
+      // Pick second or third best move to add variety
       const altIndex = Math.floor(Math.random() * Math.min(3, alternativeMoves.length));
       bestMove = alternativeMoves[altIndex].move;
       bestScore = alternativeMoves[altIndex].score;
     }
   }
   
-  applyHardAIMove(bestMove, aiSide);
-}
-
-// Smart move ordering heuristic
-function orderMovesByHeuristic(moves, aiSide) {
-  const scored = moves.map(move => {
-    let score = 0;
-    
-    // Captures are highest priority
-    if (move.type === 'move' && move.capture !== null && move.capture === PIECE_TYPES.GOAT) {
-      score += 1000;
-    }
-    
-    // Center positions
-    if (move.to === 12) score += 100;
-    if ([6, 8, 16, 18].includes(move.to)) score += 50;
-    
-    return { move, score };
-  });
+  console.log('Best move selected with score:', bestScore);
+  console.log('Move:', bestMove);
   
-  scored.sort((a, b) => b.score - a.score);
-  return scored.map(item => item.move);
-}
-
-// Optimized minimax with transposition table memoization
-function minimaxOptimized(board, depth, alpha, beta, isMaximizing, aiSide, phase, goatsPlaced, goatsCaptured) {
-  // Terminal conditions
-  if (depth === 0 || goatsCaptured >= 5) {
-    return evaluateBoard(board, aiSide, phase, goatsPlaced, goatsCaptured);
-  }
-  
-  // Check game over
-  if (phase === PHASE.MOVEMENT) {
-    let allTrapped = true;
-    for (let i = 0; i < 25; i++) {
-      if (board[i] === PIECE_TYPES.TIGER) {
-        const moves = getValidMovesForState(i, board);
-        if (moves.length > 0) {
-          allTrapped = false;
-          break;
-        }
+  // Apply the best move
+  if (bestMove) {
+    saveState();
+    
+    if (bestMove.type === 'place') {
+      console.log('Placing goat at position:', bestMove.to);
+      gameState.board[bestMove.to] = PIECE_TYPES.GOAT;
+      gameState.goatIdentities[bestMove.to] = getNextGoatFlag();
+      gameState.goatsPlaced++;
+      if (gameState.goatsPlaced === 20) {
+        gameState.phase = PHASE.MOVEMENT;
       }
-    }
-    if (allTrapped) return isMaximizing ? -10000 : 10000;
-  }
-  
-  // Transposition table lookup
-  const posHash = getBoardHash(board) + '_' + depth + '_' + isMaximizing;
-  if (aiTranspositionTable.has(posHash)) {
-    return aiTranspositionTable.get(posHash);
-  }
-  
-  const currentPlayer = isMaximizing ? aiSide : (aiSide === PIECE_TYPES.TIGER ? PIECE_TYPES.GOAT : PIECE_TYPES.TIGER);
-  
-  if (isMaximizing) {
-    let maxEval = -Infinity;
-    const moves = getAllPossibleMoves(board, currentPlayer, phase, goatsPlaced);
-    const orderedMoves = orderMovesByHeuristic(moves, currentPlayer);
-    
-    for (const move of orderedMoves) {
-      const newState = applyMove(board, move, phase, goatsPlaced, goatsCaptured);
-      const evaluation = minimaxOptimized(newState.board, depth - 1, alpha, beta, false, aiSide, newState.phase, newState.goatsPlaced, newState.goatsCaptured);
-      maxEval = Math.max(maxEval, evaluation);
-      alpha = Math.max(alpha, evaluation);
-      if (beta <= alpha) break;
-    }
-    
-    // Cache result
-    if (aiTranspositionTable.size < TRANSPOSITION_TABLE_SIZE) {
-      aiTranspositionTable.set(posHash, maxEval);
+      gameState.currentPlayer = PIECE_TYPES.TIGER;
+    } else {
+      console.log('Moving from', bestMove.from, 'to', bestMove.to);
+      if (gameState.board[bestMove.from] === PIECE_TYPES.TIGER) {
+        const tigerIdentity = gameState.tigerIdentities[bestMove.from];
+        gameState.tigerIdentities[bestMove.to] = tigerIdentity;
+        delete gameState.tigerIdentities[bestMove.from];
+      } else if (gameState.board[bestMove.from] === PIECE_TYPES.GOAT) {
+        const goatIdentity = gameState.goatIdentities[bestMove.from];
+        gameState.goatIdentities[bestMove.to] = goatIdentity;
+        delete gameState.goatIdentities[bestMove.from];
+      }
+      
+      gameState.board[bestMove.to] = gameState.board[bestMove.from];
+      gameState.board[bestMove.from] = PIECE_TYPES.EMPTY;
+      
+      if (bestMove.capture !== null) {
+        console.log('Captured piece at:', bestMove.capture);
+        gameState.board[bestMove.capture] = PIECE_TYPES.EMPTY;
+        delete gameState.goatIdentities[bestMove.capture];
+        gameState.goatsCaptured++;
+        playSound('tigerCapture');
+      }
+      
+      gameState.currentPlayer = aiSide === PIECE_TYPES.TIGER ? PIECE_TYPES.GOAT : PIECE_TYPES.TIGER;
     }
     
-    return maxEval;
-  } else {
-    let minEval = Infinity;
-    const moves = getAllPossibleMoves(board, currentPlayer, phase, goatsPlaced);
-    const orderedMoves = orderMovesByHeuristic(moves, currentPlayer);
+    // Track position to detect repetitions
+    const currentBoardHash = getBoardHash(gameState.board);
+    positionHistory.push(currentBoardHash);
     
-    for (const move of orderedMoves) {
-      const newState = applyMove(board, move, phase, goatsPlaced, goatsCaptured);
-      const evaluation = minimaxOptimized(newState.board, depth - 1, alpha, beta, true, aiSide, newState.phase, newState.goatsPlaced, newState.goatsCaptured);
-      minEval = Math.min(minEval, evaluation);
-      beta = Math.min(beta, evaluation);
-      if (beta <= alpha) break;
+    // Keep only recent history
+    if (positionHistory.length > MAX_POSITION_HISTORY) {
+      positionHistory.shift();
     }
     
-    // Cache result
-    if (aiTranspositionTable.size < TRANSPOSITION_TABLE_SIZE) {
-      aiTranspositionTable.set(posHash, minEval);
-    }
-    
-    return minEval;
-  }
-}
-
-// Apply the computed best move to game state
-function applyHardAIMove(bestMove, aiSide) {
-  if (!bestMove) {
+    playSound('pieceMove');
+    updateUI();
+    draw();
+    console.log('=== Hard AI Move Complete ===');
     checkWin();
-    return;
+    onMoveMade();
   }
-  
-  saveState();
-  
-  if (bestMove.type === 'place') {
-    gameState.board[bestMove.to] = PIECE_TYPES.GOAT;
-    gameState.goatIdentities[bestMove.to] = getNextGoatFlag();
-    gameState.goatsPlaced++;
-    if (gameState.goatsPlaced === 20) {
-      gameState.phase = PHASE.MOVEMENT;
-    }
-    gameState.currentPlayer = PIECE_TYPES.TIGER;
-  } else {
-    if (gameState.board[bestMove.from] === PIECE_TYPES.TIGER) {
-      const tigerIdentity = gameState.tigerIdentities[bestMove.from];
-      gameState.tigerIdentities[bestMove.to] = tigerIdentity;
-      delete gameState.tigerIdentities[bestMove.from];
-    } else if (gameState.board[bestMove.from] === PIECE_TYPES.GOAT) {
-      const goatIdentity = gameState.goatIdentities[bestMove.from];
-      gameState.goatIdentities[bestMove.to] = goatIdentity;
-      delete gameState.goatIdentities[bestMove.from];
-    }
-    
-    gameState.board[bestMove.to] = gameState.board[bestMove.from];
-    gameState.board[bestMove.from] = PIECE_TYPES.EMPTY;
-    
-    if (bestMove.capture !== null) {
-      gameState.board[bestMove.capture] = PIECE_TYPES.EMPTY;
-      delete gameState.goatIdentities[bestMove.capture];
-      gameState.goatsCaptured++;
-      playSound('tigerCapture');
-    }
-    
-    gameState.currentPlayer = aiSide === PIECE_TYPES.TIGER ? PIECE_TYPES.GOAT : PIECE_TYPES.TIGER;
-  }
-  
-  const currentBoardHash = getBoardHash(gameState.board);
-  positionHistory.push(currentBoardHash);
-  
-  if (positionHistory.length > MAX_POSITION_HISTORY) {
-    positionHistory.shift();
-  }
-  
-  playSound('pieceMove');
-  updateUI();
-  draw();
-  console.log('=== Hard AI Move Complete (Optimized) ===');
-  checkWin();
-  onMoveMade();
 }
-
 
 // ===== ORIGINAL EASY AI =====
 

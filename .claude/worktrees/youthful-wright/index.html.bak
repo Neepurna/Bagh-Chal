@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#0a0d16">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Bagh Chal — A Political Allegory of Nepal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-brand">
+        <div class="header-title">🐯 Bagh Chal 🐐</div>
+        <div class="header-subtitle">A Political Allegory of Nepal</div>
+      </div>
+      <nav class="header-nav">
+        <button class="nav-btn" id="tutorial-btn">Tutorial</button>
+        <button class="nav-btn" id="about-btn">About</button>
+        <button class="nav-btn" id="setting-btn">Settings</button>
+        <button class="nav-btn" id="signin-btn">Work On Progress</button>
+        <button class="nav-btn primary" id="reset-btn">New Game</button>
+      </nav>
+    </header>
+
+    <div class="game-layout">
+      <aside class="sidebar">
+        <!-- Game State Panel -->
+        <div class="panel active" id="gameStatePanel">
+          <div class="panel-header">
+            <div class="panel-icon teal">🏛️</div>
+            <div>
+              <div class="panel-label">Governing Parties</div>
+              <div class="phase-badge" id="phaseBadge">
+                <div class="phase-dot"></div>
+                <span id="phase-text">Placement Phase</span>
+              </div>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label">Active Player</span>
+              <span class="stat-value" id="turn-text">Governing Parties</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Opposition Panel -->
+        <div class="panel" id="tigerPanel">
+          <div class="panel-header">
+            <div class="panel-icon red">🐯</div>
+            <div class="panel-label">Opposition</div>
+            <div class="panel-tag" id="tigerTag">Captures: 0 / 5</div>
+          </div>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label">Candidates Captured</span>
+              <span class="stat-value" id="tiger-captures">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Needed to Win</span>
+              <span class="stat-value" style="color: var(--red);">5</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill red" id="captureProgress" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Candidates Panel -->
+        <div class="panel" id="goatPanel">
+          <div class="panel-header">
+            <div class="panel-icon gold">🐐</div>
+            <div class="panel-label">Candidates</div>
+            <div class="panel-tag" id="goatTag">Placed: 0 / 20</div>
+          </div>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label">Remaining</span>
+              <span class="stat-value" id="goats-remaining">20</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Opposition Trapped</span>
+              <span class="stat-value" id="tigers-trapped">0 / 4</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill gold" id="placedProgress" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="board-wrap">
+        <div class="board-container">
+        <canvas id="game-canvas"></canvas>
+        
+        <!-- Start Game Overlay -->
+        <div class="winner-overlay show" id="start-overlay">
+          <div class="winner-card">
+            <h1 class="game-title">🐅 Bagh Chal 🐐</h1>
+            <div class="menu-buttons">
+              <button class="play-again-btn" id="start-game-btn">Start New Game</button>
+              <button class="play-again-btn" id="tutorial-btn">Tutorial</button>
+              <button class="play-again-btn" id="setting-btn">Setting</button>
+              <button class="play-again-btn" id="about-btn">About</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Player Selection Overlay -->
+        <div class="winner-overlay" id="player-select-overlay">
+          <div class="winner-card">
+            <h2 class="select-title">Choose Your Side</h2>
+            <div class="player-selection">
+              <div class="selection-card" id="select-goat">
+                <img src="assets/Ghanti.png" alt="Goat" class="selection-logo">
+                <h3>The Governing Party</h3>
+                <p>Place and move Government Party to trap all the Opposition Parties</p>
+              </div>
+              <div class="selection-card" id="select-tiger">
+                <img src="assets/Opposition.png" class="selection-logo">
+                <h3>The Opposition Parties</h3>
+                <p>Capture 5 Government Party Members</p>
+              </div>
+            </div>
+            
+            <!-- Difficulty Selector -->
+            <div class="difficulty-selector">
+              <h3 class="difficulty-title">AI Difficulty</h3>
+              <div class="difficulty-options">
+                <button class="difficulty-btn active" data-difficulty="easy">
+                  <div class="difficulty-icon">🎯</div>
+                  <div class="difficulty-name">Easy</div>
+                  <div class="difficulty-desc">Basic strategy</div>
+                </button>
+                <button class="difficulty-btn" data-difficulty="medium">
+                  <div class="difficulty-icon">⚔️</div>
+                  <div class="difficulty-name">Medium</div>
+                  <div class="difficulty-desc">Tactical moves</div>
+                </button>
+                <button class="difficulty-btn" data-difficulty="hard">
+                  <div class="difficulty-icon">🧠</div>
+                  <div class="difficulty-name">Hard</div>
+                  <div class="difficulty-desc">MCTS AI (1000 sims)</div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- AI Thinking Overlay -->
+        <div class="ai-thinking" id="ai-thinking">
+          <div class="thinking-content">
+            <div class="thinking-spinner"></div>
+            <p>AI is thinking...</p>
+          </div>
+        </div>
+        
+        <!-- Winner Overlay -->
+        <div class="winner-overlay" id="winner-overlay">
+          <div class="winner-card">
+            <div class="winner-icon" id="winner-icon"></div>
+            <h2 id="winner-text"></h2>
+            <button class="play-again-btn" id="play-again-btn">Play Again</button>
+          </div>
+        </div>
+        
+        <!-- View Previous Move Button -->
+        <button class="view-prev-btn" id="view-prev-btn" title="View previous move">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="arrow-left">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="arrow-right">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <footer>
+      <div class="footer-text">Traditional Nepali board game · Bagh-Chal</div>
+      <div class="footer-links">
+        <a class="footer-link" id="footer-about">About</a>
+        <a class="footer-link" id="footer-settings">Settings</a>
+        <a class="footer-link" id="footer-tutorial">Tutorial</a>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Tutorial Overlay -->
+  <div class="tutorial-overlay" id="tutorial-overlay">
+    <div class="tutorial-content">
+      <button class="tutorial-close" id="tutorial-close">✕</button>
+      
+      <div class="tutorial-scroll">
+        <h1 class="tutorial-title">🎮 How to Play</h1>
+        <p class="tutorial-subtitle">Master the Game in 3 Simple Steps</p>
+
+        <section class="tutorial-section visual">
+          <h2>⚡ Game Setup</h2>
+          <div class="visual-grid">
+            <div class="visual-card">
+              <div class="visual-icon">🎯</div>
+              <h3>Opposition</h3>
+              <p><strong>4 pieces</strong></p>
+              <p>Start at corners</p>
+              <div class="game-board-demo">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <!-- Board Lines -->
+                  <line x1="10" y1="10" x2="190" y2="10" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="55" x2="190" y2="55" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="145" x2="190" y2="145" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="190" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Diagonals -->
+                  <line x1="10" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="55" x2="145" y2="145" stroke="#4a5568" stroke-width="1.5"/>
+                  <line x1="145" y1="55" x2="55" y2="145" stroke="#4a5568" stroke-width="1.5"/>
+                  <!-- Tiger pieces at corners -->
+                  <circle cx="10" cy="10" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="10" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="10" cy="190" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="190" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <!-- All points -->
+                  <circle cx="55" cy="10" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="100" cy="10" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="145" cy="10" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="10" cy="55" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="55" cy="55" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="100" cy="55" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="145" cy="55" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="190" cy="55" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="10" cy="100" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="55" cy="100" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="100" cy="100" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="145" cy="100" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="190" cy="100" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="10" cy="145" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="55" cy="145" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="100" cy="145" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="145" cy="145" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="190" cy="145" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="55" cy="190" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="100" cy="190" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="145" cy="190" r="3" fill="#4ECDC4" opacity="0.3"/>
+                </svg>
+              </div>
+            </div>
+            <div class="visual-card">
+              <div class="visual-icon">🔔</div>
+              <h3>Candidates</h3>
+              <p><strong>20 pieces</strong></p>
+              <p>Place one by one</p>
+              <div class="game-board-demo">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <!-- Board Lines -->
+                  <line x1="10" y1="10" x2="190" y2="10" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="55" x2="190" y2="55" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="145" x2="190" y2="145" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="190" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Diagonals -->
+                  <line x1="10" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="55" x2="145" y2="145" stroke="#4a5568" stroke-width="1.5"/>
+                  <line x1="145" y1="55" x2="55" y2="145" stroke="#4a5568" stroke-width="1.5"/>
+                  
+                  <!-- Tiger pieces at corners (faded) -->
+                  <circle cx="10" cy="10" r="6" fill="#FF6B35" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+                  <circle cx="190" cy="10" r="6" fill="#FF6B35" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+                  <circle cx="10" cy="190" r="6" fill="#FF6B35" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+                  <circle cx="190" cy="190" r="6" fill="#FF6B35" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+                  
+                  <!-- Candidate pieces being placed (showing progression) -->
+                  <circle cx="100" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="55" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="100" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="100" cy="145" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="55" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="145" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="55" cy="145" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="10" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="10" cy="145" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  
+                  <!-- Placement indicator showing next placement with pulse -->
+                  <circle cx="100" cy="10" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2" class="pulse"/>
+                  
+                  <!-- Counter label -->
+                  <text x="100" y="25" fill="#4ECDC4" font-size="14" font-weight="bold" text-anchor="middle">13/20</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tutorial-section visual">
+          <h2>🎯 Phase 1: Placement</h2>
+          <div class="phase-demo">
+            <div class="demo-step">
+              <div class="dice-step">🎲 1</div>
+              <h3>Candidates Place First</h3>
+              <p>Click any empty point to place a candidate</p>
+              <div class="game-board-demo small">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <!-- Board structure -->
+                  <line x1="10" y1="10" x2="190" y2="10" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="55" x2="190" y2="55" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="145" x2="190" y2="145" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="190" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Tigers at corners -->
+                  <circle cx="10" cy="10" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="10" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="10" cy="190" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="190" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <!-- First goat placement at center with pulse -->
+                  <circle cx="100" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2" class="pulse"/>
+                  <text x="100" y="25" fill="#4ECDC4" font-size="12" text-anchor="middle">▼ Click here</text>
+                </svg>
+              </div>
+            </div>
+            <div class="demo-step">
+              <div class="dice-step">🎲 2</div>
+              <h3>Opposition Moves</h3>
+              <p>After each placement, opposition can move or capture</p>
+              <div class="game-board-demo small">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <line x1="10" y1="10" x2="190" y2="10" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="55" x2="190" y2="55" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="145" x2="190" y2="145" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="190" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Tigers -->
+                  <circle cx="10" cy="10" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2" opacity="0.5"/>
+                  <circle cx="190" cy="10" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="10" cy="190" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="190" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <!-- Goat -->
+                  <circle cx="100" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <!-- Tiger moved from corner -->
+                  <circle cx="55" cy="55" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2" class="pulse"/>
+                  <path d="M 10 10 L 55 55" stroke="#FF6B35" stroke-width="2" stroke-dasharray="4 4" opacity="0.6" marker-end="url(#arrowhead)"/>
+                  <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                      <polygon points="0 0, 10 3, 0 6" fill="#FF6B35" />
+                    </marker>
+                  </defs>
+                </svg>
+              </div>
+            </div>
+            <div class="demo-step">
+              <div class="dice-step">🎲 3</div>
+              <h3>Repeat</h3>
+              <p>Continue until all 20 candidates are placed</p>
+              <div class="game-board-demo small">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <line x1="10" y1="10" x2="190" y2="10" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="55" x2="190" y2="55" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="145" x2="190" y2="145" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="190" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Tigers -->
+                  <circle cx="55" cy="55" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="55" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="55" cy="145" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="145" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <!-- Multiple goats placed -->
+                  <circle cx="100" cy="10" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="100" cy="55" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="100" cy="100" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="100" cy="145" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="10" cy="100" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="55" cy="100" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="145" cy="100" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="190" cy="100" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <text x="100" y="25" fill="#4ECDC4" font-size="14" font-weight="bold" text-anchor="middle">8/20</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tutorial-section visual">
+          <h2>♟️ Phase 2: Movement</h2>
+          <div class="movement-grid">
+            <div class="move-card">
+              <div class="dice-step">🎲 4</div>
+              <h3>🎯 Opposition Capture</h3>
+              <p><strong>Jump over candidate to capture</strong></p>
+              <div class="game-board-demo small">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Before state -->
+                  <text x="100" y="40" fill="#fff" font-size="14" font-weight="bold" text-anchor="middle">BEFORE</text>
+                  <circle cx="55" cy="100" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="100" cy="100" r="8" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="100" r="4" fill="#4a5568" stroke="#4ECDC4" stroke-width="1" stroke-dasharray="2 2"/>
+                  <!-- Arrow -->
+                  <text x="100" y="125" fill="#e94560" font-size="24" text-anchor="middle">⬇</text>
+                  <!-- After state -->
+                  <text x="100" y="155" fill="#fff" font-size="14" font-weight="bold" text-anchor="middle">AFTER</text>
+                  <circle cx="55" cy="170" r="4" fill="#4a5568" opacity="0.3"/>
+                  <circle cx="100" cy="170" r="5" fill="#4ECDC4" opacity="0.3" class="captured">
+                    <animate attributeName="opacity" values="0.3;0;0.3" dur="1s" repeatCount="indefinite"/>
+                  </circle>
+                  <text x="100" y="173" fill="#e94560" font-size="20" text-anchor="middle">✕</text>
+                  <circle cx="145" cy="170" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2" class="pulse"/>
+                </svg>
+              </div>
+            </div>
+            <div class="move-card">
+              <div class="dice-step">🎲 5</div>
+              <h3>🔔 Candidates Move</h3>
+              <p><strong>Move to adjacent empty point</strong></p>
+              <div class="game-board-demo small">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Before state -->
+                  <text x="100" y="40" fill="#fff" font-size="14" font-weight="bold" text-anchor="middle">BEFORE</text>
+                  <circle cx="55" cy="100" r="4" fill="#4a5568" opacity="0.3"/>
+                  <circle cx="100" cy="100" r="8" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="100" r="4" fill="#4a5568" stroke="#4ECDC4" stroke-width="1" stroke-dasharray="2 2"/>
+                  <circle cx="100" cy="55" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <!-- Arrow -->
+                  <text x="100" y="125" fill="#4ECDC4" font-size="24" text-anchor="middle">⬇</text>
+                  <!-- After state -->
+                  <text x="100" y="155" fill="#fff" font-size="14" font-weight="bold" text-anchor="middle">AFTER</text>
+                  <circle cx="100" cy="170" r="4" fill="#4a5568" opacity="0.3"/>
+                  <circle cx="145" cy="170" r="8" fill="#4ECDC4" stroke="#fff" stroke-width="2" class="pulse"/>
+                  <circle cx="100" cy="145" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <text x="65" y="173" fill="#e94560" font-size="16" text-anchor="middle">🚫 Can't jump</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tutorial-section visual">
+          <h2>🏆 Win Conditions</h2>
+          <div class="win-grid">
+            <div class="win-card opposition">
+              <div class="win-icon">🎯</div>
+              <h3>Opposition Wins</h3>
+              <div class="win-counter">5 Captures</div>
+              <p>Eliminate 5 candidates</p>
+            </div>
+            <div class="win-card candidates">
+              <div class="win-icon">🔔</div>
+              <h3>Candidates Win</h3>
+              <div class="win-counter">0 Moves</div>
+              <p>Trap all opposition (no legal moves)</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="tutorial-section visual">
+          <h2>💡 Quick Tips</h2>
+          <div class="tips-grid">
+            <div class="tip-item">🎯 <strong>For Opposition:</strong> Be aggressive early, capture during placement</div>
+            <div class="tip-item">🔔 <strong>For Candidates:</strong> Control center, build walls, be patient</div>
+            <div class="tip-item">🚫 <strong>Remember:</strong> Can't capture from corners</div>
+            <div class="tip-item">🎮 <strong>Strategy:</strong> Think 3 moves ahead</div>
+          </div>
+        </section>
+
+        <button class="play-again-btn tutorial-start" id="tutorial-start">Start Playing!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- About Overlay -->
+  <div class="tutorial-overlay" id="about-overlay">
+    <div class="tutorial-content">
+      <button class="tutorial-close" id="about-close">✕</button>
+      
+      <div class="tutorial-scroll">
+        <h1 class="tutorial-title">🐅 Bagh Chal 🐐</h1>
+        <p class="tutorial-subtitle">Nepal's Ancient Strategic Game</p>
+
+        <section class="tutorial-section">
+          <h2>📜 Origin & History</h2>
+          <p>Bagh Chal ("Moving Tigers") is a traditional board game from Nepal with centuries of history. This strategic game has been passed down through generations, played in villages across the Himalayan nation. The game represents the eternal struggle between the powerful few (tigers) and the many who must work together (goats).</p>
+          <p>Originally played on hand-drawn boards with stones or seeds, Bagh Chal has become a cultural symbol of Nepal, teaching strategic thinking and patience to players of all ages.</p>
+        </section>
+
+        <section class="tutorial-section highlight">
+          <h2>🏛️ Political Allegory: Nepal's Current Scenario</h2>
+          <p><strong>This game mirrors Nepal's contemporary political landscape</strong>, where the <strong>Rastriya Swatantra Party (RSP)</strong> acts as the "goats" - the emerging force working strategically to surround and limit the traditional opposition parties ("tigers").</p>
+          
+          <div class="political-analogy">
+            <div class="analogy-card">
+              <h3>🔔 The Governing Parties (Goats/RSP)</h3>
+              <p>Like goats in the game, RSP represents the new political movement that starts with nothing but gains strength through strategic placement and coordination. They must work together, positioning themselves carefully to limit the movement of established parties.</p>
+              <ul>
+                <li>Start weak but grow through strategy</li>
+                <li>Must work as a unified force</li>
+                <li>Victory comes from patience and positioning</li>
+                <li>Represent change and new political thinking</li>
+              </ul>
+            </div>
+            
+            <div class="analogy-card">
+              <h3>🐅 The Opposition (Tigers)</h3>
+              <p>Traditional opposition parties - Congress, Maoist, RPP, and others - are like tigers: powerful, established, and aggressive. They start with significant advantages but can be outmaneuvered by coordinated strategy.</p>
+              <ul>
+                <li>Start with power and established positions</li>
+                <li>Can eliminate opponents quickly</li>
+                <li>Must be aggressive to win</li>
+                <li>Represent traditional political establishment</li>
+              </ul>
+            </div>
+          </div>
+
+          <p class="political-lesson">🎓 <strong>Strategic Lesson:</strong> This game teaches that in politics, as in Bagh Chal, power isn't just about strength - it's about positioning, timing, and working together. Learn how smaller, coordinated forces can challenge established power structures through strategic thinking.</p>
+        </section>
+
+        <section class="tutorial-section political">
+          <h2>🗳️ Learn Politics Through Play</h2>
+          <p>Bagh Chal isn't just a game - it's a lens to understand Nepal's political dynamics:</p>
+          
+          <div class="lesson-box">
+            <h3>Power Dynamics</h3>
+            <p>See how established powers (opposition) can be challenged by organized newcomers (RSP/candidates). The game shows that victory isn't predetermined by starting strength.</p>
+          </div>
+
+          <div class="lesson-box">
+            <h3>Strategic Thinking</h3>
+            <p>Learn political strategy: positioning, timing, coalition-building, and patience. These skills apply both in the game and in understanding real political movements.</p>
+          </div>
+
+          <div class="lesson-box">
+            <h3>Historical Context</h3>
+            <p>Nepal's political landscape mirrors the game's dynamics - from monarchy to democracy, from established parties to emerging forces like RSP. Each move in politics, like in Bagh Chal, shapes the future.</p>
+          </div>
+
+          <p class="conclusion">Play Bagh Chal to sharpen your strategic mind while gaining insight into the fascinating world of Nepali politics. Every game is a lesson in power, strategy, and the art of the possible.</p>
+        </section>
+
+        <section class="tutorial-section">
+          <h2>👥 About This Project</h2>
+          <p>This digital adaptation brings the ancient game of Bagh Chal into the modern era, making it accessible to players worldwide while preserving its cultural significance and teaching valuable lessons about strategy and politics.</p>
+          <p>Created with passion to celebrate Nepali culture and promote strategic thinking through gameplay.</p>
+        </section>
+
+        <button class="play-again-btn tutorial-start" id="about-start">Start Playing!</button>
+      </div>
+    </div>
+
+    <!-- Sign In Overlay -->
+    <div class="winner-overlay" id="signin-overlay">
+      <div class="winner-card signin-card">
+        <h2 class="select-title">� Work On Progress</h2>
+        <p class="dataset-description">Sign in feature is coming soon! Stay tuned for updates.</p>
+        
+        <div class="signin-form">
+          <div class="input-group">
+            <label for="username">Username:</label>
+            <input type="text" id="username" placeholder="Enter your username">
+          </div>
+          
+          <div class="input-group">
+            <label for="password">Password:</label>
+            <input type="password" id="password" placeholder="Enter your password">
+          </div>
+          
+          <button class="play-again-btn" id="signin-submit-btn">
+            🔑 Sign In
+          </button>
+          
+          <p class="signin-footer">
+            Don't have an account? <a href="#" id="signup-link">Create one</a>
+          </p>
+        </div>
+        
+        <button class="close-overlay-btn" id="close-signin">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

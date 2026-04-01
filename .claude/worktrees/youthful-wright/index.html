@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#0a0d16">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Bagh Chal — A Political Allegory of Nepal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-brand">
+        <div class="header-title">Bagh Chal</div>
+        <div class="header-subtitle">Master the Ancient Game</div>
+      </div>
+      <nav class="header-nav">
+        <!-- Sign In Button (shown when not logged in) -->
+        <button class="nav-btn primary" id="sign-in-btn" style="display: none;">Sign In</button>
+        
+        <!-- Notification Bell (shown when logged in) -->
+        <button class="notif-bell" id="notif-bell" style="display:none;" title="Notifications">
+          🔔
+          <span class="notif-badge hidden" id="notif-badge">0</span>
+        </button>
+
+        <!-- Play a Friend Button (shown when logged in) -->
+        <button class="friends-nav-btn" id="friends-nav-btn" style="display:none;" title="Play a Friend">
+          👥 Play a Friend
+          <span class="friend-req-badge hidden" id="friend-req-badge">0</span>
+        </button>
+        
+        <!-- Profile Menu (shown when logged in) -->
+        <div class="profile-menu" id="profile-menu" style="display: none;">
+          <button class="profile-btn" id="profile-btn">
+            <img src="" alt="Profile" id="profile-img" class="profile-img">
+            <span id="profile-username">User</span>
+          </button>
+          <div class="profile-dropdown" id="profile-dropdown">
+            <div class="profile-stats">
+              <h3>Your Stats</h3>
+              <div class="stat-row">
+                <span>Games Played:</span>
+                <span id="stats-games">0</span>
+              </div>
+              <div class="stat-row">
+                <span>As Tiger:</span>
+                <span id="stats-tiger-wins">0</span>
+              </div>
+              <div class="stat-row">
+                <span>As Goat:</span>
+                <span id="stats-goat-wins">0</span>
+              </div>
+            </div>
+            <button class="sign-out-btn" id="sign-out-btn">Sign Out</button>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <div class="game-layout">
+      <main class="board-wrap">
+        <div class="board-container">
+        <canvas id="game-canvas"></canvas>
+        </div>
+      </main>
+
+      <aside class="sidebar">
+        <!-- Welcome Screen -->
+        <div class="welcome-screen" id="welcome-screen">
+          <h2>Welcome to Bagh Chal</h2>
+          <p>Experience the timeless strategy of an ancient Nepali game. Master the art of tactics and claim victory.</p>
+          <button class="welcome-start-btn" id="welcome-start-btn">Start Game</button>
+          <button class="welcome-secondary-btn" id="tutorial-btn">Tutorial</button>
+          <button class="welcome-secondary-btn" id="about-btn">About</button>
+        </div>
+        
+        <!-- Game State Panel -->
+        <div class="panel active hidden" id="gameStatePanel">
+          <div class="panel-header">
+            <div class="panel-icon teal">🏛️</div>
+            <div>
+              <div class="panel-label">Governing Parties</div>
+              <div class="phase-badge" id="phaseBadge">
+                <div class="phase-dot"></div>
+                <span id="phase-text">Placement Phase</span>
+              </div>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label">Active Player</span>
+              <span class="stat-value" id="turn-text">Governing Parties</span>
+            </div>
+            <div class="stat-row timer-row">
+              <span class="stat-label">Time Remaining</span>
+              <span class="stat-value timer-value" id="timer-text">30.0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tiger Panel -->
+        <div class="panel hidden" id="tigerPanel">
+          <div class="panel-header">
+            <div class="panel-icon red">🐯</div>
+            <div class="panel-label">Tiger</div>
+            <div class="panel-tag" id="tigerTag">Captures: 0 / 5</div>
+          </div>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label">Candidates Captured</span>
+              <span class="stat-value" id="tiger-captures">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Needed to Win</span>
+              <span class="stat-value" style="color: var(--red);">5</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill red" id="captureProgress" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Candidates Panel -->
+        <div class="panel hidden" id="goatPanel">
+          <div class="panel-header">
+            <div class="panel-icon gold">🐐</div>
+            <div class="panel-label">Candidates</div>
+            <div class="panel-tag" id="goatTag">Placed: 0 / 20</div>
+          </div>
+          <div class="panel-body">
+            <div class="stat-row">
+              <span class="stat-label">Remaining</span>
+              <span class="stat-value" id="goats-remaining">20</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Tiger Trapped</span>
+              <span class="stat-value" id="tigers-trapped">0 / 4</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill gold" id="placedProgress" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Player Selection Overlay -->
+        <div class="winner-overlay" id="player-select-overlay">
+          <div class="winner-card">
+            <button class="player-select-close" id="player-select-close">✕</button>
+            <h2 class="select-title">Choose Your Side</h2>
+
+            <!-- Mode Tabs -->
+            <div class="mode-tabs">
+              <button class="mode-tab active" id="mode-tab-ai">VS AI</button>
+              <button class="mode-tab" id="mode-tab-player">TOURNAMENTS</button>
+            </div>
+
+            <!-- AI Difficulty (visible in AI mode) -->
+            <div class="difficulty-selection" id="difficulty-section">
+              <h3 class="difficulty-title">Select Difficulty</h3>
+              <div class="difficulty-buttons">
+                <button class="difficulty-btn active" data-difficulty="easy">
+                  <span class="difficulty-name">Easy</span>
+                </button>
+                <button class="difficulty-btn" data-difficulty="hard">
+                  <span class="difficulty-name">Hard</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="player-selection">
+              <div class="selection-card" id="select-goat">
+                <img src="assets/bhakhra.png" alt="Goat" class="selection-logo">
+                <h3>GOAT</h3>
+              </div>
+              <div class="selection-card" id="select-tiger">
+                <img src="assets/bagh.png" alt="Tiger" class="selection-logo">
+                <h3>TIGER</h3>
+              </div>
+            </div>
+
+            <!-- Multiplayer Room Section (visible in Tournaments mode) -->
+            <div class="multiplayer-section hidden" id="multiplayer-section">
+              <div class="tournament-coming-soon">
+                <h3 class="coming-soon-title">🏆 Tournaments - Coming Soon</h3>
+                <p class="coming-soon-text">Compete with players worldwide and win exciting prizes!</p>
+                <div class="prize-info">
+                  <div class="prize-card">
+                    <span class="prize-badge">1st</span>
+                    <span class="prize-amount">Cash Prize</span>
+                  </div>
+                  <div class="prize-card">
+                    <span class="prize-badge">2nd</span>
+                    <span class="prize-amount">Cash Prize</span>
+                  </div>
+                  <div class="prize-card">
+                    <span class="prize-badge">3rd</span>
+                    <span class="prize-amount">Cash Prize</span>
+                  </div>
+                </div>
+                <p class="tournament-alert">Feature launching soon. Stay tuned!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Sign Up Overlay -->
+        <!-- Username Setup Overlay (for new users after Google sign-in) -->
+        <div class="winner-overlay" id="username-setup-overlay">
+          <div class="winner-card signup-card">
+            <h2 class="select-title">👤 Welcome!</h2>
+            <p style="text-align: center; margin-bottom: 20px;">Choose your username to get started</p>
+            <form class="signup-form" id="username-form">
+              <div class="form-group">
+                <label for="new-username">Username</label>
+                <input type="text" id="new-username" name="username" placeholder="Enter your username" required minlength="3" maxlength="20">
+              </div>
+              <p id="username-error" style="color:#ff4d4d;font-size:0.85rem;display:none;margin-bottom:8px;"></p>
+              <button type="submit" class="signup-submit-btn">Continue</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Sign Up/In Overlay (Google Auth) -->
+        <div class="winner-overlay" id="signup-overlay">
+          <div class="winner-card signup-card">
+            <button class="player-select-close" id="signup-close">✕</button>
+            <h2 class="select-title">🔐 Sign In with Google</h2>
+            <button class="google-signin-btn" id="google-signin-btn">
+              <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                <path fill="none" d="M0 0h48v48H0z"/>
+              </svg>
+              Sign in with Google
+            </button>
+          </div>
+        </div>
+        
+        <!-- AI Thinking Overlay -->
+        <div class="ai-thinking" id="ai-thinking">
+          <div class="thinking-content">
+            <div class="thinking-spinner"></div>
+            <p>AI is thinking...</p>
+          </div>
+        </div>
+
+        <!-- ===== FRIENDS OVERLAY ===== -->
+        <div class="winner-overlay" id="friends-overlay">
+          <div class="winner-card friends-card">
+            <button class="player-select-close" id="friends-close">✕</button>
+            <h2 class="select-title">👥 Play a Friend</h2>
+
+            <!-- Tabs -->
+            <div class="mode-tabs">
+              <button class="mode-tab active" id="ftab-friends">Friends</button>
+              <button class="mode-tab" id="ftab-search">Search</button>
+              <button class="mode-tab" id="ftab-requests">Requests <span class="req-tab-badge hidden" id="req-tab-badge"></span></button>
+            </div>
+
+            <!-- Friends List -->
+            <div class="friends-tab-content" id="ftab-friends-content">
+              <div id="friends-list" class="friends-list">
+                <p class="friends-empty">No friends yet — search for players to add!</p>
+              </div>
+            </div>
+
+            <!-- Search Tab -->
+            <div class="friends-tab-content hidden" id="ftab-search-content">
+              <div class="friend-search-form">
+                <input type="text" id="friend-search-input" placeholder="Enter username…" maxlength="20" autocomplete="off">
+                <button class="room-btn create" id="friend-search-btn">Search</button>
+              </div>
+              <div id="search-results" class="search-results"></div>
+            </div>
+
+            <!-- Requests Tab -->
+            <div class="friends-tab-content hidden" id="ftab-requests-content">
+              <div id="requests-list" class="friends-list">
+                <p class="friends-empty">No pending friend requests</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== NOTIFICATIONS OVERLAY ===== -->
+        <div class="winner-overlay" id="notif-overlay">
+          <div class="winner-card notif-card">
+            <button class="player-select-close" id="notif-close">✕</button>
+            <h2 class="select-title">🔔 Notifications</h2>
+            <div id="notif-list" class="notif-list">
+              <p class="friends-empty">No notifications</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== CHALLENGE SENT OVERLAY ===== -->
+        <div class="winner-overlay" id="challenge-sent-overlay">
+          <div class="winner-card" style="max-width:360px;">
+            <div style="font-size:3rem;margin-bottom:12px;">⚔️</div>
+            <h2 class="select-title" id="challenge-sent-text">Challenge sent!</h2>
+            <p class="waiting-text" id="challenge-sent-sub">Waiting for opponent to accept…</p>
+            <div class="waiting-spinner" style="margin:16px auto;"></div>
+            <button class="cancel-room-btn" id="cancel-challenge-btn">Cancel Challenge</button>
+          </div>
+        </div>
+        
+        <!-- Winner Overlay -->
+        <div class="winner-overlay" id="winner-overlay">
+          <div class="winner-card">
+            <div class="winner-icon" id="winner-icon"></div>
+            <h2 id="winner-text"></h2>
+            <button class="play-again-btn" id="play-again-btn">Play Again</button>
+            <button class="exit-btn" id="exit-btn">Exit</button>
+          </div>
+        </div>
+        
+        <!-- Move Navigation Buttons -->
+        <div class="move-nav-container hidden" id="move-nav-container">
+          <button class="move-nav-btn" id="prev-move-btn" title="Previous move">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M15 18l-6-6 6-6"/>
+            </svg>
+          </button>
+          <span class="move-counter" id="move-counter">0 / 0</span>
+          <button class="move-nav-btn" id="next-move-btn" title="Next move">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="footer-text">Traditional Nepali board game · Bagh-Chal</div>
+      <div class="footer-links">
+        <a class="footer-link" id="footer-about">About</a>
+        <a class="footer-link" id="footer-settings">Settings</a>
+        <a class="footer-link" id="footer-tutorial">Tutorial</a>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Tutorial Overlay -->
+  <div class="tutorial-overlay" id="tutorial-overlay">
+    <div class="tutorial-content">
+      <button class="tutorial-close" id="tutorial-close">✕</button>
+      
+      <div class="tutorial-scroll">
+        <h1 class="tutorial-title">🎮 How to Play</h1>
+        <p class="tutorial-subtitle">Master the Game in 3 Simple Steps</p>
+
+        <section class="tutorial-section visual">
+          <h2>⚡ Game Setup</h2>
+          <div class="visual-grid">
+            <div class="visual-card">
+              <div class="visual-icon">🎯</div>
+              <h3>Tiger</h3>
+              <p><strong>4 pieces</strong></p>
+              <p>Start at corners</p>
+              <div class="game-board-demo">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <!-- Board Lines -->
+                  <line x1="10" y1="10" x2="190" y2="10" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="55" x2="190" y2="55" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="145" x2="190" y2="145" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="190" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Diagonals -->
+                  <line x1="10" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="55" x2="145" y2="145" stroke="#4a5568" stroke-width="1.5"/>
+                  <line x1="145" y1="55" x2="55" y2="145" stroke="#4a5568" stroke-width="1.5"/>
+                  <!-- Tiger pieces at corners -->
+                  <circle cx="10" cy="10" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="10" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="10" cy="190" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="190" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <!-- All points -->
+                  <circle cx="55" cy="10" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="100" cy="10" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="145" cy="10" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="10" cy="55" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="55" cy="55" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="100" cy="55" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="145" cy="55" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="190" cy="55" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="10" cy="100" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="55" cy="100" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="100" cy="100" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="145" cy="100" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="190" cy="100" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="10" cy="145" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="55" cy="145" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="100" cy="145" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="145" cy="145" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="190" cy="145" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="55" cy="190" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="100" cy="190" r="3" fill="#4ECDC4" opacity="0.3"/>
+                  <circle cx="145" cy="190" r="3" fill="#4ECDC4" opacity="0.3"/>
+                </svg>
+              </div>
+            </div>
+            <div class="visual-card">
+              <div class="visual-icon">🔔</div>
+              <h3>Candidates</h3>
+              <p><strong>20 pieces</strong></p>
+              <p>Place one by one</p>
+              <div class="game-board-demo">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <!-- Board Lines -->
+                  <line x1="10" y1="10" x2="190" y2="10" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="55" x2="190" y2="55" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="145" x2="190" y2="145" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="190" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Diagonals -->
+                  <line x1="10" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="55" x2="145" y2="145" stroke="#4a5568" stroke-width="1.5"/>
+                  <line x1="145" y1="55" x2="55" y2="145" stroke="#4a5568" stroke-width="1.5"/>
+                  
+                  <!-- Tiger pieces at corners (faded) -->
+                  <circle cx="10" cy="10" r="6" fill="#FF6B35" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+                  <circle cx="190" cy="10" r="6" fill="#FF6B35" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+                  <circle cx="10" cy="190" r="6" fill="#FF6B35" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+                  <circle cx="190" cy="190" r="6" fill="#FF6B35" stroke="#fff" stroke-width="1.5" opacity="0.4"/>
+                  
+                  <!-- Candidate pieces being placed (showing progression) -->
+                  <circle cx="100" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="55" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="100" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="100" cy="145" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="55" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="145" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="55" cy="145" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="10" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="55" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="10" cy="145" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  
+                  <!-- Placement indicator showing next placement with pulse -->
+                  <circle cx="100" cy="10" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2" class="pulse"/>
+                  
+                  <!-- Counter label -->
+                  <text x="100" y="25" fill="#4ECDC4" font-size="14" font-weight="bold" text-anchor="middle">13/20</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tutorial-section visual">
+          <h2>🎯 Phase 1: Placement</h2>
+          <div class="phase-demo">
+            <div class="demo-step">
+              <div class="dice-step">🎲 1</div>
+              <h3>Candidates Place First</h3>
+              <p>Click any empty point to place a candidate</p>
+              <div class="game-board-demo small">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <!-- Board structure -->
+                  <line x1="10" y1="10" x2="190" y2="10" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="55" x2="190" y2="55" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="145" x2="190" y2="145" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="190" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Tigers at corners -->
+                  <circle cx="10" cy="10" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="10" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="10" cy="190" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="190" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <!-- First goat placement at center with pulse -->
+                  <circle cx="100" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2" class="pulse"/>
+                  <text x="100" y="25" fill="#4ECDC4" font-size="12" text-anchor="middle">▼ Click here</text>
+                </svg>
+              </div>
+            </div>
+            <div class="demo-step">
+              <div class="dice-step">🎲 2</div>
+              <h3>Tiger Moves</h3>
+              <p>After each placement, tiger can move or capture</p>
+              <div class="game-board-demo small">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <line x1="10" y1="10" x2="190" y2="10" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="55" x2="190" y2="55" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="145" x2="190" y2="145" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="190" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Tigers -->
+                  <circle cx="10" cy="10" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2" opacity="0.5"/>
+                  <circle cx="190" cy="10" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="10" cy="190" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="190" cy="190" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <!-- Goat -->
+                  <circle cx="100" cy="100" r="7" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <!-- Tiger moved from corner -->
+                  <circle cx="55" cy="55" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2" class="pulse"/>
+                  <path d="M 10 10 L 55 55" stroke="#FF6B35" stroke-width="2" stroke-dasharray="4 4" opacity="0.6" marker-end="url(#arrowhead)"/>
+                  <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                      <polygon points="0 0, 10 3, 0 6" fill="#FF6B35" />
+                    </marker>
+                  </defs>
+                </svg>
+              </div>
+            </div>
+            <div class="demo-step">
+              <div class="dice-step">🎲 3</div>
+              <h3>Repeat</h3>
+              <p>Continue until all 20 candidates are placed</p>
+              <div class="game-board-demo small">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <line x1="10" y1="10" x2="190" y2="10" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="55" x2="190" y2="55" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="145" x2="190" y2="145" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="190" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Tigers -->
+                  <circle cx="55" cy="55" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="55" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="55" cy="145" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="145" r="7" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <!-- Multiple goats placed -->
+                  <circle cx="100" cy="10" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="100" cy="55" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="100" cy="100" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="100" cy="145" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="10" cy="100" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="55" cy="100" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="145" cy="100" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <circle cx="190" cy="100" r="6" fill="#4ECDC4" stroke="#fff" stroke-width="1.5"/>
+                  <text x="100" y="25" fill="#4ECDC4" font-size="14" font-weight="bold" text-anchor="middle">8/20</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tutorial-section visual">
+          <h2>♟️ Phase 2: Movement</h2>
+          <div class="movement-grid">
+            <div class="move-card">
+              <div class="dice-step">🎲 4</div>
+              <h3>🎯 Tiger Capture</h3>
+              <p><strong>Jump over candidate to capture</strong></p>
+              <div class="game-board-demo small">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Before state -->
+                  <text x="100" y="40" fill="#fff" font-size="14" font-weight="bold" text-anchor="middle">BEFORE</text>
+                  <circle cx="55" cy="100" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <circle cx="100" cy="100" r="8" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="100" r="4" fill="#4a5568" stroke="#4ECDC4" stroke-width="1" stroke-dasharray="2 2"/>
+                  <!-- Arrow -->
+                  <text x="100" y="125" fill="#e94560" font-size="24" text-anchor="middle">⬇</text>
+                  <!-- After state -->
+                  <text x="100" y="155" fill="#fff" font-size="14" font-weight="bold" text-anchor="middle">AFTER</text>
+                  <circle cx="55" cy="170" r="4" fill="#4a5568" opacity="0.3"/>
+                  <circle cx="100" cy="170" r="5" fill="#4ECDC4" opacity="0.3" class="captured">
+                    <animate attributeName="opacity" values="0.3;0;0.3" dur="1s" repeatCount="indefinite"/>
+                  </circle>
+                  <text x="100" y="173" fill="#e94560" font-size="20" text-anchor="middle">✕</text>
+                  <circle cx="145" cy="170" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2" class="pulse"/>
+                </svg>
+              </div>
+            </div>
+            <div class="move-card">
+              <div class="dice-step">🎲 5</div>
+              <h3>🔔 Candidates Move</h3>
+              <p><strong>Move to adjacent empty point</strong></p>
+              <div class="game-board-demo small">
+                <svg viewBox="0 0 200 200" class="board-svg">
+                  <line x1="10" y1="100" x2="190" y2="100" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="10" y1="10" x2="10" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="145" y1="10" x2="145" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="190" y1="10" x2="190" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="55" y1="10" x2="55" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <line x1="100" y1="10" x2="100" y2="190" stroke="#4a5568" stroke-width="2"/>
+                  <!-- Before state -->
+                  <text x="100" y="40" fill="#fff" font-size="14" font-weight="bold" text-anchor="middle">BEFORE</text>
+                  <circle cx="55" cy="100" r="4" fill="#4a5568" opacity="0.3"/>
+                  <circle cx="100" cy="100" r="8" fill="#4ECDC4" stroke="#fff" stroke-width="2"/>
+                  <circle cx="145" cy="100" r="4" fill="#4a5568" stroke="#4ECDC4" stroke-width="1" stroke-dasharray="2 2"/>
+                  <circle cx="100" cy="55" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <!-- Arrow -->
+                  <text x="100" y="125" fill="#4ECDC4" font-size="24" text-anchor="middle">⬇</text>
+                  <!-- After state -->
+                  <text x="100" y="155" fill="#fff" font-size="14" font-weight="bold" text-anchor="middle">AFTER</text>
+                  <circle cx="100" cy="170" r="4" fill="#4a5568" opacity="0.3"/>
+                  <circle cx="145" cy="170" r="8" fill="#4ECDC4" stroke="#fff" stroke-width="2" class="pulse"/>
+                  <circle cx="100" cy="145" r="8" fill="#FF6B35" stroke="#fff" stroke-width="2"/>
+                  <text x="65" y="173" fill="#e94560" font-size="16" text-anchor="middle">🚫 Can't jump</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tutorial-section visual">
+          <h2>🏆 Win Conditions</h2>
+          <div class="win-grid">
+            <div class="win-card opposition">
+              <div class="win-icon">🎯</div>
+              <h3>Tiger Wins</h3>
+              <div class="win-counter">5 Captures</div>
+              <p>Eliminate 5 candidates</p>
+            </div>
+            <div class="win-card candidates">
+              <div class="win-icon">🔔</div>
+              <h3>Candidates Win</h3>
+              <div class="win-counter">0 Moves</div>
+              <p>Trap all tigers (no legal moves)</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="tutorial-section visual">
+          <h2>💡 Quick Tips</h2>
+          <div class="tips-grid">
+            <div class="tip-item">🎯 <strong>For Tiger:</strong> Be aggressive early, capture during placement</div>
+            <div class="tip-item">🔔 <strong>For Candidates:</strong> Control center, build walls, be patient</div>
+            <div class="tip-item">🚫 <strong>Remember:</strong> Can't capture from corners</div>
+            <div class="tip-item">🎮 <strong>Strategy:</strong> Think 3 moves ahead</div>
+          </div>
+        </section>
+
+        <button class="play-again-btn tutorial-start" id="tutorial-start">Start Playing!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- About Overlay -->
+  <div class="tutorial-overlay" id="about-overlay">
+    <div class="tutorial-content">
+      <button class="tutorial-close" id="about-close">✕</button>
+      
+      <div class="tutorial-scroll">
+        <h1 class="tutorial-title">Bagh Chal</h1>
+        <p class="tutorial-subtitle">The Ancient Game of Strategic Wisdom</p>
+
+        <section class="tutorial-section">
+          <h2>📜 Origin & History</h2>
+          <p>Bagh Chal ("Tiger's Move") is one of the world's oldest strategic board games, with roots stretching back over a thousand years in the Himalayan region of Nepal. Created by Himalayan shepherds, this game was born from the harsh realities of mountain life—where a handful of tigers threatened large herds of goats.</p>
+          <p>The game has deep cultural significance in Nepali heritage. According to local folklore and ancient traditions, this game has been cherished by generations and was valued not just as entertainment, but as a teaching tool for strategic wisdom and the power of unity.</p>
+          <p>Originally played on simple boards scratched into stone or earth with pebbles as pieces, Bagh Chal remains virtually unchanged after centuries, a testament to its brilliant design and enduring appeal.</p>
+        </section>
+
+        <section class="tutorial-section highlight">
+          <h2>🎯 The Core Philosophy</h2>
+          <p><strong>Bagh Chal teaches one of life's most profound lessons: Individual strength cannot overcome organized cooperation.</strong></p>
+          
+          <div class="philosophy-card">
+            <h3>🐯 The Tiger's Paradox</h3>
+            <p>The tiger is powerful, agile, and individually superior to any single goat. Yet with just 5 captures, the tiger loses. Power alone is not enough.</p>
+          </div>
+
+          <div class="philosophy-card">
+            <h3>🐐 The Strength of Unity</h3>
+            <p>The goats start with nothing—they cannot jump, they cannot capture. Their weakness is absolute. Yet together, through coordination and strategic positioning, they can trap and defeat the mighty tiger.</p>
+          </div>
+
+          <div class="philosophy-card">
+            <h3>💡 The Universal Truth</h3>
+            <p>This is not merely a game mechanic—it is a reflection of a universal principle: <strong>When individuals work together with purpose and strategy, they can overcome any single force, no matter how powerful.</strong></p>
+          </div>
+        </section>
+
+        <section class="tutorial-section">
+          <h2>🌏 A Lesson in Teamwork</h2>
+          <p>Playing as the goats reveals a critical insight: victory requires that every piece plays its role. A single misplaced goat breaks the formation. One forgotten move allows the tiger to escape.</p>
+          
+          <div class="lesson-box">
+            <h3>Coordination Over Strength</h3>
+            <p>You cannot defeat the tiger with a powerful single piece because you have none. You must think collectively, move collectively, and defend collectively.</p>
+          </div>
+
+          <div class="lesson-box">
+            <h3>Patience and Positioning</h3>
+            <p>The goat player wins not through aggression, but through careful positioning and patient encirclement. Every piece must know its place in the larger strategy.</p>
+          </div>
+
+          <div class="lesson-box">
+            <h3>Shared Victory</h3>
+            <p>Unlike games where one hero saves the day, Bagh Chal teaches that true victory belongs to those who move as one. No single goat wins—the herd wins together.</p>
+          </div>
+        </section>
+
+        <section class="tutorial-section">
+          <h2>📚 Cultural Significance</h2>
+          <p>For over a millennium, Bagh Chal has been more than a game—it is a cultural artifact that encodes Nepali wisdom. Played in villages, temples, and public spaces across Nepal, it has withstood the test of time, passed down by elders to new generations.</p>
+          <p>This ancient game reminds us that the greatest strategic minds are not those with the most power, but those who understand coordination, timing, and the strength of unity.</p>
+        </section>
+
+        <section class="tutorial-section">
+          <h2>👥 About This Project</h2>
+          <p>This digital adaptation brings the timeless game of Bagh Chal into the modern era, making it accessible to players worldwide while preserving its cultural heritage and timeless lessons about strategy, teamwork, and the triumph of coordinated intelligence over raw power.</p>
+          <p>Experience a thousand years of strategic wisdom. Play the game that teaches us: together, we are unbeatable.</p>
+        </section>
+
+        <button class="play-again-btn tutorial-start" id="about-start">Start Playing!</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "name": "baghchal-ai-backend",
+  "version": "1.0.0",
+  "description": "Backend AI service for Bagh Chal game",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "baghchal",
+    "game",
+    "ai",
+    "backend"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "compression": "^1.7.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

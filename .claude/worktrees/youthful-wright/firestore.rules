@@ -1,0 +1,86 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users: readable by anyone (for search), writable only by owner
+    match /users/{uid} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Usernames index: readable by anyone, creation only by owner uid
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if request.auth != null &&
+                    request.resource.data.uid == request.auth.uid &&
+                    !exists(/databases/$(database)/documents/usernames/$(username));
+      allow delete: if request.auth != null &&
+                       resource.data.uid == request.auth.uid;
+    }
+
+    // Friends: only the owner can read/write their own friend list
+    match /friends/{uid}/list/{friendUid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+      // Friend can also read (to know they're in someone's list)
+      allow read: if request.auth != null && request.auth.uid == friendUid;
+    }
+
+    // Notifications: owner can read/delete, anyone authenticated can create
+    match /notifications/{uid}/items/{notifId} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null &&
+                    request.resource.data.from == request.auth.uid;
+      allow update: if request.auth != null &&
+                      (request.auth.uid == uid || request.auth.uid == resource.data.from);
+    }
+
+    // Rooms: only the two players in the room can read/write
+    match /rooms/{roomId} {
+      // Players can read their room. Also allow reading waiting rooms so players can join by code.
+      allow read: if request.auth != null &&
+                    (
+                      request.auth.uid == resource.data.hostUid ||
+                      request.auth.uid == resource.data.guestUid ||
+                      (resource.data.status == 'waiting' && resource.data.guestUid == null)
+                    );
+
+      // Create allowed for:
+      // 1) Host-created waiting rooms (room code flow)
+      // 2) Direct playing rooms where creator is one of the two players (challenge flow)
+      allow create: if request.auth != null &&
+                    request.resource.data.hostUid != request.resource.data.guestUid &&
+                    (
+                      (
+                        request.auth.uid == request.resource.data.hostUid &&
+                        request.resource.data.status == 'waiting' &&
+                        request.resource.data.guestUid == null
+                      ) ||
+                      (
+                        request.resource.data.status == 'playing' &&
+                        (
+                          request.auth.uid == request.resource.data.hostUid ||
+                          request.auth.uid == request.resource.data.guestUid
+                        )
+                      )
+                    );
+
+      // Player updates in active room OR one-time guest claim from waiting room.
+      allow update: if request.auth != null && (
+                      request.auth.uid == resource.data.hostUid ||
+                      request.auth.uid == resource.data.guestUid ||
+                      (
+                        resource.data.status == 'waiting' &&
+                        resource.data.guestUid == null &&
+                        request.resource.data.hostUid == resource.data.hostUid &&
+                        request.resource.data.guestUid == request.auth.uid &&
+                        request.resource.data.status == 'playing'
+                      )
+                    );
+
+      // Host can delete only while waiting (cancel room)
+      allow delete: if request.auth != null &&
+                    request.auth.uid == resource.data.hostUid &&
+                    resource.data.status == 'waiting';
+    }
+  }
+}
