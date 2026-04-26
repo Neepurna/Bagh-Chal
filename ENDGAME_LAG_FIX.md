@@ -195,7 +195,7 @@ TOTAL: 5-10x FASTER in endgame!
 
 ### Total Changes:
 - ~350 lines modified/added
-- ~15-20% of [BaghchalAI.js](src/BaghchalAI.js)
+- ~15-20% of [BaghchalAI.js](app/ai/BaghchalAI.js)
 - No breaking changes to game logic
 
 ---

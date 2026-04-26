@@ -145,7 +145,7 @@ Where:
 ## Usage
 
 ```javascript
-import { BaghchalAI, DIFFICULTY } from './src/BaghchalAI.js';
+import { BaghchalAI, DIFFICULTY } from './app/ai/BaghchalAI.js';
 
 // Initialize AI
 const ai = new BaghchalAI(DIFFICULTY.HARD);

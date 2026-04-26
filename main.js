@@ -1,289 +1,105 @@
+import { initAudioSystem, playSound } from './app/audio/audioSystem.js';
+import { initializeAuth, saveUsername, signInWithGoogle, signOut } from './app/auth/authService.js';
+import { AI_CONFIG, GRID_SIZE, PHASE, PIECE_TYPES, TIME_INCREMENT, TIME_PER_MOVE } from './app/config/gameConfig.js';
+import { BOARD_POSITIONS, countTrappedPieces, getAdjacentPositions, getBoardHash, getValidMovesForBoard, getWinState, isDiagonalConnected } from './app/game/boardRules.js';
+import { buildInitialRoomState, createMultiplayerService } from './app/multiplayer/multiplayerService.js';
+import { createSocialService } from './app/social/socialService.js';
+
 // Bagh Chal Game Logic
 
 // ===== FIREBASE AUTHENTICATION =====
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCwZWRiXb_KwyNpUcQUfRNJQvQyf-o6x5g",
-  authDomain: "baghchal-26da2.firebaseapp.com",
-  projectId: "baghchal-26da2",
-  storageBucket: "baghchal-26da2.firebasestorage.app",
-  messagingSenderId: "342367298445",
-  appId: "1:342367298445:web:b30dc206c09e73ab24d3c4",
-  measurementId: "G-6VR5DSX8CT"
-};
-
-// Initialize Firebase
 let auth, db;
 let currentUser = null;
 let userStats = { gamesPlayed: 0, tigerWins: 0, goatWins: 0 };
 
-try {
-  firebase.initializeApp(firebaseConfig);
-  auth = firebase.auth();
-  db = firebase.firestore();
-  console.log('Firebase initialized successfully');
-} catch (error) {
-  console.error('Firebase initialization error:', error);
-}
+({ auth, db } = initializeAuth({
+  firebase,
+  onSignedIn: ({ user, userStats: nextUserStats, auth: nextAuth, db: nextDb }) => {
+    currentUser = user;
+    userStats = nextUserStats;
+    auth = nextAuth;
+    db = nextDb;
+    updateUIForSignedInUser();
+  },
+  onSignedOut: ({ auth: nextAuth, db: nextDb }) => {
+    currentUser = null;
+    auth = nextAuth;
+    db = nextDb;
+    updateUIForSignedOutUser();
+  }
+}));
 
-// Auth state observer
-if (auth) {
-  auth.onAuthStateChanged(async (user) => {
-    if (user) {
-      currentUser = user;
-      console.log('User signed in:', user.email);
-      await loadUserData(user);
-      updateUIForSignedInUser();
-    } else {
-      currentUser = null;
-      console.log('User signed out');
-      updateUIForSignedOutUser();
-    }
+// ===== SOCIAL LISTENERS (start after login) =====
+let pendingChallengeId = null;
+const socialService = createSocialService({
+  firebase,
+  getContext: () => ({ currentUser, db, userStats })
+});
+
+function startSocialListeners() {
+  socialService.startSocialListeners({
+    onFriends: renderFriendsList,
+    onNotifications: (items) => {
+      renderNotifications(items);
+      updateNotifBadge(items);
+    },
+    onChallengeAccepted: handleChallengeAccepted
   });
 }
 
-// Sign in with Google
-async function signInWithGoogle() {
-  console.log('signInWithGoogle called');
-  if (!auth) {
-    console.error('Firebase auth not initialized');
-    alert('Authentication service not available. Please refresh the page.');
-    return;
-  }
-  
-  const provider = new firebase.auth.GoogleAuthProvider();
-  try {
-    console.log('Starting Google sign-in popup...');
-    const result = await auth.signInWithPopup(provider);
-    const user = result.user;
-    console.log('Sign-in successful:', user.email);
-    
-    // Close the sign-in overlay
-    const signupOverlay = document.getElementById('signup-overlay');
-    if (signupOverlay) {
-      signupOverlay.classList.remove('show');
-    }
-    
-    // Check if user needs to set username
-    const userDoc = await db.collection('users').doc(user.uid).get();
-    if (!userDoc.exists) {
-      console.log('New user - showing username setup');
-      // New user - show username setup
-      showUsernameSetup();
-    }
-  } catch (error) {
-    console.error('Sign-in error:', error);
-    alert('Failed to sign in with Google: ' + error.message);
-  }
-}
-
-// Load user data from Firestore
-async function loadUserData(user) {
-  if (!db) return;
-  
-  try {
-    const userDoc = await db.collection('users').doc(user.uid).get();
-    if (userDoc.exists) {
-      const data = userDoc.data();
-      userStats = {
-        gamesPlayed: data.gamesPlayed || 0,
-        tigerWins: data.tigerWins || 0,
-        goatWins: data.goatWins || 0,
-        username: data.username || user.displayName || 'Player'
-      };
-
-      // Backfill username index for older accounts that predate usernames/{username}
-      if (data.username) {
-        const clean = String(data.username).trim().toLowerCase();
-        const idxRef = db.collection('usernames').doc(clean);
-        const idxSnap = await idxRef.get();
-        if (!idxSnap.exists) {
-          await idxRef.set({ uid: user.uid }).catch(() => {});
-        }
-      }
-    } else {
-      userStats = { gamesPlayed: 0, tigerWins: 0, goatWins: 0, username: user.displayName || 'Player' };
-    }
-  } catch (error) {
-    console.error('Error loading user data:', error);
-  }
-}
-
-// Save username for new user — enforces uniqueness via usernames/{username} index
-async function saveUsername(username) {
-  if (!currentUser || !db) return;
-  const clean = username.trim().toLowerCase();
-
-  // Check uniqueness
-  const existing = await db.collection('usernames').doc(clean).get();
-  if (existing.exists) {
-    const errEl = document.getElementById('username-error');
-    if (errEl) { errEl.textContent = '❌ Username already taken — try another.'; errEl.style.display = 'block'; }
-    return;
-  }
-
-  try {
-    const batch = db.batch();
-    batch.set(db.collection('users').doc(currentUser.uid), {
-      username: clean,
-      displayUsername: username.trim(),
-      email: currentUser.email,
-      photoURL: currentUser.photoURL || '',
-      gamesPlayed: 0,
-      tigerWins: 0,
-      goatWins: 0,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    batch.set(db.collection('usernames').doc(clean), { uid: currentUser.uid });
-    await batch.commit();
-    userStats.username = clean;
-    hideUsernameSetup();
-    updateUIForSignedInUser();
-    startSocialListeners();
-  } catch (error) {
-    console.error('Error saving username:', error);
-    const errEl = document.getElementById('username-error');
-    if (errEl) { errEl.textContent = '❌ Error saving — try again.'; errEl.style.display = 'block'; }
-  }
-}
-
-// ===== SOCIAL LISTENERS (start after login) =====
-let unsubFriends = null;
-let unsubNotifs = null;
-let pendingChallengeId = null;
-
-function startSocialListeners() {
-  if (!currentUser || !db) return;
-  stopSocialListeners();
-  listenFriends();
-  listenNotifications();
-}
-
 function stopSocialListeners() {
-  if (unsubFriends) { unsubFriends(); unsubFriends = null; }
-  if (unsubNotifs) { unsubNotifs(); unsubNotifs = null; }
+  socialService.stopSocialListeners();
 }
 
 // ===== SEARCH USER =====
 async function searchUser(username) {
   const resultsEl = document.getElementById('search-results');
   resultsEl.innerHTML = '<p class="friends-empty">Searching…</p>';
-  const clean = username.trim().toLowerCase();
-  if (!clean) { resultsEl.innerHTML = ''; return; }
+  const result = await socialService.searchUser(username);
 
-  try {
-    let uid = null;
-    let data = null;
-
-    // Fast path: usernames index
-    const snap = await db.collection('usernames').doc(clean).get();
-    if (snap.exists) {
-      uid = snap.data().uid;
-      const userSnap = await db.collection('users').doc(uid).get();
-      data = userSnap.exists ? userSnap.data() : null;
-    }
-
-    // Fallback for legacy users missing usernames index or mixed-case usernames
-    if (!uid || !data) {
-      const legacySnap = await db.collection('users').limit(200).get();
-      const hit = legacySnap.docs.find(doc => {
-        const u = doc.data() || {};
-        const u1 = (u.username || '').toString().trim().toLowerCase();
-        const u2 = (u.displayUsername || '').toString().trim().toLowerCase();
-        return u1 === clean || u2 === clean;
-      });
-
-      if (hit) {
-        uid = hit.id;
-        data = hit.data();
-      }
-    }
-
-    if (!uid || !data) {
-      resultsEl.innerHTML = '<p class="friends-empty">No user found with that username.</p>';
-      return;
-    }
-
-    if (uid === currentUser.uid) {
-      resultsEl.innerHTML = '<p class="friends-empty">That\'s you! 😄</p>';
-      return;
-    }
-
-    // Check existing friend status
-    const friendSnap = await db.collection('friends').doc(currentUser.uid).collection('list').doc(uid).get();
-    let actionHtml = '';
-    if (friendSnap.exists) {
-      const st = friendSnap.data().status;
-      if (st === 'accepted') actionHtml = `<button class="fa-btn already">✓ Friends</button>`;
-      else if (st === 'pending') actionHtml = `<button class="fa-btn pending">Pending…</button>`;
-    } else {
-      actionHtml = `<button class="fa-btn add" onclick="sendFriendRequest('${uid}','${data.displayUsername || data.username || 'Player'}')">+ Add Friend</button>`;
-    }
-
-    resultsEl.innerHTML = `
-      <div class="friend-row">
-        <div class="friend-avatar">${data.photoURL ? `<img src="${data.photoURL}">` : '👤'}</div>
-        <div class="friend-info">
-          <div class="friend-name">${data.displayUsername || data.username || 'Player'}</div>
-          <div class="friend-sub">@${data.username || 'user'}</div>
-        </div>
-        <div class="friend-actions">${actionHtml}</div>
-      </div>`;
-  } catch (err) {
-    console.error('searchUser error:', err);
-    resultsEl.innerHTML = '<p class="friends-empty">Search failed. Please try again.</p>';
+  if (result.status === 'empty') {
+    resultsEl.innerHTML = '';
+    return;
   }
+  if (result.status === 'not_found') {
+    resultsEl.innerHTML = '<p class="friends-empty">No user found with that username.</p>';
+    return;
+  }
+  if (result.status === 'self') {
+    resultsEl.innerHTML = '<p class="friends-empty">That\'s you! 😄</p>';
+    return;
+  }
+  if (result.status === 'error' || result.status !== 'found') {
+    resultsEl.innerHTML = '<p class="friends-empty">Search failed. Please try again.</p>';
+    return;
+  }
+
+  let actionHtml = '';
+  if (result.friendStatus === 'accepted') actionHtml = `<button class="fa-btn already">✓ Friends</button>`;
+  else if (result.friendStatus === 'pending') actionHtml = `<button class="fa-btn pending">Pending…</button>`;
+  else actionHtml = `<button class="fa-btn add" onclick="sendFriendRequest('${result.uid}','${result.data.displayUsername || result.data.username || 'Player'}')">+ Add Friend</button>`;
+
+  resultsEl.innerHTML = `
+    <div class="friend-row">
+      <div class="friend-avatar">${result.data.photoURL ? `<img src="${result.data.photoURL}">` : '👤'}</div>
+      <div class="friend-info">
+        <div class="friend-name">${result.data.displayUsername || result.data.username || 'Player'}</div>
+        <div class="friend-sub">@${result.data.username || 'user'}</div>
+      </div>
+      <div class="friend-actions">${actionHtml}</div>
+    </div>`;
 }
 
 // ===== SEND FRIEND REQUEST =====
 async function sendFriendRequest(toUid, toUsername) {
-  if (!currentUser || !db) return;
-  const batch = db.batch();
-  // Mark in sender's list as pending
-  batch.set(db.collection('friends').doc(currentUser.uid).collection('list').doc(toUid), {
-    status: 'pending', direction: 'sent', username: toUsername, addedAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
-  // Create notification for recipient
-  batch.set(db.collection('notifications').doc(toUid).collection('items').doc(), {
-    type: 'friend_request',
-    from: currentUser.uid,
-    fromUsername: userStats.username,
-    fromDisplay: userStats.username,
-    fromPhoto: currentUser.photoURL || '',
-    status: 'pending',
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
-  await batch.commit();
-  // Refresh search results
+  await socialService.sendFriendRequest(toUid, toUsername);
   document.getElementById('friend-search-btn').click();
 }
 
 // ===== ACCEPT FRIEND REQUEST =====
 async function acceptFriendRequest(fromUid, fromUsername, notifId) {
-  if (!currentUser || !db) return;
   try {
-    const batch = db.batch();
-
-    // Mark accepted in CURRENT user's own friend list (allowed by rules)
-    batch.set(db.collection('friends').doc(currentUser.uid).collection('list').doc(fromUid), {
-      status: 'accepted',
-      username: fromUsername,
-      addedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-
-    // Remove incoming request notification
-    batch.delete(db.collection('notifications').doc(currentUser.uid).collection('items').doc(notifId));
-
-    // Notify requester so they can mark their own side as accepted
-    batch.set(db.collection('notifications').doc(fromUid).collection('items').doc(), {
-      type: 'friend_accepted',
-      from: currentUser.uid,
-      fromUsername: userStats.username,
-      fromPhoto: currentUser.photoURL || '',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    await batch.commit();
+    await socialService.acceptFriendRequest(fromUid, fromUsername, notifId);
   } catch (error) {
     console.error('acceptFriendRequest error:', error);
     alert('Could not accept request. Please try again.');
@@ -292,18 +108,7 @@ async function acceptFriendRequest(fromUid, fromUsername, notifId) {
 
 // ===== DECLINE FRIEND REQUEST =====
 async function declineFriendRequest(fromUid, notifId) {
-  if (!currentUser || !db) return;
-  await db.collection('notifications').doc(currentUser.uid).collection('items').doc(notifId).delete();
-}
-
-// ===== LISTEN TO FRIENDS =====
-function listenFriends() {
-  if (!currentUser || !db) return;
-  unsubFriends = db.collection('friends').doc(currentUser.uid).collection('list')
-    .where('status', '==', 'accepted')
-    .onSnapshot(snap => {
-      renderFriendsList(snap.docs.map(d => ({ uid: d.id, ...d.data() })));
-    });
+  await socialService.declineFriendRequest(notifId);
 }
 
 function renderFriendsList(friends) {
@@ -379,70 +184,28 @@ function selectChallengeTime(time) {
 }
 
 async function sendChallenge() {
-  if (!currentUser || !db) return;
-
-  const selectedChallengerSide = challengeSide === 'random'
-    ? (Math.random() > 0.5 ? 'tiger' : 'goat')
-    : challengeSide;
-  const opponentSide = selectedChallengerSide === 'tiger' ? 'goat' : 'tiger';
-  const notifRef = db.collection('notifications').doc(challengeTargetUid).collection('items').doc();
-  pendingChallengeId = notifRef.id;
-
-  await notifRef.set({
-    type: 'challenge',
-    from: currentUser.uid,
-    fromUsername: userStats.username,
-    fromPhoto: currentUser.photoURL || '',
-    challengerSide: selectedChallengerSide,
-    opponentSide: opponentSide,       // opponent plays this
-    challengeTime: challengeTime,
-    challengeId: pendingChallengeId,
-    status: 'pending',
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  const result = await socialService.sendChallenge({
+    toUid: challengeTargetUid,
+    selectedSide: challengeSide,
+    challengeTime
   });
+  if (!result) return;
+  pendingChallengeId = result.challengeId;
 
   // Update overlay to show waiting
   const overlay = document.getElementById('challenge-sent-overlay');
   document.getElementById('challenge-sent-text').textContent = '⚔️ Challenge sent!';
-  document.getElementById('challenge-sent-sub').innerHTML = `<strong>${challengeTargetName}</strong> plays as ${opponentSide} — you play as ${selectedChallengerSide} · ${challengeTime}`;
+  document.getElementById('challenge-sent-sub').innerHTML = `<strong>${challengeTargetName}</strong> plays as ${result.opponentSide} — you play as ${result.challengerSide} · ${challengeTime}`;
   overlay.querySelector('.waiting-spinner').style.display = '';
 }
 
 document.getElementById('cancel-challenge-btn').addEventListener('click', async () => {
   document.getElementById('challenge-sent-overlay').classList.remove('show');
-  // Clean up the pending challenge notification if still pending
   if (pendingChallengeId && challengeTargetUid) {
-    await db.collection('notifications').doc(challengeTargetUid).collection('items').doc(pendingChallengeId).delete().catch(() => {});
+    await socialService.cancelPendingChallenge({ toUid: challengeTargetUid, pendingChallengeId });
     pendingChallengeId = null;
   }
 });
-
-// ===== LISTEN TO NOTIFICATIONS =====
-function listenNotifications() {
-  if (!currentUser || !db) return;
-  unsubNotifs = db.collection('notifications').doc(currentUser.uid).collection('items')
-    .orderBy('createdAt', 'desc')
-    .onSnapshot(snap => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-      // Auto-finalize sender side when a friend_accepted notification arrives
-      items.filter(n => n.type === 'friend_accepted').forEach(n => {
-        db.collection('friends').doc(currentUser.uid).collection('list').doc(n.from).set({
-          status: 'accepted',
-          username: n.fromUsername || 'Friend',
-          addedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true }).catch(err => console.error('friend_accepted sync error:', err));
-      });
-
-      renderNotifications(items);
-      updateNotifBadge(items);
-
-      // Auto-handle accepted challenges (room created by opponent)
-      items.filter(n => n.type === 'challenge_accepted').forEach(n => {
-        handleChallengeAccepted(n);
-      });
-    });
-}
 
 function updateNotifBadge(items) {
   const badge = document.getElementById('notif-badge');
@@ -552,7 +315,7 @@ function renderRequestsTab(reqs) {
 }
 
 async function dismissNotif(notifId) {
-  await db.collection('notifications').doc(currentUser.uid).collection('items').doc(notifId).delete();
+  await socialService.dismissNotif(notifId);
 }
 
 function renderChallengesTab(challenges) {
@@ -581,60 +344,27 @@ function renderChallengesTab(challenges) {
 
 // ===== ACCEPT / DECLINE CHALLENGE =====
 async function acceptChallenge(notifId, challengerUid, challengerUsername, mySide, theirSide, challengeTimeSelected = '5m') {
-  if (!currentUser || !db) return;
-  // Create room
-  const roomRef = db.collection('rooms').doc();
-  const roomId = roomRef.id;
-  const initial = buildInitialRoomState();
-
-  await roomRef.set({
-    hostUid: challengerUid,
-    guestUid: currentUser.uid,
-    hostSide: theirSide,
-    guestSide: mySide,
-    timeControl: challengeTimeSelected,
-    status: 'playing',
-    ...initial,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  const result = await socialService.acceptChallenge({
+    notifId,
+    challengerUid,
+    mySide,
+    theirSide,
+    challengeTimeSelected,
+    buildInitialRoomState
   });
-
-  // Notify challenger that challenge was accepted, include roomId
-  await db.collection('notifications').doc(challengerUid).collection('items').doc().set({
-    type: 'challenge_accepted',
-    from: currentUser.uid,
-    fromUsername: userStats.username,
-    roomId: roomId,
-    mySide: theirSide,
-    challengeTime: challengeTimeSelected,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
-
-  // Remove challenge notification
-  await db.collection('notifications').doc(currentUser.uid).collection('items').doc(notifId).delete();
-
-  // Start game for this player
+  if (!result) return;
   document.getElementById('notif-overlay').classList.remove('show');
-  startMultiplayerGame(roomId, mySide, challengeTimeSelected);
+  startMultiplayerGame(result.roomId, mySide, challengeTimeSelected);
 }
 
 async function declineChallenge(notifId, challengerUid) {
-  await db.collection('notifications').doc(currentUser.uid).collection('items').doc(notifId).delete();
-  // Optionally notify challenger
-  await db.collection('notifications').doc(challengerUid).collection('items').doc().set({
-    type: 'challenge_declined',
-    from: currentUser.uid,
-    fromUsername: userStats.username,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
+  await socialService.declineChallenge({ notifId, challengerUid });
 }
 
 function handleChallengeAccepted(notif) {
-  // Close challenge-sent overlay, start game
   document.getElementById('challenge-sent-overlay').classList.remove('show');
   pendingChallengeId = null;
-  // Remove this notification
-  db.collection('notifications').doc(currentUser.uid).collection('items').doc(notif.id).delete();
+  socialService.dismissNotif(notif.id);
   startMultiplayerGame(notif.roomId, notif.mySide, notif.challengeTime || '5m');
 }
 
@@ -706,20 +436,6 @@ async function updateUserStats(won, side) {
     updateStatsDisplay();
   } catch (error) {
     console.error('Error updating stats:', error);
-  }
-}
-
-// Sign out
-async function signOut() {
-  if (!auth) return;
-  
-  try {
-    stopRoomSyncListeners();
-    currentRoomId = null;
-    currentRoomCode = null;
-    await auth.signOut();
-  } catch (error) {
-    console.error('Sign-out error:', error);
   }
 }
 
@@ -816,74 +532,7 @@ images.goatPiece.onload = imageLoaded; images.goatPiece.onerror = imageLoaded;
 images.backdrop.onload = imageLoaded; images.backdrop.onerror = imageLoaded;
 images.board.onload = imageLoaded; images.board.onerror = imageLoaded;
 
-// Audio system
-const soundUrls = {
-  newGame:      '/music/newgamestart.mp3',
-  pieceMove:    '/music/Piece-Move.mp3',
-  tigerCapture: '/music/tiger-points.mp3',
-  winning:      '/music/winning-sound.mp3',
-  hover:        '/music/hover.mp3',
-  buttonClick:  '/music/click.mp3'
-};
-
-const soundCache = {};
-let audioUnlocked = false;
-
-function attemptAudioUnlock() {
-  if (audioUnlocked) return;
-  const hover = soundCache.hover;
-  if (!hover) return;
-
-  // Try to unlock audio playback as soon as the browser allows.
-  hover.volume = 0;
-  hover.play()
-    .then(() => {
-      hover.pause();
-      hover.currentTime = 0;
-      hover.volume = 1;
-      audioUnlocked = true;
-    })
-    .catch(() => {
-      hover.volume = 1;
-    });
-}
-
-function initAudioSystem() {
-  Object.entries(soundUrls).forEach(([name, url]) => {
-    const audio = new Audio(url);
-    audio.preload = 'auto';
-    audio.load();
-    soundCache[name] = audio;
-  });
-
-  // Bind broad early-intent listeners so hover can work immediately after first user intent.
-  ['pointerenter', 'mousemove', 'pointerdown', 'mousedown', 'keydown', 'touchstart'].forEach(evt => {
-    window.addEventListener(evt, attemptAudioUnlock, { passive: true });
-  });
-}
-
-function playSound(name) {
-  const base = soundCache[name];
-  if (!base) return;
-
-  const snd = base.cloneNode();
-  snd.volume = name === 'hover' ? 0.8 : 1;
-  snd.play().catch(() => {});
-}
-
 // Game Constants
-const GRID_SIZE = 5;
-const PIECE_TYPES = {
-  EMPTY: 0,
-  TIGER: 1,
-  GOAT: 2
-};
-
-const PHASE = {
-  PLACEMENT: 'placement',
-  MOVEMENT: 'movement'
-};
-
 // Track which tiger image to use for each position
 const tigerImages = [0, 1, 2, 3]; // Maps tiger index to image index
 
@@ -898,16 +547,15 @@ let aiDifficulty = 'easy'; // 'easy' or 'hard'
 // Multiplayer room sync state
 let currentRoomId = null;
 let currentRoomCode = null;
-let currentRoomUnsub = null;
-let roomLobbyUnsub = null;
-let isApplyingRoomSnapshot = false;
+const multiplayerService = createMultiplayerService({
+  firebase,
+  getContext: () => ({ db })
+});
 
 // Timer settings
 let timerInterval = null;
 let currentTime = 30; // 30 seconds per move
 let multiplayerTimeControl = '5m';
-const TIME_PER_MOVE = 30;
-const TIME_INCREMENT = 3;
 
 function getMultiplayerTurnSeconds() {
   if (multiplayerTimeControl === '3m') return 180;
@@ -915,21 +563,6 @@ function getMultiplayerTurnSeconds() {
   if (multiplayerTimeControl === '5m') return 300;
   return Infinity; // 'infinite'
 }
-
-// AI Configuration
-const AI_CONFIG = {
-  easy: {
-    depth: 0, // Random moves
-    thinkTime: 300
-  },
-  hard: {
-    tigerPlacementDepth: 1, // Tiger doesn't place, but for consistency
-    tigerMovementDepth: 2,  // Tiger attacks - moderate depth (optimized for speed)
-    goatPlacementDepth: 2,  // Goat defense (reduced from 3 for speed)
-    goatMovementDepth: 2,   // Goat defense (reduced from 3 for speed)
-    thinkTime: 400          // Reduced from 500ms for snappier response
-  }
-};
 
 // ===== WEBWORKER AI OPTIMIZATION =====
 let aiWorker = null;
@@ -943,7 +576,7 @@ function initializeAIWorker() {
   }
   
   try {
-    aiWorker = new Worker('ai-worker.js');
+    aiWorker = new Worker('ai-worker.js', { type: 'module' });
     aiWorker.onerror = (error) => {
       console.error('Worker error:', error);
       aiWorker = null;
@@ -995,32 +628,7 @@ const aiTranspositionTable = new Map();
 const TRANSPOSITION_TABLE_SIZE = 50000;
 
 function stopRoomSyncListeners() {
-  if (currentRoomUnsub) {
-    currentRoomUnsub();
-    currentRoomUnsub = null;
-  }
-  if (roomLobbyUnsub) {
-    roomLobbyUnsub();
-    roomLobbyUnsub = null;
-  }
-}
-
-function buildInitialRoomState() {
-  const board = Array(25).fill(PIECE_TYPES.EMPTY);
-  board[0] = PIECE_TYPES.TIGER;
-  board[4] = PIECE_TYPES.TIGER;
-  board[20] = PIECE_TYPES.TIGER;
-  board[24] = PIECE_TYPES.TIGER;
-
-  return {
-    board,
-    currentPlayer: PIECE_TYPES.GOAT,
-    phase: PHASE.PLACEMENT,
-    goatsPlaced: 0,
-    goatsCaptured: 0,
-    goatIdentities: {},
-    tigerIdentities: { '0': 0, '4': 1, '20': 2, '24': 3 }
-  };
+  multiplayerService.stopRoomSyncListeners();
 }
 
 function getCurrentMultiplayerPayload(extra = {}) {
@@ -1038,46 +646,40 @@ function getCurrentMultiplayerPayload(extra = {}) {
 }
 
 async function syncMultiplayerState(extra = {}) {
-  if (!db || !currentRoomId || gameMode !== 'multiplayer' || isApplyingRoomSnapshot) return;
-  await db.collection('rooms').doc(currentRoomId).set(getCurrentMultiplayerPayload(extra), { merge: true });
+  await multiplayerService.syncRoomState({
+    roomId: currentRoomId,
+    gameMode,
+    payload: getCurrentMultiplayerPayload(extra)
+  });
 }
 
 function applyRoomStateToLocal(roomData) {
   if (!roomData || !roomData.board) return;
-  isApplyingRoomSnapshot = true;
-  gameState.board = [...roomData.board];
-  gameState.currentPlayer = roomData.currentPlayer ?? PIECE_TYPES.GOAT;
-  gameState.phase = roomData.phase || PHASE.PLACEMENT;
-  gameState.goatsPlaced = roomData.goatsPlaced || 0;
-  gameState.goatsCaptured = roomData.goatsCaptured || 0;
-  gameState.goatIdentities = { ...(roomData.goatIdentities || {}) };
-  gameState.tigerIdentities = { ...(roomData.tigerIdentities || {}) };
-  gameState.selectedPiece = null;
-  gameState.validMoves = [];
-  gameState.gameOver = roomData.status === 'finished';
-  isApplyingRoomSnapshot = false;
+  multiplayerService.withAppliedRoomSnapshot(() => {
+    gameState.board = [...roomData.board];
+    gameState.currentPlayer = roomData.currentPlayer ?? PIECE_TYPES.GOAT;
+    gameState.phase = roomData.phase || PHASE.PLACEMENT;
+    gameState.goatsPlaced = roomData.goatsPlaced || 0;
+    gameState.goatsCaptured = roomData.goatsCaptured || 0;
+    gameState.goatIdentities = { ...(roomData.goatIdentities || {}) };
+    gameState.tigerIdentities = { ...(roomData.tigerIdentities || {}) };
+    gameState.selectedPiece = null;
+    gameState.validMoves = [];
+    gameState.gameOver = roomData.status === 'finished';
+  });
   updateUI();
   draw();
 }
 
 function subscribeToRoom(roomId) {
-  if (!db || !roomId) return;
-  if (currentRoomUnsub) currentRoomUnsub();
-
-  currentRoomUnsub = db.collection('rooms').doc(roomId).onSnapshot((snap) => {
-    if (!snap.exists) return;
-    const room = snap.data();
-
-    if (room.board) {
-      applyRoomStateToLocal(room);
+  multiplayerService.subscribeToRoom(roomId, {
+    onRoomState: applyRoomStateToLocal,
+    onRoomFinished: (room) => {
+      if (!gameState.gameOver) {
+        const msg = room.winnerMessage || (room.winner === 'tiger' ? 'Congratulations Tiger won!' : 'Congratulations Goat won!');
+        endGame(msg, room.winner);
+      }
     }
-
-    if (room.status === 'finished' && room.winner && !gameState.gameOver) {
-      const msg = room.winnerMessage || (room.winner === 'tiger' ? 'Congratulations Tiger won!' : 'Congratulations Goat won!');
-      endGame(msg, room.winner);
-    }
-  }, (err) => {
-    console.error('[MP] Room listener error:', err);
   });
 }
 
@@ -1103,11 +705,6 @@ let savedGameState = null;
 let positionHistory = [];
 const MAX_POSITION_HISTORY = 10; // Track last 10 positions
 
-// Helper function to create board hash
-function getBoardHash(board) {
-  return board.join(',');
-}
-
 // Sequential goat flag counter (cycles through all 20 countries)
 let goatFlagCounter = 0;
 function getNextGoatFlag() {
@@ -1117,12 +714,7 @@ function getNextGoatFlag() {
 }
 
 // Board positions (x, y coordinates for 5x5 grid)
-const positions = [];
-for (let row = 0; row < GRID_SIZE; row++) {
-  for (let col = 0; col < GRID_SIZE; col++) {
-    positions.push({ row, col });
-  }
-}
+const positions = BOARD_POSITIONS;
 
 // Initialize game
 function initGame() {
@@ -1306,226 +898,31 @@ function hideAIThinking() {
   document.getElementById('ai-thinking').classList.remove('show');
 }
 
-// Get adjacent positions
-function getAdjacent(index) {
-  const { row, col } = positions[index];
-  const adjacent = [];
-
-  // Horizontal and vertical
-  const directions = [
-    [-1, 0], [1, 0], [0, -1], [0, 1]
-  ];
-
-  // Diagonals
-  const diagonals = [
-    [-1, -1], [-1, 1], [1, -1], [1, 1]
-  ];
-
-  // Check regular directions (always valid)
-  for (const [dr, dc] of directions) {
-    const newRow = row + dr;
-    const newCol = col + dc;
-    if (newRow >= 0 && newRow < GRID_SIZE && newCol >= 0 && newCol < GRID_SIZE) {
-      adjacent.push(newRow * GRID_SIZE + newCol);
-    }
-  }
-
-  // Check diagonals - check if diagonal line exists between two points
-  for (const [dr, dc] of diagonals) {
-    const newRow = row + dr;
-    const newCol = col + dc;
-    if (newRow >= 0 && newRow < GRID_SIZE && newCol >= 0 && newCol < GRID_SIZE) {
-      if (isDiagonalConnected(row, col, newRow, newCol)) {
-        adjacent.push(newRow * GRID_SIZE + newCol);
-      }
-    }
-  }
-
-  return adjacent;
-}
-
-// Check if two positions are connected by a diagonal line on the board
-function isDiagonalConnected(r1, c1, r2, c2) {
-  // Must be diagonal move (both row and col change by 1)
-  if (Math.abs(r1 - r2) !== 1 || Math.abs(c1 - c2) !== 1) {
-    return false;
-  }
-
-  // Main diagonal (top-left to bottom-right): row === col
-  // Valid positions: (0,0)-(1,1)-(2,2)-(3,3)-(4,4)
-  if (r1 === c1 && r2 === c2) {
-    return true;
-  }
-
-  // Anti-diagonal (top-right to bottom-left): row + col === 4
-  // Valid positions: (0,4)-(1,3)-(2,2)-(3,1)-(4,0)
-  if (r1 + c1 === 4 && r2 + c2 === 4) {
-    return true;
-  }
-
-  // Inner diamond diagonals connecting edge midpoints
-  // The diamond connects: (0,2) ↔ (2,4) ↔ (4,2) ↔ (2,0) ↔ (0,2)
-  
-  // Define the edge midpoints
-  const topMid = [0, 2];
-  const rightMid = [2, 4];
-  const bottomMid = [4, 2];
-  const leftMid = [2, 0];
-  
-  // Helper to check if point matches coordinates
-  const pointMatches = (r, c, point) => r === point[0] && c === point[1];
-  
-  // Check all diamond connections
-  // Top-center (0,2) to Right-center (2,4): moves through (1,3)
-  if ((pointMatches(r1, c1, [1, 3]) && pointMatches(r2, c2, topMid)) ||
-      (pointMatches(r1, c1, topMid) && pointMatches(r2, c2, [1, 3])) ||
-      (pointMatches(r1, c1, [1, 3]) && pointMatches(r2, c2, rightMid)) ||
-      (pointMatches(r1, c1, rightMid) && pointMatches(r2, c2, [1, 3]))) {
-    return true;
-  }
-  
-  // Right-center (2,4) to Bottom-center (4,2): moves through (3,3)
-  if ((pointMatches(r1, c1, [3, 3]) && pointMatches(r2, c2, rightMid)) ||
-      (pointMatches(r1, c1, rightMid) && pointMatches(r2, c2, [3, 3])) ||
-      (pointMatches(r1, c1, [3, 3]) && pointMatches(r2, c2, bottomMid)) ||
-      (pointMatches(r1, c1, bottomMid) && pointMatches(r2, c2, [3, 3]))) {
-    return true;
-  }
-  
-  // Bottom-center (4,2) to Left-center (2,0): moves through (3,1)
-  if ((pointMatches(r1, c1, [3, 1]) && pointMatches(r2, c2, bottomMid)) ||
-      (pointMatches(r1, c1, bottomMid) && pointMatches(r2, c2, [3, 1])) ||
-      (pointMatches(r1, c1, [3, 1]) && pointMatches(r2, c2, leftMid)) ||
-      (pointMatches(r1, c1, leftMid) && pointMatches(r2, c2, [3, 1]))) {
-    return true;
-  }
-  
-  // Left-center (2,0) to Top-center (0,2): moves through (1,1)
-  if ((pointMatches(r1, c1, [1, 1]) && pointMatches(r2, c2, leftMid)) ||
-      (pointMatches(r1, c1, leftMid) && pointMatches(r2, c2, [1, 1])) ||
-      (pointMatches(r1, c1, [1, 1]) && pointMatches(r2, c2, topMid)) ||
-      (pointMatches(r1, c1, topMid) && pointMatches(r2, c2, [1, 1]))) {
-    return true;
-  }
-
-  return false;
-}
-
 // Get valid moves for a piece
 function getValidMoves(index) {
-  const piece = gameState.board[index];
-  const moves = [];
-
-  if (piece === PIECE_TYPES.GOAT) {
-    // Goats can only move to adjacent empty spots
-    const adjacent = getAdjacent(index);
-    for (const adj of adjacent) {
-      if (gameState.board[adj] === PIECE_TYPES.EMPTY) {
-        moves.push({ to: adj, capture: null });
-      }
-    }
-  } else if (piece === PIECE_TYPES.TIGER) {
-    // Tigers can move or capture
-    const adjacent = getAdjacent(index);
-    for (const adj of adjacent) {
-      if (gameState.board[adj] === PIECE_TYPES.EMPTY) {
-        // Regular move - only to directly adjacent empty position
-        moves.push({ to: adj, capture: null });
-      } else if (gameState.board[adj] === PIECE_TYPES.GOAT) {
-        // Check if can capture (jump over goat)
-        const { row: r1, col: c1 } = positions[index];
-        const { row: r2, col: c2 } = positions[adj];
-        const dr = r2 - r1;
-        const dc = c2 - c1;
-        const jumpRow = r2 + dr;
-        const jumpCol = c2 + dc;
-        
-        // Validate jump position is within board
-        if (jumpRow >= 0 && jumpRow < GRID_SIZE && jumpCol >= 0 && jumpCol < GRID_SIZE) {
-          const jumpIndex = jumpRow * GRID_SIZE + jumpCol;
-          
-          // Must land on empty space
-          if (gameState.board[jumpIndex] === PIECE_TYPES.EMPTY) {
-            // Verify the jump follows a valid line on the board
-            // The jump destination must be adjacent to the goat in the same direction
-            const jumpAdjacent = getAdjacent(adj);
-            if (jumpAdjacent.includes(jumpIndex)) {
-              // Additional check: the tiger must be able to reach the goat position
-              // This prevents invalid diagonal jumps
-              moves.push({ to: jumpIndex, capture: adj });
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return moves;
+  return getValidMovesForBoard(index, gameState.board, positions).map(({ to, capture }) => ({ to, capture }));
 }
 
 // Check if tigers are trapped
 function areTigersTrapped() {
-  for (let i = 0; i < 25; i++) {
-    if (gameState.board[i] === PIECE_TYPES.TIGER) {
-      const moves = getValidMoves(i);
-      if (moves.length > 0) {
-        return false;
-      }
-    }
-  }
-  return true;
+  return countTrappedPieces(gameState.board, PIECE_TYPES.TIGER, positions) === 4;
 }
 
 // Count how many tigers are trapped (have no valid moves)
 function countTrappedTigers() {
-  let trappedCount = 0;
-  for (let i = 0; i < 25; i++) {
-    if (gameState.board[i] === PIECE_TYPES.TIGER) {
-      const moves = getValidMoves(i);
-      if (moves.length === 0) {
-        trappedCount++;
-      }
-    }
-  }
-  return trappedCount;
+  return countTrappedPieces(gameState.board, PIECE_TYPES.TIGER, positions);
 }
 
 // Check if goats are trapped (rare case)
 function areGoatsTrapped() {
-  for (let i = 0; i < 25; i++) {
-    if (gameState.board[i] === PIECE_TYPES.GOAT) {
-      const moves = getValidMoves(i);
-      if (moves.length > 0) {
-        return false;
-      }
-    }
-  }
-  return true;
+  return countTrappedPieces(gameState.board, PIECE_TYPES.GOAT, positions) === gameState.board.filter(piece => piece === PIECE_TYPES.GOAT).length;
 }
 
 // Check win conditions
 function checkWin() {
-  // Tigers win by capturing 5 goats (can happen in any phase)
-  if (gameState.goatsCaptured >= 5) {
-    endGame('Congratulations Tiger won!', 'tiger');
-    return true;
-  }
-
-  // Goats win by trapping all tigers (only in movement phase)
-  if (gameState.phase === PHASE.MOVEMENT && areTigersTrapped()) {
-    endGame('Congratulations Goat won!', 'goat');
-    return true;
-  }
-
-  // Tigers win by trapping all goats (rare case, only in movement phase)
-  if (gameState.phase === PHASE.MOVEMENT && gameState.goatsPlaced === 20 && areGoatsTrapped()) {
-    endGame('Congratulations Tiger won!', 'tiger');
-    return true;
-  }
-  
-  // Check if tigers trapped during placement (goats on board but can't move)
-  if (gameState.phase === PHASE.PLACEMENT && gameState.goatsPlaced > 0 && areTigersTrapped()) {
-    endGame('Governing Parties Win!', 'goat');
+  const winState = getWinState(gameState, positions);
+  if (winState) {
+    endGame(winState.message, winState.winner);
     return true;
   }
 
@@ -1942,69 +1339,12 @@ function evaluateBoard(board, player, phase, goatsPlaced, goatsCaptured) {
 
 // Get valid moves for a position in a given board state
 function getValidMovesForState(index, board) {
-  const piece = board[index];
-  if (piece === PIECE_TYPES.EMPTY) return [];
-  
-  const moves = [];
-  const adjacent = getAdjacentForState(index, board);
-  
-  for (const adj of adjacent) {
-    if (board[adj] === PIECE_TYPES.EMPTY) {
-      moves.push({ from: index, to: adj, capture: null });
-    } else if (piece === PIECE_TYPES.TIGER && board[adj] === PIECE_TYPES.GOAT) {
-      // Check for capture - calculate jump position
-      const { row: r1, col: c1 } = positions[index];
-      const { row: r2, col: c2 } = positions[adj];
-      const dr = r2 - r1;
-      const dc = c2 - c1;
-      const jumpRow = r2 + dr;
-      const jumpCol = c2 + dc;
-      
-      if (jumpRow >= 0 && jumpRow < GRID_SIZE && jumpCol >= 0 && jumpCol < GRID_SIZE) {
-        const jumpIndex = jumpRow * GRID_SIZE + jumpCol;
-        
-        if (board[jumpIndex] === PIECE_TYPES.EMPTY) {
-          const jumpAdjacent = getAdjacentForState(adj, board);
-          if (jumpAdjacent.includes(jumpIndex)) {
-            moves.push({ from: index, to: jumpIndex, capture: adj });
-          }
-        }
-      }
-    }
-  }
-  
-  return moves;
+  return getValidMovesForBoard(index, board, positions);
 }
 
 // Get adjacent positions for a given board state
 function getAdjacentForState(index, board) {
-  const pos = positions[index];
-  const adjacent = [];
-  
-  const directions = [
-    [-1, 0], [1, 0], [0, -1], [0, 1], // orthogonal
-    [-1, -1], [-1, 1], [1, -1], [1, 1] // diagonal
-  ];
-  
-  for (const [dr, dc] of directions) {
-    const newRow = pos.row + dr;
-    const newCol = pos.col + dc;
-    
-    if (newRow >= 0 && newRow < GRID_SIZE && newCol >= 0 && newCol < GRID_SIZE) {
-      const newIndex = newRow * GRID_SIZE + newCol;
-      
-      // Check if diagonal is valid
-      if (Math.abs(dr) === 1 && Math.abs(dc) === 1) {
-        if (isDiagonalConnected(pos.row, pos.col, newRow, newCol)) {
-          adjacent.push(newIndex);
-        }
-      } else {
-        adjacent.push(newIndex);
-      }
-    }
-  }
-  
-  return adjacent;
+  return getAdjacentPositions(index, positions);
 }
 
 // Minimax with alpha-beta pruning
@@ -2117,48 +1457,48 @@ function applyMove(board, move, phase, goatsPlaced, goatsCaptured) {
   return { board: newBoard, phase: newPhase, goatsPlaced: newGoatsPlaced, goatsCaptured: newGoatsCaptured };
 }
 
-// Execute hard AI move - optimized with WebWorker support
-function executeHardAIMove() {
+// Execute hard AI move - uses Heavy Backend AI
+async function executeHardAIMove() {
   if (gameState.gameOver) return;
   
-  console.log('=== Hard AI Move Start (Optimized) ===');
+  console.log('=== Hard AI Move Start (Backend API) ===');
   const aiSide = playerSide === PIECE_TYPES.GOAT ? PIECE_TYPES.TIGER : PIECE_TYPES.GOAT;
-  console.log('AI Side:', aiSide === PIECE_TYPES.TIGER ? 'TIGER' : 'GOAT', 'Phase:', gameState.phase);
   
-  // Special handling for first goat placement
-  if (aiSide === PIECE_TYPES.GOAT && gameState.phase === PHASE.PLACEMENT && gameState.goatsPlaced === 0) {
-    const safePositions = [12, 2, 10, 14, 22];
-    const availableSafePositions = safePositions.filter(pos => gameState.board[pos] === PIECE_TYPES.EMPTY);
-    
-    if (availableSafePositions.length > 0) {
-      const randomSafePos = availableSafePositions[Math.floor(Math.random() * availableSafePositions.length)];
-      applyHardAIMove({ type: 'place', to: randomSafePos }, aiSide);
-      return;
-    }
-  }
-  
-  const allMoves = getAllPossibleMoves(gameState.board, aiSide, gameState.phase, gameState.goatsPlaced);
-  
-  if (allMoves.length === 0) {
-    console.log('No moves available!');
-    checkWin();
-    return;
-  }
-  
-  // Try worker-based AI if available (non-blocking)
-  if (aiWorker) {
-    getAIMoveFromWorker(gameState, aiSide, (workerMove) => {
-      if (workerMove) {
-        console.log('Using worker-computed move');
-        applyHardAIMove(workerMove, aiSide);
-      } else {
-        // Fallback to optimized local minimax
-        console.log('Worker unavailable, using local optimized search');
-        executeHardAIMoveLocal(allMoves, aiSide);
-      }
+  // Try sending board state to the backend
+  try {
+    const response = await fetch('http://localhost:3000/api/get-move', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        gameState: {
+          board: gameState.board,
+          phase: gameState.phase,
+          goatsPlaced: gameState.goatsPlaced,
+          goatsCaptured: gameState.goatsCaptured
+        },
+        aiSide: aiSide,
+        difficulty: 'hard' // Triggers full deep calculations on backend
+      })
     });
-  } else {
-    // Use optimized local minimax
+
+    if (!response.ok) throw new Error('Backend AI request failed');
+    
+    const data = await response.json();
+    
+    if (data.success && data.move) {
+      console.log(`Backend AI executed in ${data.stats?.timeSpent || 'unknown'}ms`);
+      applyHardAIMove(data.move, aiSide);
+      return;
+    } else {
+      throw new Error('Valid move not found from Backend AI');
+    }
+    
+  } catch (err) {
+    console.error('Backend AI Failed, falling back to local Easy AI:', err);
+    // If backend is down, fall back to our existing worker so the game doesn't crash
+    const allMoves = getAllPossibleMoves(gameState.board, aiSide, gameState.phase, gameState.goatsPlaced);
     executeHardAIMoveLocal(allMoves, aiSide);
   }
 }
@@ -2341,6 +1681,8 @@ function minimaxOptimized(board, depth, alpha, beta, isMaximizing, aiSide, phase
 
 // Apply the computed best move to game state
 function applyHardAIMove(bestMove, aiSide) {
+  if (!gameStarted || gameState.gameOver) return;
+
   if (!bestMove) {
     checkWin();
     return;
@@ -2965,13 +2307,12 @@ function endGame(message, winner) {
   gameState.gameOver = true;
   playSound('winning');
 
-  if (gameMode === 'multiplayer' && currentRoomId && db && !isApplyingRoomSnapshot) {
-    db.collection('rooms').doc(currentRoomId).set({
-      status: 'finished',
+  if (gameMode === 'multiplayer' && currentRoomId && db && !multiplayerService.isApplyingRoomSnapshot()) {
+    multiplayerService.finalizeRoom({
+      roomId: currentRoomId,
       winner,
-      winnerMessage: message,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true }).catch(err => console.error('[MP] Failed to finalize room:', err));
+      winnerMessage: message
+    }).catch(err => console.error('[MP] Failed to finalize room:', err));
   }
   
   // Update user stats if logged in
@@ -3000,6 +2341,13 @@ function endGame(message, winner) {
   winnerText.textContent = message;
   overlay.classList.add('show');
   toggleMoveNavigation(false);
+  
+  // Instantly reset the board to the base position behind the overlay
+  setTimeout(() => {
+    initGame();
+    gameStarted = false; // Prevent clicks while overlay is active
+    draw();
+  }, 1000); // 1-second delay so they can briefly see the winning move before the board wipes
 }
 
 // Reset game
@@ -3020,12 +2368,24 @@ if (signInBtn) {
 
 const googleSigninBtn = document.getElementById('google-signin-btn');
 if (googleSigninBtn) {
-  googleSigninBtn.addEventListener('click', signInWithGoogle);
+  googleSigninBtn.addEventListener('click', () => signInWithGoogle({
+    auth,
+    db,
+    firebase,
+    onUsernameSetupRequired: showUsernameSetup
+  }));
 }
 
 const signOutBtn = document.getElementById('sign-out-btn');
 if (signOutBtn) {
-  signOutBtn.addEventListener('click', signOut);
+  signOutBtn.addEventListener('click', () => signOut({
+    auth,
+    beforeSignOut: async () => {
+      stopRoomSyncListeners();
+      currentRoomId = null;
+      currentRoomCode = null;
+    }
+  }));
 }
 
 // Profile dropdown toggle
@@ -3059,7 +2419,24 @@ if (usernameForm) {
     if (usernameInput) {
       const username = usernameInput.value.trim();
       if (username.length >= 3) {
-        saveUsername(username);
+        saveUsername({
+          currentUser,
+          db,
+          firebase,
+          username,
+          onUsernameSaved: (cleanUsername) => {
+            userStats.username = cleanUsername;
+            hideUsernameSetup();
+            updateUIForSignedInUser();
+            startSocialListeners();
+          },
+          onUsernameError: (message) => {
+            if (errEl) {
+              errEl.textContent = message;
+              errEl.style.display = 'block';
+            }
+          }
+        });
       } else {
         if (errEl) { errEl.textContent = 'Username must be at least 3 characters.'; errEl.style.display = 'block'; }
       }
@@ -3356,19 +2733,10 @@ if (createRoomBtn) {
       if (roomWaiting) roomWaiting.classList.remove('hidden');
       playSound('buttonClick');
 
-      if (roomLobbyUnsub) roomLobbyUnsub();
-      roomLobbyUnsub = roomRef.onSnapshot((snap) => {
-        if (!snap.exists) return;
-        const room = snap.data();
-        if (room.status === 'playing' && room.guestUid) {
-          if (roomLobbyUnsub) {
-            roomLobbyUnsub();
-            roomLobbyUnsub = null;
-          }
+      multiplayerService.startLobbyListener(roomRef, {
+        onRoomReady: (room) => {
           startMultiplayerGame(roomRef.id, hostSide, room.timeControl || '5m');
         }
-      }, (err) => {
-        console.error('[MP] Lobby listener error:', err);
       });
 
       console.log('[Multiplayer] Room created:', code, 'Side:', hostSide);
@@ -3485,7 +2853,7 @@ if (cancelRoomBtn) {
       console.error('[MP] Failed cancelling room:', err);
     }
 
-    if (roomLobbyUnsub) { roomLobbyUnsub(); roomLobbyUnsub = null; }
+    multiplayerService.stopLobbyListener();
     currentRoomId = null;
     currentRoomCode = null;
     resetMultiplayerUI();

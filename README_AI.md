@@ -202,9 +202,13 @@ Strategy:   Phase-specific goals
 
 ```
 BaghChal/
+├── app/
+│   └── ai/
+│       ├── BaghchalAI.js      # AI engine (minimax + MCTS)
+│       └── DatasetGenerator.js # Training data generator
 ├── src/
-│   ├── BaghchalAI.js          # AI engine (minimax + MCTS)
-│   └── DatasetGenerator.js     # Training data generator
+│   ├── BaghchalAI.js          # Compatibility re-export
+│   └── DatasetGenerator.js    # Compatibility re-export
 ├── assets/                     # Images
 ├── main.js                     # Game logic & UI
 ├── index.html                  # HTML structure
@@ -238,7 +242,7 @@ BaghChal/
 
 ### AI Taking Too Long (Hard Mode)
 - Normal: 0.5-1 second per move
-- Slow computer: Reduce simulations in `BaghchalAI.js`
+- Slow computer: Reduce simulations in `app/ai/BaghchalAI.js`
 - Change `HARD: return 2000` to `HARD: return 1000`
 
 ### AI Still Too Easy
@@ -338,8 +342,8 @@ npm run preview  # Preview build
 ```
 
 ### Key Files
-- **AI Logic**: `src/BaghchalAI.js`
-- **Dataset Gen**: `src/DatasetGenerator.js`
+- **AI Logic**: `app/ai/BaghchalAI.js`
+- **Dataset Gen**: `app/ai/DatasetGenerator.js`
 - **Game Loop**: `main.js`
 
 ### Parameters to Tune

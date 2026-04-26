@@ -216,7 +216,7 @@ hashGameState(gameState, depth, isMaximizing) {
 
 ---
 
-## 📝 Changes Made to [BaghchalAI.js](src/BaghchalAI.js)
+## 📝 Changes Made to [BaghchalAI.js](app/ai/BaghchalAI.js)
 
 ### New Methods Added:
 - `getTimeLimit()` - Time budgets by difficulty

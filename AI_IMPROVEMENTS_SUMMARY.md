@@ -248,13 +248,13 @@ Strategic:     40-220 points (phase-specific)
 
 ## Files Modified
 
-1. **`/src/BaghchalAI.js`** - Complete AI rewrite
+1. **`/app/ai/BaghchalAI.js`** - Complete AI rewrite
    - Added minimax with alpha-beta pruning
    - Enhanced evaluation function
    - Improved MCTS simulations
    - Phase-aware strategy
 
-2. **`/src/DatasetGenerator.js`** - New file
+2. **`/app/ai/DatasetGenerator.js`** - New file
    - Self-play game generation
    - Position recording and serialization
    - JSON export functionality
