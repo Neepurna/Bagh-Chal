@@ -543,6 +543,8 @@ let multiplayerSide = null; // chosen side in multiplayer mode
 let gameStarted = false;
 let isFirstAIMove = true;
 let aiDifficulty = 'easy'; // 'easy' or 'hard'
+let pendingBoardResetTimeout = null;
+let pendingAITurnTimeout = null;
 
 // Multiplayer room sync state
 let currentRoomId = null;
@@ -562,6 +564,29 @@ function getMultiplayerTurnSeconds() {
   if (multiplayerTimeControl === '10m') return 600;
   if (multiplayerTimeControl === '5m') return 300;
   return Infinity; // 'infinite'
+}
+
+function clearPendingAsyncActions() {
+  if (pendingBoardResetTimeout) {
+    clearTimeout(pendingBoardResetTimeout);
+    pendingBoardResetTimeout = null;
+  }
+
+  if (pendingAITurnTimeout) {
+    clearTimeout(pendingAITurnTimeout);
+    pendingAITurnTimeout = null;
+  }
+}
+
+function scheduleAIMove(delay = getAIThinkingTime()) {
+  if (pendingAITurnTimeout) {
+    clearTimeout(pendingAITurnTimeout);
+  }
+
+  pendingAITurnTimeout = setTimeout(() => {
+    pendingAITurnTimeout = null;
+    aiMove();
+  }, delay);
 }
 
 // ===== WEBWORKER AI OPTIMIZATION =====
@@ -676,7 +701,7 @@ function subscribeToRoom(roomId) {
     onRoomState: applyRoomStateToLocal,
     onRoomFinished: (room) => {
       if (!gameState.gameOver) {
-        const msg = room.winnerMessage || (room.winner === 'tiger' ? 'Congratulations Tiger won!' : 'Congratulations Goat won!');
+        const msg = room.winnerMessage || (room.winner === 'tiger' ? 'Tiger won the match.' : 'Goat won the match.');
         endGame(msg, room.winner);
       }
     }
@@ -717,7 +742,17 @@ function getNextGoatFlag() {
 const positions = BOARD_POSITIONS;
 
 // Initialize game
-function initGame() {
+function initGame(options = {}) {
+  const started = options.started ?? gameStarted;
+  const decorativeGoats = options.decorativeGoats ?? !started;
+  const shouldPlayStartSound = options.playStartSound ?? started;
+  const shouldShowPanels = options.showPanels ?? started;
+  const shouldStartTimer = options.startTimer ?? started;
+  const shouldTriggerAutoAI = options.autoAIMove ?? (started && gameMode === 'ai' && playerSide === PIECE_TYPES.TIGER);
+
+  clearPendingAsyncActions();
+  stopTimer();
+
   // Reset state
   gameState = {
     board: Array(25).fill(PIECE_TYPES.EMPTY),
@@ -754,7 +789,7 @@ function initGame() {
   gameState.tigerIdentities[24] = 3;
 
   // Add random goats for visual appeal on homepage (only if game hasn't started)
-  if (!gameStarted) {
+  if (decorativeGoats) {
     const goatPositions = [6, 8, 12, 16, 18]; // Some strategic positions
     goatPositions.forEach((pos, index) => {
       gameState.board[pos] = PIECE_TYPES.GOAT;
@@ -763,7 +798,7 @@ function initGame() {
     });
   }
 
-  if (gameStarted) {
+  if (shouldPlayStartSound) {
     playSound('newGame');
   }
 
@@ -776,13 +811,15 @@ function initGame() {
   }
   
   // Show/hide panels based on game state
-  if (gameStarted) {
+  if (shouldShowPanels) {
     document.getElementById('welcome-screen').style.display = 'none';
     document.getElementById('gameStatePanel').classList.remove('hidden');
     document.getElementById('tigerPanel').classList.remove('hidden');
     document.getElementById('goatPanel').classList.remove('hidden');
     toggleMoveNavigation(true);
-    startTimer();
+    if (shouldStartTimer) {
+      startTimer();
+    }
   } else {
     document.getElementById('welcome-screen').style.display = 'flex';
     document.getElementById('gameStatePanel').classList.add('hidden');
@@ -792,8 +829,8 @@ function initGame() {
   }
   
   // If player is tiger, goats go first (AI mode only)
-  if (gameStarted && gameMode === 'ai' && playerSide === PIECE_TYPES.TIGER) {
-    setTimeout(() => aiMove(), getAIThinkingTime());
+  if (shouldTriggerAutoAI) {
+    scheduleAIMove();
   }
 }
 
@@ -985,7 +1022,7 @@ function handleClick(event) {
           if (gameMode === 'multiplayer') {
             syncMultiplayerState().catch(err => console.error('[MP] Failed to sync move:', err));
           } else {
-            setTimeout(aiMove, getAIThinkingTime());
+            scheduleAIMove();
           }
         }
       }
@@ -1033,7 +1070,7 @@ function handleClick(event) {
             if (gameMode === 'multiplayer') {
               syncMultiplayerState().catch(err => console.error('[MP] Failed to sync move:', err));
             } else {
-              setTimeout(aiMove, getAIThinkingTime());
+              scheduleAIMove();
             }
           }
         } else if (gameState.board[clickedIndex] === PIECE_TYPES.TIGER) {
@@ -1084,7 +1121,7 @@ function handleClick(event) {
             if (gameMode === 'multiplayer') {
               syncMultiplayerState().catch(err => console.error('[MP] Failed to sync move:', err));
             } else {
-              setTimeout(aiMove, getAIThinkingTime());
+              scheduleAIMove();
             }
           }
         } else if (gameState.board[clickedIndex] === PIECE_TYPES.GOAT) {
@@ -1143,7 +1180,7 @@ function handleClick(event) {
             if (gameMode === 'multiplayer') {
               syncMultiplayerState().catch(err => console.error('[MP] Failed to sync move:', err));
             } else {
-              setTimeout(aiMove, getAIThinkingTime());
+              scheduleAIMove();
             }
           }
         } else if (gameState.board[clickedIndex] === PIECE_TYPES.TIGER) {
@@ -1178,7 +1215,8 @@ function aiMove() {
   showAIThinking();
   const delay = getAIThinkingTime();
   
-  setTimeout(() => {
+  pendingAITurnTimeout = setTimeout(() => {
+    pendingAITurnTimeout = null;
     console.log('Executing AI move after delay');
     if (aiDifficulty === 'hard') {
       executeHardAIMove();
@@ -1930,16 +1968,33 @@ function drawOctagonPath(x, y, radius) {
 function draw() {
   const size = Math.min(canvas.width, canvas.height);
 
-  // Clear canvas with solid background color
-  ctx.fillStyle = '#141b2d';
+  // Board background matches the frosted steel-blue UI shell.
+  const boardGradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  boardGradient.addColorStop(0, '#7694b0');
+  boardGradient.addColorStop(0.5, '#5f7892');
+  boardGradient.addColorStop(1, '#4d657d');
+  ctx.fillStyle = boardGradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const boardGlow = ctx.createRadialGradient(
+    canvas.width * 0.48,
+    canvas.height * 0.42,
+    0,
+    canvas.width * 0.48,
+    canvas.height * 0.42,
+    canvas.width * 0.52
+  );
+  boardGlow.addColorStop(0, 'rgba(255, 255, 255, 0.16)');
+  boardGlow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = boardGlow;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const padding = size * 0.1;
   const cellSize = (size - 2 * padding) / (GRID_SIZE - 1);
 
   // Draw board lines
-  ctx.strokeStyle = '#4a5568';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(247, 251, 255, 0.86)';
+  ctx.lineWidth = 2.6;
 
   // Horizontal and vertical lines
   for (let i = 0; i < GRID_SIZE; i++) {
@@ -1991,7 +2046,7 @@ function draw() {
 
   // Draw valid move indicators
   if (gameState.validMoves.length > 0) {
-    ctx.fillStyle = 'rgba(78, 205, 196, 0.3)';
+    ctx.fillStyle = 'rgba(99, 204, 255, 0.28)';
     for (const move of gameState.validMoves) {
       const { row, col } = positions[move.to];
       const x = padding + col * cellSize;
@@ -2043,13 +2098,13 @@ function draw() {
       
       // Border
       if (isSelected) {
-        ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 20;
-        ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 4;
+        ctx.shadowColor = '#e9f3ff'; ctx.shadowBlur = 20;
+        ctx.strokeStyle = '#f4f8ff'; ctx.lineWidth = 4;
       } else if (isCurrentTurn) {
-        ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 14;
-        ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 4;
+        ctx.shadowColor = '#6fd4ff'; ctx.shadowBlur = 14;
+        ctx.strokeStyle = '#6fd4ff'; ctx.lineWidth = 4;
       } else {
-        ctx.strokeStyle = isTrapped ? '#555' : 'rgba(255,255,255,0.7)';
+        ctx.strokeStyle = isTrapped ? '#69798b' : 'rgba(255,255,255,0.86)';
         ctx.lineWidth = 2;
       }
       drawOctagonPath(x, y, chipRadius);
@@ -2091,13 +2146,13 @@ function draw() {
       
       // Border
       if (isSelected) {
-        ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 20;
-        ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 4;
+        ctx.shadowColor = '#e9f7ff'; ctx.shadowBlur = 20;
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4;
       } else if (isCurrentTurn) {
-        ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 14;
-        ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 4;
+        ctx.shadowColor = '#5bc9ff'; ctx.shadowBlur = 14;
+        ctx.strokeStyle = '#5bc9ff'; ctx.lineWidth = 4;
       } else {
-        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
         ctx.lineWidth = 2;
       }
       ctx.beginPath();
@@ -2302,8 +2357,44 @@ function toggleMoveNavigation(show) {
   }
 }
 
+function buildWinnerPresentation(message, winner) {
+  const playerWon = (winner === 'tiger' && playerSide === PIECE_TYPES.TIGER) ||
+                    (winner === 'goat' && playerSide === PIECE_TYPES.GOAT);
+  const winnerLabel = winner === 'tiger' ? 'Tiger' : 'Goat';
+
+  if (gameMode === 'ai') {
+    if (playerWon) {
+      return {
+        title: `${winnerLabel} Won!`,
+        kicker: winner === 'tiger' ? 'Predator Prevails' : 'The Herd Holds',
+        subtext: winner === 'tiger'
+          ? 'A sharp finishing sequence let the tiger seize the final advantage.'
+          : 'Disciplined positioning closed every escape and sealed the board for the goats.'
+      };
+    }
+
+    return {
+      title: winner === 'tiger' ? 'Defeat. Tiger Won.' : 'Defeat. Goat Won.',
+      kicker: 'Match Lost',
+      subtext: winner === 'tiger'
+        ? 'Tiger found the decisive breakthrough and closed the match cleanly.'
+        : 'Goat controlled the board patiently and converted the endgame without error.'
+    };
+  }
+
+  return {
+    title: message || `${winnerLabel} won the match.`,
+    kicker: winner === 'tiger' ? 'Predator Prevails' : 'The Herd Holds',
+    subtext: winner === 'tiger'
+      ? 'A sharp finishing sequence let the tiger seize the final advantage.'
+      : 'Disciplined positioning closed every escape and sealed the board for the goats.'
+  };
+}
+
 // End game
 function endGame(message, winner) {
+  clearPendingAsyncActions();
+  stopTimer();
   gameState.gameOver = true;
   playSound('winning');
 
@@ -2326,6 +2417,10 @@ function endGame(message, winner) {
   const overlay = document.getElementById('winner-overlay');
   const winnerIcon = document.getElementById('winner-icon');
   const winnerText = document.getElementById('winner-text');
+  const winnerKicker = document.getElementById('winner-kicker');
+  const winnerSubtext = document.getElementById('winner-subtext');
+  const presentation = buildWinnerPresentation(message, winner);
+  overlay.dataset.winner = winner;
 
   // Display logos based on winner
   if (winner === 'tiger') {
@@ -2337,14 +2432,23 @@ function endGame(message, winner) {
   } else {
     winnerIcon.innerHTML = '<img src="assets/bhakhra.png" class="winner-logo-single">';
   }
-  
-  winnerText.textContent = message;
+
+  if (winnerKicker) winnerKicker.textContent = presentation.kicker;
+  if (winnerSubtext) winnerSubtext.textContent = presentation.subtext;
+  winnerText.textContent = presentation.title;
   overlay.classList.add('show');
   toggleMoveNavigation(false);
   
-  // Instantly reset the board to the base position behind the overlay
-  setTimeout(() => {
-    initGame();
+  // Reset the board behind the overlay so the next game starts from a clean state.
+  pendingBoardResetTimeout = setTimeout(() => {
+    pendingBoardResetTimeout = null;
+    initGame({
+      started: true,
+      decorativeGoats: false,
+      playStartSound: false,
+      startTimer: false,
+      autoAIMove: false
+    });
     gameStarted = false; // Prevent clicks while overlay is active
     draw();
   }, 1000); // 1-second delay so they can briefly see the winning move before the board wipes
@@ -2638,7 +2742,7 @@ document.getElementById('mode-tab-ai').addEventListener('click', () => {
   gameMode = 'ai';
   document.getElementById('mode-tab-ai').classList.add('active');
   document.getElementById('mode-tab-player').classList.remove('active');
-  document.getElementById('difficulty-section').style.display = '';
+  document.getElementById('ai-tab-content').classList.remove('hidden');
   document.getElementById('multiplayer-section').classList.add('hidden');
   // Reset multiplayer UI state
   resetMultiplayerUI();
@@ -2649,7 +2753,7 @@ document.getElementById('mode-tab-player').addEventListener('click', () => {
   gameMode = 'multiplayer';
   document.getElementById('mode-tab-player').classList.add('active');
   document.getElementById('mode-tab-ai').classList.remove('active');
-  document.getElementById('difficulty-section').style.display = 'none';
+  document.getElementById('ai-tab-content').classList.add('hidden');
   document.getElementById('multiplayer-section').classList.remove('hidden');
   playSound('buttonClick');
 });
@@ -2899,6 +3003,8 @@ document.getElementById('select-tiger').addEventListener('mouseenter', () => {
 });
 
 function exitToHome() {
+  clearPendingAsyncActions();
+  stopTimer();
   gameStarted = false;
   gameMode = 'ai';
   stopRoomSyncListeners();
@@ -2916,6 +3022,8 @@ function exitToHome() {
 }
 
 function showPlayerSelect() {
+  clearPendingAsyncActions();
+  stopTimer();
   gameStarted = false;
   gameMode = 'ai';
   stopRoomSyncListeners();
@@ -2927,7 +3035,7 @@ function showPlayerSelect() {
   // Reset to AI mode tab
   document.getElementById('mode-tab-ai').classList.add('active');
   document.getElementById('mode-tab-player').classList.remove('active');
-  document.getElementById('difficulty-section').style.display = '';
+  document.getElementById('ai-tab-content').classList.remove('hidden');
   document.getElementById('multiplayer-section').classList.add('hidden');
   resetMultiplayerUI();
 }

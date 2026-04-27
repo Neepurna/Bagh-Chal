@@ -157,11 +157,11 @@ export function countTrappedPieces(board, pieceType, positions = BOARD_POSITIONS
 
 export function getWinState(gameState, positions = BOARD_POSITIONS) {
   if (gameState.goatsCaptured >= 5) {
-    return { winner: 'tiger', message: 'Congratulations Tiger won!' };
+    return { winner: 'tiger', message: 'Tiger won the match.' };
   }
 
   if (gameState.phase === PHASE.MOVEMENT && arePiecesTrapped(gameState.board, PIECE_TYPES.TIGER, positions)) {
-    return { winner: 'goat', message: 'Congratulations Goat won!' };
+    return { winner: 'goat', message: 'Goat won the match.' };
   }
 
   if (
@@ -169,7 +169,7 @@ export function getWinState(gameState, positions = BOARD_POSITIONS) {
     gameState.goatsPlaced === 20 &&
     arePiecesTrapped(gameState.board, PIECE_TYPES.GOAT, positions)
   ) {
-    return { winner: 'tiger', message: 'Congratulations Tiger won!' };
+    return { winner: 'tiger', message: 'Tiger won the match.' };
   }
 
   if (
@@ -177,7 +177,7 @@ export function getWinState(gameState, positions = BOARD_POSITIONS) {
     gameState.goatsPlaced > 0 &&
     arePiecesTrapped(gameState.board, PIECE_TYPES.TIGER, positions)
   ) {
-    return { winner: 'goat', message: 'Governing Parties Win!' };
+    return { winner: 'goat', message: 'Goat won the match.' };
   }
 
   return null;
