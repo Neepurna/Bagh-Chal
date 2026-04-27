@@ -1,6 +1,6 @@
 import { initAudioSystem, playSound } from './app/audio/audioSystem.js';
 import { initializeAuth, saveUsername, signInWithGoogle, signOut } from './app/auth/authService.js';
-import { AI_CONFIG, GRID_SIZE, PHASE, PIECE_TYPES, TIME_INCREMENT, TIME_PER_MOVE } from './app/config/gameConfig.js';
+import { AI_CONFIG, GRID_SIZE, PHASE, PIECE_TYPES } from './app/config/gameConfig.js';
 import { BOARD_POSITIONS, countTrappedPieces, getAdjacentPositions, getBoardHash, getValidMovesForBoard, getWinState, isDiagonalConnected } from './app/game/boardRules.js';
 import { buildInitialRoomState, createMultiplayerService } from './app/multiplayer/multiplayerService.js';
 import { createSocialService } from './app/social/socialService.js';
@@ -11,15 +11,30 @@ import { createSocialService } from './app/social/socialService.js';
 let auth, db;
 let currentUser = null;
 let userStats = { gamesPlayed: 0, tigerWins: 0, goatWins: 0 };
+let guestModeActive = false;
+let pendingPostSignInAction = null;
+
+function runPostSignInAction(action) {
+  if (action === 'open-player-select') {
+    window.requestAnimationFrame(() => {
+      showPlayerSelect();
+    });
+  }
+}
 
 ({ auth, db } = initializeAuth({
   firebase,
-  onSignedIn: ({ user, userStats: nextUserStats, auth: nextAuth, db: nextDb }) => {
+  onUsernameSetupRequired: showUsernameSetup,
+  onSignedIn: ({ user, userStats: nextUserStats, auth: nextAuth, db: nextDb, redirectAction, needsUsernameSetup }) => {
     currentUser = user;
     userStats = nextUserStats;
     auth = nextAuth;
     db = nextDb;
+    pendingPostSignInAction = needsUsernameSetup ? redirectAction : null;
     updateUIForSignedInUser();
+    if (redirectAction && !needsUsernameSetup) {
+      runPostSignInAction(redirectAction);
+    }
   },
   onSignedOut: ({ auth: nextAuth, db: nextDb }) => {
     currentUser = null;
@@ -49,6 +64,49 @@ function startSocialListeners() {
 
 function stopSocialListeners() {
   socialService.stopSocialListeners();
+}
+
+function setHomeUXByAuthState() {
+  const loggedOutLanding = document.getElementById('logged-out-landing');
+  const appShell = document.getElementById('app-shell');
+  const sidebarWelcome = document.getElementById('welcome-screen');
+  const loggedOutSidebarWelcome = document.getElementById('logged-out-sidebar-welcome');
+  const loggedInSidebarWelcome = document.getElementById('logged-in-sidebar-welcome');
+  const gameStatePanel = document.getElementById('gameStatePanel');
+  const tigerPanel = document.getElementById('tigerPanel');
+  const goatPanel = document.getElementById('goatPanel');
+  const shouldShowAppShell = Boolean(currentUser) || guestModeActive;
+
+  if (loggedOutLanding) {
+    loggedOutLanding.hidden = shouldShowAppShell;
+  }
+
+  if (appShell) {
+    appShell.hidden = !shouldShowAppShell;
+  }
+
+  document.body.classList.toggle('landing-active', !shouldShowAppShell);
+
+  if (sidebarWelcome) {
+    sidebarWelcome.style.display = 'flex';
+  }
+
+  if (loggedOutSidebarWelcome) {
+    loggedOutSidebarWelcome.hidden = Boolean(currentUser);
+  }
+
+  if (loggedInSidebarWelcome) {
+    loggedInSidebarWelcome.hidden = !currentUser;
+  }
+
+  if (gameStatePanel) gameStatePanel.classList.add('hidden');
+  if (tigerPanel) tigerPanel.classList.add('hidden');
+  if (goatPanel) goatPanel.classList.add('hidden');
+  toggleMoveNavigation(false);
+
+  if (shouldShowAppShell) {
+    scheduleCanvasResize();
+  }
 }
 
 // ===== SEARCH USER =====
@@ -443,6 +501,8 @@ async function updateUserStats(won, side) {
 function updateUIForSignedInUser() {
   const signInBtn = document.getElementById('sign-in-btn');
   const profileMenu = document.getElementById('profile-menu');
+
+  guestModeActive = false;
   
   if (signInBtn) signInBtn.style.display = 'none';
   if (profileMenu) profileMenu.style.display = 'block';
@@ -460,7 +520,8 @@ function updateUIForSignedInUser() {
     if (profileImg) profileImg.src = currentUser.photoURL || 'https://via.placeholder.com/32';
     if (profileUsername) profileUsername.textContent = userStats.username || currentUser.displayName || 'Player';
   }
-  
+
+  setHomeUXByAuthState();
   updateStatsDisplay();
   startSocialListeners();
 }
@@ -468,6 +529,8 @@ function updateUIForSignedInUser() {
 function updateUIForSignedOutUser() {
   const signInBtn = document.getElementById('sign-in-btn');
   const profileMenu = document.getElementById('profile-menu');
+
+  guestModeActive = false;
   
   if (signInBtn) signInBtn.style.display = 'block';
   if (profileMenu) profileMenu.style.display = 'none';
@@ -478,6 +541,7 @@ function updateUIForSignedOutUser() {
   if (notifBell) notifBell.style.display = 'none';
   if (friendsNavBtn) friendsNavBtn.style.display = 'none';
 
+  setHomeUXByAuthState();
   stopSocialListeners();
 }
 
@@ -543,6 +607,7 @@ let multiplayerSide = null; // chosen side in multiplayer mode
 let gameStarted = false;
 let isFirstAIMove = true;
 let aiDifficulty = 'easy'; // 'easy' or 'hard'
+let aiTimeControl = '3m';
 let pendingBoardResetTimeout = null;
 let pendingAITurnTimeout = null;
 
@@ -556,8 +621,15 @@ const multiplayerService = createMultiplayerService({
 
 // Timer settings
 let timerInterval = null;
-let currentTime = 30; // 30 seconds per move
+let currentTime = 180;
 let multiplayerTimeControl = '5m';
+
+function getAITurnSeconds() {
+  if (aiTimeControl === '3m') return 180;
+  if (aiTimeControl === '10m') return 600;
+  if (aiTimeControl === 'infinite') return Infinity;
+  return 180;
+}
 
 function getMultiplayerTurnSeconds() {
   if (multiplayerTimeControl === '3m') return 180;
@@ -822,12 +894,10 @@ function initGame(options = {}) {
       startTimer();
     }
   } else {
-    document.getElementById('welcome-screen').style.display = 'flex';
-    document.getElementById('gameStatePanel').classList.add('hidden');
-    document.getElementById('tigerPanel').classList.add('hidden');
-    document.getElementById('goatPanel').classList.add('hidden');
-    toggleMoveNavigation(false);
+    setHomeUXByAuthState();
   }
+
+  scheduleCanvasResize();
   
   // If player is tiger, goats go first (AI mode only)
   if (shouldTriggerAutoAI) {
@@ -838,7 +908,7 @@ function initGame(options = {}) {
 // Timer functions
 function startTimer() {
   stopTimer();
-  currentTime = gameMode === 'multiplayer' ? getMultiplayerTurnSeconds() : TIME_PER_MOVE;
+  currentTime = gameMode === 'multiplayer' ? getMultiplayerTurnSeconds() : getAITurnSeconds();
   updateTimerDisplay();
 
   // Infinite time control: display only, no countdown.
@@ -868,7 +938,7 @@ function resetTimer() {
   if (gameMode === 'multiplayer') {
     currentTime = getMultiplayerTurnSeconds();
   } else {
-    currentTime = TIME_PER_MOVE + TIME_INCREMENT;
+    currentTime = getAITurnSeconds();
   }
   updateTimerDisplay();
 }
@@ -2044,9 +2114,6 @@ function draw() {
     const piece = gameState.board[i];
 
     if (piece === PIECE_TYPES.TIGER) {
-      const validMoves = getValidMoves(i);
-      const isTrapped = validMoves.length === 0;
-      
       const isSelected = gameState.selectedPiece === i;
       const isCurrentTurn = gameState.currentPlayer === PIECE_TYPES.TIGER;
       const chipRadius = cellSize * 0.4;
@@ -2068,9 +2135,7 @@ function draw() {
         ctx.save();
         drawOctagonPath(x, y, innerR);
         ctx.clip();
-        if (isTrapped) { ctx.globalAlpha = 0.45; ctx.filter = 'grayscale(100%)'; }
         ctx.drawImage(tigerImg, x - innerR, y - innerR, innerR * 2, innerR * 2);
-        if (isTrapped) { ctx.globalAlpha = 1.0; ctx.filter = 'none'; }
         ctx.restore();
       }
       
@@ -2082,7 +2147,7 @@ function draw() {
         ctx.shadowColor = '#6fd4ff'; ctx.shadowBlur = 14;
         ctx.strokeStyle = '#6fd4ff'; ctx.lineWidth = 4;
       } else {
-        ctx.strokeStyle = isTrapped ? '#69798b' : 'rgba(255,255,255,0.86)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.86)';
         ctx.lineWidth = 2;
       }
       drawOctagonPath(x, y, chipRadius);
@@ -2096,7 +2161,6 @@ function draw() {
       ctx.fill();
     } else if (piece === PIECE_TYPES.GOAT) {
       const isSelected = gameState.selectedPiece === i;
-      const isCurrentTurn = gameState.currentPlayer === PIECE_TYPES.GOAT;
       const chipRadius = cellSize * 0.4;
       
       // White background chip for goats
@@ -2124,9 +2188,6 @@ function draw() {
       
       // Border
       if (isSelected) {
-        ctx.shadowColor = '#e9f7ff'; ctx.shadowBlur = 20;
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4;
-      } else if (isCurrentTurn) {
         ctx.shadowColor = '#5bc9ff'; ctx.shadowBlur = 14;
         ctx.strokeStyle = '#5bc9ff'; ctx.lineWidth = 4;
       } else {
@@ -2352,7 +2413,7 @@ function buildWinnerPresentation(message, winner) {
     }
 
     return {
-      title: winner === 'tiger' ? 'Defeat. Tiger Won.' : 'Defeat. Goat Won.',
+      title: winner === 'tiger' ? 'Tiger Won' : 'Goat Won',
       kicker: 'Match Lost',
       subtext: winner === 'tiger'
         ? 'Tiger found the decisive breakthrough and closed the match cleanly.'
@@ -2402,11 +2463,7 @@ function endGame(message, winner) {
 
   // Display logos based on winner
   if (winner === 'tiger') {
-    winnerIcon.innerHTML = `
-      <div class="winner-logos">
-        <img src="assets/bagh.png" class="winner-logo">
-      </div>
-    `;
+    winnerIcon.innerHTML = '<img src="assets/bagh.png" class="winner-logo">';
   } else {
     winnerIcon.innerHTML = '<img src="assets/bhakhra.png" class="winner-logo-single">';
   }
@@ -2440,6 +2497,76 @@ function resetGame() {
 // Event listeners
 canvas.addEventListener('click', handleClick);
 
+function triggerGoogleSignIn() {
+  signInWithGoogle({
+    auth,
+    db,
+    firebase,
+    onUsernameSetupRequired: showUsernameSetup
+  });
+}
+
+function triggerLandingGoogleSignIn() {
+  signInWithGoogle({
+    auth,
+    db,
+    firebase,
+    onUsernameSetupRequired: showUsernameSetup
+  });
+}
+
+function configurePlayerSelectOverlay(view = 'ai') {
+  const title = document.getElementById('player-select-title');
+  const modeTabs = document.getElementById('player-select-mode-tabs');
+  const aiTab = document.getElementById('mode-tab-ai');
+  const tournamentTab = document.getElementById('mode-tab-player');
+  const aiContent = document.getElementById('ai-tab-content');
+  const multiplayerSection = document.getElementById('multiplayer-section');
+
+  if (view === 'tournament') {
+    gameMode = 'multiplayer';
+    if (title) {
+      title.hidden = false;
+      title.textContent = 'Tournaments';
+    }
+    if (modeTabs) modeTabs.hidden = true;
+    if (aiTab) {
+      aiTab.hidden = true;
+      aiTab.classList.remove('active');
+    }
+    if (tournamentTab) {
+      tournamentTab.hidden = false;
+      tournamentTab.classList.add('active');
+    }
+    if (aiContent) aiContent.classList.add('hidden');
+    if (multiplayerSection) multiplayerSection.classList.remove('hidden');
+    return;
+  }
+
+  gameMode = 'ai';
+  if (title) {
+    title.hidden = false;
+    title.textContent = 'Play Bot';
+  }
+  if (modeTabs) modeTabs.hidden = true;
+  if (aiTab) {
+    aiTab.hidden = false;
+    aiTab.classList.add('active');
+  }
+  if (tournamentTab) {
+    tournamentTab.hidden = true;
+    tournamentTab.classList.remove('active');
+  }
+  if (aiContent) aiContent.classList.remove('hidden');
+  if (multiplayerSection) multiplayerSection.classList.add('hidden');
+  resetMultiplayerUI();
+}
+
+function openPlayerSelectOverlay(view = 'ai') {
+  configurePlayerSelectOverlay(view);
+  document.getElementById('player-select-overlay').classList.add('show');
+}
+
 // Authentication event listeners (with safe checks)
 const signInBtn = document.getElementById('sign-in-btn');
 if (signInBtn) {
@@ -2450,12 +2577,12 @@ if (signInBtn) {
 
 const googleSigninBtn = document.getElementById('google-signin-btn');
 if (googleSigninBtn) {
-  googleSigninBtn.addEventListener('click', () => signInWithGoogle({
-    auth,
-    db,
-    firebase,
-    onUsernameSetupRequired: showUsernameSetup
-  }));
+  googleSigninBtn.addEventListener('click', triggerGoogleSignIn);
+}
+
+const landingGoogleSigninBtn = document.getElementById('landing-google-signin');
+if (landingGoogleSigninBtn) {
+  landingGoogleSigninBtn.addEventListener('click', triggerLandingGoogleSignIn);
 }
 
 const signOutBtn = document.getElementById('sign-out-btn');
@@ -2463,9 +2590,22 @@ if (signOutBtn) {
   signOutBtn.addEventListener('click', () => signOut({
     auth,
     beforeSignOut: async () => {
+      clearPendingAsyncActions();
+      stopTimer();
+      gameStarted = false;
+      gameMode = 'ai';
       stopRoomSyncListeners();
       currentRoomId = null;
       currentRoomCode = null;
+      pendingChallengeId = null;
+      resetMultiplayerUI();
+      document.getElementById('winner-overlay').classList.remove('show');
+      document.getElementById('player-select-overlay').classList.remove('show');
+      document.getElementById('friends-overlay').classList.remove('show');
+      document.getElementById('notif-overlay').classList.remove('show');
+      document.getElementById('challenge-sent-overlay').classList.remove('show');
+      document.getElementById('signup-overlay').classList.remove('show');
+      document.getElementById('profile-dropdown').classList.remove('show');
     }
   }));
 }
@@ -2511,6 +2651,11 @@ if (usernameForm) {
             hideUsernameSetup();
             updateUIForSignedInUser();
             startSocialListeners();
+            if (pendingPostSignInAction) {
+              const nextAction = pendingPostSignInAction;
+              pendingPostSignInAction = null;
+              runPostSignInAction(nextAction);
+            }
           },
           onUsernameError: (message) => {
             if (errEl) {
@@ -2593,7 +2738,7 @@ if (friendSearchInput) {
 }
 
 // Close overlays on backdrop click
-['friends-overlay', 'notif-overlay'].forEach(id => {
+['friends-overlay', 'notif-overlay', 'coach-coming-soon-overlay'].forEach(id => {
   const el = document.getElementById(id);
   if (el) {
     el.addEventListener('click', (e) => {
@@ -2622,30 +2767,105 @@ if (nextMoveBtn) {
 
 // Welcome start button
 document.getElementById('welcome-start-btn').addEventListener('click', () => {
-  document.getElementById('player-select-overlay').classList.add('show');
+  openPlayerSelectOverlay('ai');
   playSound('buttonClick');
 });
+
+const loggedOutStartBtn = document.getElementById('logged-out-start-btn');
+if (loggedOutStartBtn) {
+  loggedOutStartBtn.addEventListener('click', () => {
+    openPlayerSelectOverlay('ai');
+    playSound('buttonClick');
+  });
+}
+
+const loggedOutTutorialBtn = document.getElementById('logged-out-tutorial-btn');
+if (loggedOutTutorialBtn) {
+  loggedOutTutorialBtn.addEventListener('click', () => {
+    document.getElementById('tutorial-overlay').classList.add('show');
+    playSound('buttonClick');
+  });
+}
+
+const loggedOutAboutBtn = document.getElementById('logged-out-about-btn');
+if (loggedOutAboutBtn) {
+  loggedOutAboutBtn.addEventListener('click', () => {
+    document.getElementById('about-overlay').classList.add('show');
+    playSound('buttonClick');
+  });
+}
+
+const landingGuestBtn = document.getElementById('landing-guest-btn');
+if (landingGuestBtn) {
+  landingGuestBtn.addEventListener('click', () => {
+    guestModeActive = true;
+    setHomeUXByAuthState();
+    showPlayerSelect();
+    playSound('buttonClick');
+  });
+}
+
+const landingAboutBtn = document.getElementById('landing-about-btn');
+if (landingAboutBtn) {
+  landingAboutBtn.addEventListener('click', () => {
+    document.getElementById('about-overlay').classList.add('show');
+    playSound('buttonClick');
+  });
+}
+
+const landingHistoryBtn = document.getElementById('landing-history-btn');
+if (landingHistoryBtn) {
+  landingHistoryBtn.addEventListener('click', () => {
+    document.getElementById('tutorial-overlay').classList.add('show');
+    playSound('buttonClick');
+  });
+}
+
+const landingTermsBtn = document.getElementById('landing-terms-btn');
+if (landingTermsBtn) {
+  landingTermsBtn.addEventListener('click', () => {
+    alert('Terms of Use and Privacy Policy content is coming soon.');
+  });
+}
 
 // Welcome start button hover
 document.getElementById('welcome-start-btn').addEventListener('mouseenter', () => {
   playSound('hover');
 });
 
-// Tutorial buttons (handle all instances)
-document.querySelectorAll('#tutorial-btn, #footer-tutorial').forEach(btn => {
-  btn.addEventListener('click', () => {
+const coachBtn = document.getElementById('tutorial-btn');
+if (coachBtn) {
+  coachBtn.addEventListener('click', () => {
+    document.getElementById('coach-coming-soon-overlay').classList.add('show');
+    playSound('buttonClick');
+  });
+  coachBtn.addEventListener('mouseenter', () => {
+    playSound('hover');
+  });
+}
+
+const footerTutorialBtn = document.getElementById('footer-tutorial');
+if (footerTutorialBtn) {
+  footerTutorialBtn.addEventListener('click', () => {
     document.getElementById('tutorial-overlay').classList.add('show');
     playSound('buttonClick');
   });
-  btn.addEventListener('mouseenter', () => {
+  footerTutorialBtn.addEventListener('mouseenter', () => {
     playSound('hover');
   });
-});
+}
 
 // Tutorial close button
 document.getElementById('tutorial-close').addEventListener('click', () => {
   document.getElementById('tutorial-overlay').classList.remove('show');
 });
+
+const coachComingSoonClose = document.getElementById('coach-coming-soon-close');
+if (coachComingSoonClose) {
+  coachComingSoonClose.addEventListener('click', () => {
+    document.getElementById('coach-coming-soon-overlay').classList.remove('show');
+  });
+}
 
 // Player selection close button
 document.getElementById('player-select-close').addEventListener('click', () => {
@@ -2665,7 +2885,7 @@ const tutorialStart = document.getElementById('tutorial-start');
 if (tutorialStart) {
   tutorialStart.addEventListener('click', () => {
     document.getElementById('tutorial-overlay').classList.remove('show');
-    document.getElementById('player-select-overlay').classList.add('show');
+    openPlayerSelectOverlay('ai');
   });
 }
 
@@ -2693,7 +2913,7 @@ const aboutStart = document.getElementById('about-start');
 if (aboutStart) {
   aboutStart.addEventListener('click', () => {
     document.getElementById('about-overlay').classList.remove('show');
-    document.getElementById('player-select-overlay').classList.add('show');
+    openPlayerSelectOverlay('ai');
   });
 }
 
@@ -2715,24 +2935,28 @@ difficultyButtons.forEach(btn => {
   });
 });
 
+const timeControlButtons = document.querySelectorAll('.time-control-btn');
+timeControlButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    timeControlButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    aiTimeControl = btn.dataset.timeControl;
+    console.log('AI Time Control set to:', aiTimeControl);
+    playSound('buttonClick');
+  });
+  btn.addEventListener('mouseenter', () => {
+    playSound('hover');
+  });
+});
+
 // ===== MODE TABS =====
 document.getElementById('mode-tab-ai').addEventListener('click', () => {
-  gameMode = 'ai';
-  document.getElementById('mode-tab-ai').classList.add('active');
-  document.getElementById('mode-tab-player').classList.remove('active');
-  document.getElementById('ai-tab-content').classList.remove('hidden');
-  document.getElementById('multiplayer-section').classList.add('hidden');
-  // Reset multiplayer UI state
-  resetMultiplayerUI();
+  configurePlayerSelectOverlay('ai');
   playSound('buttonClick');
 });
 
 document.getElementById('mode-tab-player').addEventListener('click', () => {
-  gameMode = 'multiplayer';
-  document.getElementById('mode-tab-player').classList.add('active');
-  document.getElementById('mode-tab-ai').classList.remove('active');
-  document.getElementById('ai-tab-content').classList.add('hidden');
-  document.getElementById('multiplayer-section').classList.remove('hidden');
+  configurePlayerSelectOverlay('tournament');
   playSound('buttonClick');
 });
 
@@ -2988,14 +3212,13 @@ function exitToHome() {
   stopRoomSyncListeners();
   currentRoomId = null;
   currentRoomCode = null;
+  if (!currentUser) {
+    guestModeActive = false;
+  }
   document.getElementById('winner-overlay').classList.remove('show');
   document.getElementById('player-select-overlay').classList.remove('show');
-  document.getElementById('welcome-screen').style.display = 'flex';
-  document.getElementById('gameStatePanel').classList.add('hidden');
-  document.getElementById('tigerPanel').classList.add('hidden');
-  document.getElementById('goatPanel').classList.add('hidden');
-  toggleMoveNavigation(false);
   resetMultiplayerUI();
+  setHomeUXByAuthState();
   playSound('buttonClick');
 }
 
@@ -3008,14 +3231,8 @@ function showPlayerSelect() {
   currentRoomId = null;
   currentRoomCode = null;
   document.getElementById('winner-overlay').classList.remove('show');
-  document.getElementById('player-select-overlay').classList.add('show');
+  openPlayerSelectOverlay('ai');
   toggleMoveNavigation(false);
-  // Reset to AI mode tab
-  document.getElementById('mode-tab-ai').classList.add('active');
-  document.getElementById('mode-tab-player').classList.remove('active');
-  document.getElementById('ai-tab-content').classList.remove('hidden');
-  document.getElementById('multiplayer-section').classList.add('hidden');
-  resetMultiplayerUI();
 }
 
 // Footer links
@@ -3032,10 +3249,22 @@ if (footerSettings) {
 // Resize canvas
 function resizeCanvas() {
   const container = document.querySelector('.board-container');
-  const size = Math.min(container.clientWidth - 80, 600);
+  if (!container) return;
+
+  const availableWidth = Math.max(container.clientWidth - 48, 320);
+  const availableHeight = Math.max(container.clientHeight - 48, 320);
+  const size = Math.min(availableWidth, availableHeight, 980);
   canvas.width = size;
   canvas.height = size;
   draw();
+}
+
+function scheduleCanvasResize() {
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      resizeCanvas();
+    });
+  });
 }
 
 window.addEventListener('resize', resizeCanvas);
@@ -3048,3 +3277,59 @@ draw(); // Ensure initial draw even if images haven't loaded yet
 
 // Initialize auth UI on page load
 updateUIForSignedOutUser();
+
+// ── Lobby Panel Button Wiring ────────────────────────────────────
+// These mirror the chess.com-style menu items added to the welcome screen.
+
+// "Play Online" — opens player-select (AI mode tab by default) for now
+const lobbyPlayOnlineBtn = document.getElementById('lobby-play-online-btn');
+if (lobbyPlayOnlineBtn) {
+  lobbyPlayOnlineBtn.addEventListener('click', () => {
+    openPlayerSelectOverlay('ai');
+    playSound('buttonClick');
+  });
+  lobbyPlayOnlineBtn.addEventListener('mouseenter', () => playSound('hover'));
+}
+
+// "Play a Friend" — opens the friends overlay directly
+const lobbyFriendBtn = document.getElementById('lobby-friend-btn');
+if (lobbyFriendBtn) {
+  lobbyFriendBtn.addEventListener('click', () => {
+    if (!currentUser) {
+      document.getElementById('signup-overlay').classList.add('show');
+      return;
+    }
+    document.getElementById('friends-overlay').classList.add('show');
+    playSound('buttonClick');
+  });
+  lobbyFriendBtn.addEventListener('mouseenter', () => playSound('hover'));
+}
+
+// "Tournaments" — opens player-select with the Tournaments tab active
+const lobbyTournamentBtn = document.getElementById('lobby-tournament-btn');
+if (lobbyTournamentBtn) {
+  lobbyTournamentBtn.addEventListener('click', () => {
+    openPlayerSelectOverlay('tournament');
+    playSound('buttonClick');
+  });
+  lobbyTournamentBtn.addEventListener('mouseenter', () => playSound('hover'));
+}
+
+// "Game History" and "Leaderboard" footer links (stubs — extend when ready)
+const lobbyHistoryLink = document.getElementById('lobby-history-link');
+if (lobbyHistoryLink) {
+  lobbyHistoryLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    playSound('buttonClick');
+    // TODO: open game history panel/overlay
+  });
+}
+
+const lobbyLeaderboardLink = document.getElementById('lobby-leaderboard-link');
+if (lobbyLeaderboardLink) {
+  lobbyLeaderboardLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    playSound('buttonClick');
+    // TODO: open leaderboard panel/overlay
+  });
+}

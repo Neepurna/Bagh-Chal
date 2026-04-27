@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Bagh Chal — An ancient nepali board game</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Cinzel:wght@400;600;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
   
   <!-- Firebase SDK -->
@@ -17,7 +17,44 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
+  <section class="landing-screen" id="logged-out-landing" hidden>
+    <div class="landing-overlay"></div>
+    <div class="landing-hero">
+      <div class="landing-mark">
+        <img src="assets/Baghchal Logo-2.png" alt="Baghchal emblem" class="landing-mark-img">
+      </div>
+      <div class="landing-title-block">
+        <h1 class="landing-title">BAGHCHAL</h1>
+        <p class="landing-tagline">THE GAME OF POWER AND STRATEGY</p>
+      </div>
+    </div>
+
+    <div class="landing-actions">
+      <button class="landing-action landing-action-google" id="landing-google-signin">
+        <span class="landing-action-icon">G</span>
+        <span>Google Sign In</span>
+      </button>
+      <button class="landing-action landing-action-gold" id="landing-guest-btn">
+        <span class="landing-action-icon">▶</span>
+        <span>Play as Guest</span>
+      </button>
+      <button class="landing-action" id="landing-about-btn">
+        <span class="landing-action-icon">i</span>
+        <span>About Us</span>
+      </button>
+      <button class="landing-action" id="landing-history-btn">
+        <span class="landing-action-icon">⌘</span>
+        <span>History of Baghchal</span>
+      </button>
+    </div>
+
+    <div class="landing-footer">
+      <button class="landing-footer-link" id="landing-terms-btn">Terms of Use &amp; Privacy Policy</button>
+    </div>
+  </section>
+
   <div class="container">
+    <div id="app-shell">
     <header>
       <div class="header-brand">
         <div class="brand-mark" aria-hidden="true">
@@ -85,24 +122,99 @@
       <aside class="sidebar">
         <!-- Welcome Screen -->
         <div class="welcome-screen" id="welcome-screen">
-          <h2>
-            <span>Welcome To</span>
-            <span>Bagh Chal</span>
-          </h2>
-          <div class="welcome-divider" aria-hidden="true"></div>
-          <p>Experience the timeless strategy of an ancient Nepali game. Master the art of tactics and claim victory.</p>
-          <button class="welcome-start-btn" id="welcome-start-btn">
-            <span class="btn-icon">▶</span>
-            <span>Start Game</span>
-          </button>
-          <button class="welcome-secondary-btn" id="tutorial-btn">
-            <span class="btn-icon">📖</span>
-            <span>Tutorial</span>
-          </button>
-          <button class="welcome-secondary-btn" id="about-btn">
-            <span class="btn-icon">ⓘ</span>
-            <span>About</span>
-          </button>
+          <div id="logged-out-sidebar-welcome">
+            <h2>
+              <span>Welcome To</span>
+              <span>Bagh Chal</span>
+            </h2>
+            <div class="welcome-divider" aria-hidden="true"></div>
+            <p>Experience the timeless strategy of an ancient Nepali game. Master the art of tactics and claim victory.</p>
+            <button class="welcome-start-btn" id="logged-out-start-btn">
+              <span class="btn-icon">▶</span>
+              <span>Start Game</span>
+            </button>
+            <button class="welcome-secondary-btn" id="logged-out-tutorial-btn">
+              <span class="btn-icon">📖</span>
+              <span>Tutorial</span>
+            </button>
+            <button class="welcome-secondary-btn" id="logged-out-about-btn">
+              <span class="btn-icon">ⓘ</span>
+              <span>About</span>
+            </button>
+          </div>
+
+          <div id="logged-in-sidebar-welcome" hidden>
+
+          <!-- ── Lobby Panel Header ── -->
+          <div class="lobby-panel-header">
+            <span class="lobby-panel-icon">🐅</span>
+            <h2 class="lobby-panel-title">Play BaghChal</h2>
+          </div>
+
+          <!-- ── Menu Items ── -->
+          <div class="lobby-menu">
+
+            <button class="lobby-menu-item" id="lobby-play-online-btn">
+              <span class="lobby-menu-icon lobby-icon--yellow">⚡</span>
+              <div class="lobby-menu-text">
+                <span class="lobby-menu-title">Play Online</span>
+                <span class="lobby-menu-sub">Play vs a person of similar skill</span>
+              </div>
+            </button>
+
+            <button class="lobby-menu-item" id="welcome-start-btn">
+              <span class="lobby-menu-icon lobby-icon--blue">🖥</span>
+              <div class="lobby-menu-text">
+                <span class="lobby-menu-title">Play Bot</span>
+                <span class="lobby-menu-sub">Challenge the computer — Easy to Master</span>
+              </div>
+            </button>
+
+            <button class="lobby-menu-item" id="tutorial-btn">
+              <span class="lobby-menu-icon lobby-icon--amber">🎓</span>
+              <div class="lobby-menu-text">
+                <span class="lobby-menu-title">Play Coach</span>
+                <span class="lobby-menu-sub">Learn as you play a guided game</span>
+              </div>
+            </button>
+
+            <button class="lobby-menu-item" id="lobby-friend-btn">
+              <span class="lobby-menu-icon lobby-icon--green">🤝</span>
+              <div class="lobby-menu-text">
+                <span class="lobby-menu-title">Play a Friend</span>
+                <span class="lobby-menu-sub">Invite a friend to a game of BaghChal</span>
+              </div>
+            </button>
+
+            <button class="lobby-menu-item" id="lobby-tournament-btn">
+              <span class="lobby-menu-icon lobby-icon--gold">🏅</span>
+              <div class="lobby-menu-text">
+                <span class="lobby-menu-title">Tournaments</span>
+                <span class="lobby-menu-sub">Join an Arena where anyone can win</span>
+              </div>
+            </button>
+
+            <button class="lobby-menu-item" id="about-btn">
+              <span class="lobby-menu-icon lobby-icon--red">📜</span>
+              <div class="lobby-menu-text">
+                <span class="lobby-menu-title">About BaghChal</span>
+                <span class="lobby-menu-sub">Discover this ancient Nepali heritage</span>
+              </div>
+            </button>
+
+          </div>
+
+          <!-- ── Footer Links ── -->
+          <div class="lobby-footer-links">
+            <a href="#" class="lobby-footer-link" id="lobby-history-link">
+              <span>🏆</span> Game History
+            </a>
+            <a href="#" class="lobby-footer-link" id="lobby-leaderboard-link">
+              <span>📊</span> Leaderboard
+            </a>
+          </div>
+          </div>
+
         </div>
         
         <!-- Game State Panel -->
@@ -177,11 +289,11 @@
         <div class="winner-overlay" id="player-select-overlay">
           <div class="winner-card">
             <button class="player-select-close" id="player-select-close">✕</button>
-            <h2 class="select-title">Choose Your Side</h2>
+            <h2 class="select-title" id="player-select-title">Choose Your Side</h2>
 
             <!-- Mode Tabs -->
-            <div class="mode-tabs">
-              <button class="mode-tab active" id="mode-tab-ai">VS AI</button>
+            <div class="mode-tabs" id="player-select-mode-tabs">
+              <button class="mode-tab active" id="mode-tab-ai">VS BOT</button>
               <button class="mode-tab" id="mode-tab-player">TOURNAMENTS</button>
             </div>
 
@@ -195,6 +307,24 @@
                   </button>
                   <button class="difficulty-btn" data-difficulty="hard">
                     <span class="difficulty-name">Hard</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="time-selection" id="bot-time-section">
+                <h3 class="difficulty-title">Select Time</h3>
+                <div class="time-control-buttons">
+                  <button class="time-control-btn active" data-time-control="3m">
+                    <span class="time-control-name">Tivra</span>
+                    <span class="time-control-meta">3 min</span>
+                  </button>
+                  <button class="time-control-btn" data-time-control="10m">
+                    <span class="time-control-name">Druta</span>
+                    <span class="time-control-meta">10 min</span>
+                  </button>
+                  <button class="time-control-btn" data-time-control="infinite">
+                    <span class="time-control-name">Ananta</span>
+                    <span class="time-control-meta">No limits</span>
                   </button>
                 </div>
               </div>
@@ -232,6 +362,18 @@
                 </div>
                 <p class="tournament-alert">Feature launching soon. Stay tuned!</p>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="winner-overlay" id="coach-coming-soon-overlay">
+          <div class="winner-card">
+            <button class="player-select-close" id="coach-coming-soon-close">✕</button>
+            <div class="tournament-coming-soon">
+              <h2 class="select-title">Play Coach</h2>
+              <h3 class="coming-soon-title">🎓 Coach Mode - Coming Soon</h3>
+              <p class="coming-soon-text">Guided lessons, smart hints, and learning-focused matches are on the way.</p>
+              <p class="tournament-alert">We’re building this mode now. Stay tuned!</p>
             </div>
           </div>
         </div>
@@ -342,9 +484,7 @@
         <!-- Winner Overlay -->
         <div class="winner-overlay" id="winner-overlay">
           <div class="winner-card winner-result-card">
-            <div class="winner-result-crest">
-              <div class="winner-icon" id="winner-icon"></div>
-            </div>
+            <div class="winner-icon" id="winner-icon"></div>
             <div class="winner-result-copy">
               <div class="winner-kicker" id="winner-kicker">Match Complete</div>
               <h2 id="winner-text"></h2>
@@ -376,11 +516,6 @@
 
     <footer>
       <div class="footer-text">Traditional Nepali board game · Bagh-Chal</div>
-      <div class="footer-links">
-        <a class="footer-link" id="footer-about">About</a>
-        <a class="footer-link" id="footer-settings">Settings</a>
-        <a class="footer-link" id="footer-tutorial">Tutorial</a>
-      </div>
     </footer>
   </div>
 
@@ -784,6 +919,7 @@
       </div>
     </div>
   </div>
+    </div>
 
   <script type="module" src="/main.js"></script>
 </body>
