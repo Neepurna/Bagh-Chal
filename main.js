@@ -644,6 +644,7 @@ function getAIMoveFromWorker(gameState, aiSide, callback) {
     goatsPlaced: gameState.goatsPlaced,
     goatsCaptured: gameState.goatsCaptured,
     aiSide: aiSide,
+    difficulty: 'hard',
     gameState: gameState
   });
 }
@@ -1495,50 +1496,27 @@ function applyMove(board, move, phase, goatsPlaced, goatsCaptured) {
   return { board: newBoard, phase: newPhase, goatsPlaced: newGoatsPlaced, goatsCaptured: newGoatsCaptured };
 }
 
-// Execute hard AI move - uses Heavy Backend AI
+// Execute hard AI move entirely in-browser using the worker first,
+// then fall back to the local minimax path if the worker is unavailable.
 async function executeHardAIMove() {
   if (gameState.gameOver) return;
-  
-  console.log('=== Hard AI Move Start (Backend API) ===');
-  const aiSide = playerSide === PIECE_TYPES.GOAT ? PIECE_TYPES.TIGER : PIECE_TYPES.GOAT;
-  
-  // Try sending board state to the backend
-  try {
-    const response = await fetch('http://localhost:3000/api/get-move', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        gameState: {
-          board: gameState.board,
-          phase: gameState.phase,
-          goatsPlaced: gameState.goatsPlaced,
-          goatsCaptured: gameState.goatsCaptured
-        },
-        aiSide: aiSide,
-        difficulty: 'hard' // Triggers full deep calculations on backend
-      })
-    });
 
-    if (!response.ok) throw new Error('Backend AI request failed');
-    
-    const data = await response.json();
-    
-    if (data.success && data.move) {
-      console.log(`Backend AI executed in ${data.stats?.timeSpent || 'unknown'}ms`);
-      applyHardAIMove(data.move, aiSide);
-      return;
-    } else {
-      throw new Error('Valid move not found from Backend AI');
-    }
-    
-  } catch (err) {
-    console.error('Backend AI Failed, falling back to local Easy AI:', err);
-    // If backend is down, fall back to our existing worker so the game doesn't crash
-    const allMoves = getAllPossibleMoves(gameState.board, aiSide, gameState.phase, gameState.goatsPlaced);
-    executeHardAIMoveLocal(allMoves, aiSide);
+  console.log('=== Hard AI Move Start (Client-side) ===');
+  const aiSide = playerSide === PIECE_TYPES.GOAT ? PIECE_TYPES.TIGER : PIECE_TYPES.GOAT;
+
+  const workerMove = await new Promise(resolve => {
+    getAIMoveFromWorker(gameState, aiSide, resolve);
+  });
+
+  if (workerMove) {
+    console.log('Hard AI move resolved in worker');
+    applyHardAIMove(workerMove, aiSide);
+    return;
   }
+
+  console.warn('Worker AI unavailable, falling back to local hard AI');
+  const allMoves = getAllPossibleMoves(gameState.board, aiSide, gameState.phase, gameState.goatsPlaced);
+  executeHardAIMoveLocal(allMoves, aiSide);
 }
 
 // Optimized local minimax with move ordering and transposition table
