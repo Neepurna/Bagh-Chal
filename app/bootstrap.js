@@ -8,6 +8,7 @@
 import { initAudioSystem } from './audio/audioSystem.js';
 import { initializeAuth } from './auth/authService.js';
 import { buildInitialRoomState, createMultiplayerService } from './multiplayer/multiplayerService.js';
+import { setSentryUser } from './monitoring/sentry.js';
 import { createSocialService } from './social/socialService.js';
 
 import { state } from './state/store.js';
@@ -194,6 +195,7 @@ export function bootstrap({ firebase }) {
       state.userStats = nextStats;
       auth = nextAuth;
       db = nextDb;
+      setSentryUser(user);
       state.pendingPostSignInAction = needsUsernameSetup ? redirectAction : null;
       hideAuthLoadingScreen(); // reveal app only after auth is confirmed
       updateUIForSignedInUser();
@@ -204,6 +206,7 @@ export function bootstrap({ firebase }) {
       state.currentUser = null;
       auth = nextAuth;
       db = nextDb;
+      setSentryUser(null);
       hideAuthLoadingScreen(); // reveal landing page only after auth confirmed absent
       updateUIForSignedOutUser();
       stopSocialListeners();

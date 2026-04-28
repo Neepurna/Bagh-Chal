@@ -1,4 +1,7 @@
+import { captureSentryException, initWorkerSentry } from './app/monitoring/sentry.js';
 import { BaghchalAI } from './app/ai/BaghchalAI.js';
+
+initWorkerSentry();
 
 self.onmessage = function(event) {
   const { board, phase, goatsPlaced, goatsCaptured, aiSide, difficulty } = event.data;
@@ -26,6 +29,14 @@ self.onmessage = function(event) {
       }
     });
   } catch (error) {
+    captureSentryException(error, {
+      difficulty,
+      aiSide,
+      phase,
+      goatsPlaced,
+      goatsCaptured
+    });
+
     self.postMessage({
       success: false,
       error: error.message

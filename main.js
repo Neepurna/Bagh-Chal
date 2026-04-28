@@ -8,7 +8,10 @@
 // UI, multiplayer lobby, game state, AI, canvas drawing, and DOM event
 // binding all at module top-level. See app/bootstrap.js for the new layout.
 
+import { initBrowserSentry } from './app/monitoring/sentry.js';
 import { bootstrap } from './app/bootstrap.js';
+
+initBrowserSentry();
 
 if (typeof window !== 'undefined' && window.firebase) {
   bootstrap({ firebase: window.firebase });
