@@ -4352,3 +4352,63 @@ footer {
     text-align: center;
   }
 }
+
+/* ── Auth Loading Screen ──────────────────────────────────────────────────────
+   Full-screen overlay shown on every page load while Firebase resolves the
+   persisted auth state from localStorage (~200–500 ms). Prevents the flash of
+   the landing page for returning logged-in users, and the inverse flash of the
+   app-shell for logged-out users. Removed from the DOM after the first
+   onAuthStateChanged call resolves. A 5-second safety timeout removes it if
+   Firebase never responds.
+   ──────────────────────────────────────────────────────────────────────────── */
+.auth-loading-screen {
+  position: fixed;
+  inset: 0;
+  background: #0a0d16;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  transition: opacity 0.35s ease;
+}
+
+.auth-loading-screen.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.auth-loading-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  opacity: 0.9;
+  margin-bottom: 28px;
+  animation: auth-logo-breathe 2s ease-in-out infinite;
+}
+
+@keyframes auth-logo-breathe {
+  0%, 100% { opacity: 0.7; transform: scale(0.97); }
+  50%       { opacity: 1;   transform: scale(1.03); }
+}
+
+.auth-loading-dots {
+  display: flex;
+  gap: 9px;
+}
+
+.auth-loading-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c9a84c; /* matches the game's gold accent */
+  animation: auth-dot-pulse 1.2s ease-in-out infinite;
+}
+
+.auth-loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.auth-loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes auth-dot-pulse {
+  0%, 100% { opacity: 0.25; transform: scale(0.75); }
+  50%       { opacity: 1;   transform: scale(1.15); }
+}

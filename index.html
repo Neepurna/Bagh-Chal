@@ -15,6 +15,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <!-- Google Identity Services — opens Google's OAuth popup directly (no Firebase relay).
+       This eliminates the black→white flash that Firebase's signInWithPopup causes
+       by bypassing the firebaseapp.com relay page entirely. -->
+  <script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body>
   <section class="landing-screen" id="logged-out-landing" hidden>
@@ -922,5 +926,16 @@
     </div>
 
   <script type="module" src="/main.js"></script>
+
+  <!-- Auth loading screen — covers the page while Firebase resolves persisted auth.
+       Prevents the flash of the landing page for returning logged-in users,
+       and prevents the flash of the app-shell for logged-out users.
+       Removed by JS after onAuthStateChanged fires the first time. -->
+  <div id="auth-loading-screen" class="auth-loading-screen">
+    <img src="assets/Baghchal Logo-2.png" alt="Loading Bagh Chal…" class="auth-loading-logo">
+    <div class="auth-loading-dots">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
 </body>
 </html>

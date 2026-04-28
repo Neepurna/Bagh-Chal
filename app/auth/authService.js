@@ -129,6 +129,20 @@ export function initializeAuth({ firebase, onSignedIn, onSignedOut, onUsernameSe
 
   return { auth, db };
 }
+// ── Google OAuth Client ID ────────────────────────────────────────────────────
+// Required for the chess.com-style popup (Google Identity Services).
+// GIS opens Google's account picker directly — no Firebase relay, no black flash.
+//
+// HOW TO FIND YOUR CLIENT ID (takes ~30 seconds):
+//   1. Open https://console.firebase.google.com/project/baghchal-26da2/authentication/providers
+//   2. Click "Google" in the provider list
+//   3. Expand "Web SDK configuration"
+//   4. Copy the "Web client ID"  — it looks like:
+//        342367298445-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com
+//   5. Paste it below, replacing the placeholder string.
+//
+const GOOGLE_OAUTH_CLIENT_ID = '342367298445-ab2811qo6gin4jo23b8n18l1m2ed56bc.apps.googleusercontent.com';
+
 export async function signInWithGoogle({ auth, db, firebase, onUsernameSetupRequired, postSignInAction = null }) {
   console.log('signInWithGoogle called');
   if (!auth) {
@@ -137,30 +151,73 @@ export async function signInWithGoogle({ auth, db, firebase, onUsernameSetupRequ
     return;
   }
 
+  // ── Path A: Google Identity Services (chess.com-style) ───────────────────
+  // GIS opens Google's account picker in a popup that goes DIRECTLY to
+  // accounts.google.com — no intermediate Firebase relay page, so there is
+  // no black→white flash. We then hand the resulting access token to Firebase
+  // so auth state, Firestore rules, and all existing logic stay unchanged.
+  const gisReady = window.google?.accounts?.oauth2 &&
+                   GOOGLE_OAUTH_CLIENT_ID !== 'PASTE_YOUR_WEB_CLIENT_ID_HERE';
+
+  if (gisReady) {
+    console.log('Starting Google sign-in via GIS popup...');
+    return new Promise((resolve) => {
+      const tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_OAUTH_CLIENT_ID,
+        scope: 'openid email profile',
+        callback: async (tokenResponse) => {
+          if (tokenResponse.error) {
+            // 'access_denied' = user closed the popup — not an error worth alerting.
+            if (tokenResponse.error !== 'access_denied') {
+              console.error('GIS sign-in error:', tokenResponse.error);
+              alert('Failed to sign in with Google: ' + tokenResponse.error);
+            } else {
+              console.log('GIS popup closed by user.');
+            }
+            resolve();
+            return;
+          }
+
+          try {
+            setRedirectIntent(postSignInAction);
+            // Convert the Google access token into a Firebase credential.
+            const credential = firebase.auth.GoogleAuthProvider.credential(
+              null,
+              tokenResponse.access_token
+            );
+            await auth.signInWithCredential(credential);
+            // onAuthStateChanged handles everything from here.
+          } catch (error) {
+            window.localStorage.removeItem(googleRedirectStateKey);
+            window.localStorage.removeItem(googleRedirectActionKey);
+            console.error('Firebase credential error:', error);
+            alert('Failed to sign in: ' + error.message);
+          }
+          resolve();
+        }
+      });
+
+      // prompt:'select_account' forces Google to always show the account picker,
+      // even if the user has only one Google account — consistent with chess.com.
+      tokenClient.requestAccessToken({ prompt: 'select_account' });
+    });
+  }
+
+  // ── Path B: Firebase popup fallback ──────────────────────────────────────
+  // Used when GIS hasn't loaded yet (slow network, ad-blocker) OR when
+  // GOOGLE_OAUTH_CLIENT_ID hasn't been filled in yet.
+  // Has the Firebase relay flash but is functionally identical.
+  console.log('Starting Google sign-in via Firebase popup (GIS not ready)...');
   const provider = new firebase.auth.GoogleAuthProvider();
-  provider.setCustomParameters({
-    prompt: 'select_account'
-  });
+  provider.setCustomParameters({ prompt: 'select_account' });
 
   try {
-    // signInWithPopup is used instead of signInWithRedirect because Firefox 10.x
-    // (loaded via CDN) has a known issue with signInWithRedirect when browsers block
-    // third-party cookies (Chrome 115+, Safari ITP). The redirect bounces through
-    // baghchal-26da2.firebaseapp.com — a different domain — and that cross-domain
-    // communication gets blocked, causing Firebase to briefly sign the user in and
-    // then immediately sign them out (the "blink" bug). signInWithPopup stays
-    // same-origin and onAuthStateChanged fires cleanly once with the user.
-    console.log('Starting Google sign-in popup...');
     setRedirectIntent(postSignInAction);
     await auth.signInWithPopup(provider);
-    // onAuthStateChanged will fire with the user on the same page load — no redirect needed.
   } catch (error) {
-    // Clean up the intent if the user cancelled or if there was an error,
-    // so stale keys don't affect subsequent sign-in attempts.
     window.localStorage.removeItem(googleRedirectStateKey);
     window.localStorage.removeItem(googleRedirectActionKey);
     if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-      // User dismissed the popup — not an error worth alerting about.
       console.log('Google sign-in popup was closed by user.');
       return;
     }
