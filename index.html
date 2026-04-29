@@ -68,7 +68,7 @@
           <div class="header-title">Bagh Chal</div>
         </div>
       </div>
-      <nav class="header-nav">
+      <nav class="header-nav" id="header-nav">
         <!-- Sign In Button (shown when not logged in) -->
         <button class="nav-btn primary" id="sign-in-btn" style="display: none;">
           <span class="btn-icon">👤</span>
@@ -923,6 +923,29 @@
     </div>
   </div>
     </div>
+
+  <div class="winner-overlay" id="guest-mode-overlay">
+    <div class="winner-card guest-mode-card">
+      <button class="player-select-close" id="guest-mode-close">✕</button>
+      <div class="guest-mode-kicker">Guest Mode</div>
+      <h2 class="select-title guest-mode-title">Choose Your Side</h2>
+      <p class="guest-mode-copy">Jump into a local match with the current BaghChal board experience. No account, no extra pages.</p>
+      <div class="player-selection guest-mode-selection">
+        <div class="selection-card" id="guest-select-goat">
+          <img src="assets/bhakhra.png" alt="Goat" class="selection-logo">
+          <h3>GOAT</h3>
+        </div>
+        <div class="selection-card" id="guest-select-tiger">
+          <img src="assets/bagh.png" alt="Tiger" class="selection-logo">
+          <h3>TIGER</h3>
+        </div>
+      </div>
+      <button class="welcome-start-btn guest-mode-start-btn" id="guest-start-confirm" disabled>
+        <span class="btn-icon">▶</span>
+        <span>Start</span>
+      </button>
+    </div>
+  </div>
 
   <script type="module" src="/main.js"></script>
 

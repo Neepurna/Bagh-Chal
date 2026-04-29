@@ -181,7 +181,13 @@ export function bootstrap({ firebase }) {
   configureLandingAndOverlays({
     openPlayerSelectOverlay,
     showPlayerSelect,
-    setHomeUXByAuthState
+    setHomeUXByAuthState,
+    startGuestGame: () => {
+      state.gameMode = 'ai';
+      state.gameStarted = true;
+      state.isFirstAIMove = true;
+      initGame();
+    }
   });
 
   setOnTimeout(() => handleTimeOut());

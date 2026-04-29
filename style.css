@@ -3491,6 +3491,57 @@ header {
   color: rgba(243, 249, 255, 0.9);
 }
 
+.guest-mode-card {
+  max-width: 520px;
+  text-align: center;
+}
+
+#guest-mode-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  border-radius: 0;
+}
+
+.guest-mode-kicker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 10px auto 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(67, 190, 255, 0.14);
+  border: 1px solid rgba(110, 210, 255, 0.38);
+  color: rgba(222, 243, 255, 0.92);
+  font-family: 'Cinzel', serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.guest-mode-title {
+  margin-top: 18px;
+}
+
+.guest-mode-copy {
+  max-width: 32ch;
+  margin: 0 auto 26px;
+  color: rgba(243, 249, 255, 0.88);
+  line-height: 1.65;
+}
+
+.guest-mode-selection {
+  margin-bottom: 24px;
+}
+
+.guest-mode-start-btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .welcome-start-btn,
 .welcome-secondary-btn,
 .play-again-btn,

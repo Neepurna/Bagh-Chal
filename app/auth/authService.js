@@ -129,19 +129,45 @@ export function initializeAuth({ firebase, onSignedIn, onSignedOut, onUsernameSe
 
   return { auth, db };
 }
-// ── Google OAuth Client ID ────────────────────────────────────────────────────
-// Required for the chess.com-style popup (Google Identity Services).
-// GIS opens Google's account picker directly — no Firebase relay, no black flash.
+// ── Google Identity Services configuration ───────────────────────────────────
 //
-// HOW TO FIND YOUR CLIENT ID (takes ~30 seconds):
-//   1. Open https://console.firebase.google.com/project/baghchal-26da2/authentication/providers
-//   2. Click "Google" in the provider list
-//   3. Expand "Web SDK configuration"
-//   4. Copy the "Web client ID"  — it looks like:
-//        342367298445-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com
-//   5. Paste it below, replacing the placeholder string.
+// GIS opens Google's account picker DIRECTLY (no Firebase relay → no black flash).
+// BUT GIS requires every domain the app runs on to be explicitly registered in
+// Google Cloud Console as an "Authorized JavaScript origin". Unregistered domains
+// get an "Access blocked: origin_mismatch" error with no JS callback to catch it.
+//
+// Solution: maintain AUTHORIZED_GIS_ORIGINS below. Domains in this list use the
+// chess.com-style GIS popup. Any other domain (a friend's link, a new host, etc.)
+// automatically falls back to Firebase's popup, which works everywhere.
+//
+// ── Step 1: Add your domains to Google Cloud Console ─────────────────────────
+//   1. Open https://console.cloud.google.com/apis/credentials?project=baghchal-26da2
+//   2. Click the OAuth 2.0 client named "Web client (auto created by Google Service)"
+//   3. Under "Authorized JavaScript origins" click "+ ADD URI" and add each
+//      domain where your app is hosted:
+//        https://baghchal-26da2.web.app
+//        https://baghchal-26da2.firebaseapp.com
+//        http://localhost:5173          ← Vite dev server
+//        http://localhost               ← plain localhost
+//        https://yourcustomdomain.com   ← add any custom domain here too
+//   4. Click Save (changes take up to 5 minutes to propagate).
+//
+// ── Step 2: Mirror those same origins here ───────────────────────────────────
+//   Add the exact same URLs to AUTHORIZED_GIS_ORIGINS below so the code knows
+//   when GIS is safe to use vs. when to fall back to Firebase popup.
 //
 const GOOGLE_OAUTH_CLIENT_ID = '342367298445-ab2811qo6gin4jo23b8n18l1m2ed56bc.apps.googleusercontent.com';
+
+// Domains registered in Google Cloud Console as Authorized JavaScript origins.
+// Keep this in sync with what you add in the Console (Step 1 above).
+const AUTHORIZED_GIS_ORIGINS = [
+  'https://baghchal-26da2.web.app',
+  'https://baghchal-26da2.firebaseapp.com',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'http://localhost',
+];
 
 export async function signInWithGoogle({ auth, db, firebase, onUsernameSetupRequired, postSignInAction = null }) {
   console.log('signInWithGoogle called');
@@ -156,8 +182,18 @@ export async function signInWithGoogle({ auth, db, firebase, onUsernameSetupRequ
   // accounts.google.com — no intermediate Firebase relay page, so there is
   // no black→white flash. We then hand the resulting access token to Firebase
   // so auth state, Firestore rules, and all existing logic stay unchanged.
-  const gisReady = window.google?.accounts?.oauth2 &&
-                   GOOGLE_OAUTH_CLIENT_ID !== 'PASTE_YOUR_WEB_CLIENT_ID_HERE';
+  //
+  // GIS REQUIRES the current origin to be registered in Google Cloud Console.
+  // If it isn't, Google shows "Access blocked: origin_mismatch" with no JS
+  // callback — the error is unrecoverable from code. So we check the origin
+  // first and fall back to Firebase popup for any unregistered domain.
+  const currentOrigin = window.location.origin;
+  const originIsAuthorized = AUTHORIZED_GIS_ORIGINS.includes(currentOrigin);
+  const gisReady = window.google?.accounts?.oauth2 && originIsAuthorized;
+
+  if (!originIsAuthorized) {
+    console.log(`[auth] GIS skipped — origin "${currentOrigin}" not in AUTHORIZED_GIS_ORIGINS. Using Firebase popup fallback.`);
+  }
 
   if (gisReady) {
     console.log('Starting Google sign-in via GIS popup...');

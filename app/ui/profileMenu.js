@@ -39,20 +39,22 @@ export function updateStatsDisplay() {
 
 export function setHomeUXByAuthState() {
   const shouldShowAppShell = Boolean(state.currentUser) || state.guestModeActive;
+  const isGuestOnly = state.guestModeActive && !state.currentUser;
 
   const loggedOutLanding = id('logged-out-landing');
   const appShell = id('app-shell');
   if (loggedOutLanding) loggedOutLanding.hidden = shouldShowAppShell;
   if (appShell) appShell.hidden = !shouldShowAppShell;
   document.body.classList.toggle('landing-active', !shouldShowAppShell);
+  setDisplay('header-nav', isGuestOnly ? 'none' : 'flex');
 
   const sidebarWelcome = id('welcome-screen');
   if (sidebarWelcome) sidebarWelcome.style.display = 'flex';
 
   const loggedOutSidebar = id('logged-out-sidebar-welcome');
-  if (loggedOutSidebar) loggedOutSidebar.hidden = Boolean(state.currentUser);
+  if (loggedOutSidebar) loggedOutSidebar.hidden = Boolean(state.currentUser) || isGuestOnly;
   const loggedInSidebar = id('logged-in-sidebar-welcome');
-  if (loggedInSidebar) loggedInSidebar.hidden = !state.currentUser;
+  if (loggedInSidebar) loggedInSidebar.hidden = !state.currentUser || isGuestOnly;
 
   id('gameStatePanel')?.classList.add('hidden');
   id('tigerPanel')?.classList.add('hidden');
