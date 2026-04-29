@@ -35,6 +35,37 @@ export function updateUI() {
 
   setText('tigerTag', `Captures: ${game.goatsCaptured} / 5`);
   setText('goatTag', `Placed: ${game.goatsPlaced} / 20`);
+
+  updateMultiplayerTags(game);
+}
+
+function updateMultiplayerTags(game) {
+  const isMP = state.gameMode === 'multiplayer' && state.gameStarted;
+
+  const playerTag = id('mp-player-tag');
+  const opponentTag = id('mp-opponent-tag');
+  if (!playerTag || !opponentTag) return;
+
+  if (isMP) {
+    playerTag.classList.remove('hidden');
+    opponentTag.classList.remove('hidden');
+
+    // Names
+    const myName = state.userStats?.username || 'You';
+    const oppName = state.opponentUsername || 'Opponent';
+    setText('mp-player-name', myName);
+    setText('mp-opponent-name', oppName);
+
+    // Active-turn glow
+    const myTurn = game.currentPlayer === state.playerSide;
+    playerTag.classList.toggle('mp-tag-active', myTurn);
+    opponentTag.classList.toggle('mp-tag-active', !myTurn);
+  } else {
+    playerTag.classList.add('hidden');
+    opponentTag.classList.add('hidden');
+    playerTag.classList.remove('mp-tag-active');
+    opponentTag.classList.remove('mp-tag-active');
+  }
 }
 
 function setText(elementId, value) {

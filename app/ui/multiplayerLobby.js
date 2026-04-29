@@ -86,7 +86,9 @@ export function initMultiplayerLobbyUI() {
       await roomRef.set({
         roomCode: code,
         hostUid: state.currentUser.uid,
+        hostUsername: state.userStats?.username || state.currentUser.displayName || 'Player',
         guestUid: null,
+        guestUsername: null,
         hostSide,
         guestSide,
         timeControl: '5m',
@@ -155,6 +157,7 @@ export function initMultiplayerLobbyUI() {
       }
       await db.collection('rooms').doc(roomDoc.id).set({
         guestUid: state.currentUser.uid,
+        guestUsername: state.userStats?.username || state.currentUser.displayName || 'Player',
         status: 'playing',
         updatedAt: firebaseApi.firestore.FieldValue.serverTimestamp()
       }, { merge: true });

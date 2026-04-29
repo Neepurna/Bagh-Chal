@@ -118,7 +118,18 @@
     <div class="game-layout">
       <main class="board-wrap">
         <div class="board-container">
-        <canvas id="game-canvas"></canvas>
+          <!-- Multiplayer username tags (hidden unless in MP mode) -->
+          <div class="mp-username-tag mp-opponent-tag hidden" id="mp-opponent-tag">
+            <span class="mp-tag-dot"></span>
+            <span class="mp-tag-name" id="mp-opponent-name">Opponent</span>
+          </div>
+          <canvas id="game-canvas"></canvas>
+          <div class="mp-username-tag mp-player-tag hidden" id="mp-player-tag">
+            <span class="mp-tag-dot"></span>
+            <span class="mp-tag-name" id="mp-player-name">You</span>
+          </div>
+          <!-- Your Turn toast -->
+          <div class="mp-your-turn-toast hidden" id="mp-your-turn-toast">⚔️ Your Turn</div>
         </div>
       </main>
 

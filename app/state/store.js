@@ -54,6 +54,7 @@ export const state = {
   currentRoomId: null,
   currentRoomCode: null,
   pendingChallengeId: null,
+  opponentUsername: null,
 
   // ── Game core ──────────────────────────────────────────────────
   game: makeInitialGameState(),

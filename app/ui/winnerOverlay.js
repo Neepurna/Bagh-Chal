@@ -12,6 +12,25 @@ export function buildWinnerPresentation(message, winner) {
                     || (winner === 'goat' && state.playerSide === PIECE_TYPES.GOAT);
   const winnerLabel = winner === 'tiger' ? 'Tiger' : 'Goat';
 
+  if (state.gameMode === 'multiplayer') {
+    if (playerWon) {
+      return {
+        title: 'Victory!',
+        kicker: winner === 'tiger' ? 'Predator Prevails' : 'The Herd Holds',
+        subtext: winner === 'tiger'
+          ? 'A sharp finishing sequence let the tiger seize the final advantage.'
+          : 'Disciplined positioning closed every escape and sealed the board for the goats.'
+      };
+    }
+    return {
+      title: 'You Lose!',
+      kicker: 'Defeated',
+      subtext: winner === 'tiger'
+        ? 'Tiger found the decisive breakthrough and closed the match cleanly.'
+        : 'Goat controlled the board patiently and converted the endgame without error.'
+    };
+  }
+
   if (state.gameMode === 'ai') {
     if (playerWon) {
       return {

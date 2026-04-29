@@ -7,6 +7,22 @@ import { state } from '../state/store.js';
 import { markDirty } from '../state/store.js';
 import { updateUI } from '../render/uiBindings.js';
 
+// Track last known currentPlayer so we can detect turn changes
+let _lastKnownPlayer = null;
+
+export function showYourTurnToast() {
+  const toast = document.getElementById('mp-your-turn-toast');
+  if (!toast) return;
+  toast.classList.remove('hidden', 'mp-toast-hide');
+  void toast.offsetWidth; // reflow to restart animation
+  toast.classList.add('mp-toast-show');
+  setTimeout(() => {
+    toast.classList.remove('mp-toast-show');
+    toast.classList.add('mp-toast-hide');
+    setTimeout(() => toast.classList.add('hidden'), 400);
+  }, 1800);
+}
+
 let multiplayerService = null;
 let firebaseApi = null;
 let getDb = () => null;
@@ -29,6 +45,8 @@ export function isApplyingRoomSnapshot() {
 }
 
 export function stopRoomSyncListeners() {
+  _lastKnownPlayer = null;
+  state.opponentUsername = null;
   multiplayerService?.stopRoomSyncListeners?.();
 }
 
@@ -64,9 +82,20 @@ export async function syncMultiplayerState(extra = {}) {
 function applyRoomStateToLocal(roomData) {
   if (!roomData || !roomData.board) return;
   const game = state.game;
+
+  // Resolve opponent username from room document
+  if (state.currentUser) {
+    const weAreHost = roomData.hostUid === state.currentUser.uid;
+    state.opponentUsername = weAreHost
+      ? (roomData.guestUsername || 'Opponent')
+      : (roomData.hostUsername || 'Opponent');
+  }
+
+  const incomingPlayer = roomData.currentPlayer ?? PIECE_TYPES.GOAT;
+
   multiplayerService.withAppliedRoomSnapshot(() => {
     game.board = [...roomData.board];
-    game.currentPlayer = roomData.currentPlayer ?? PIECE_TYPES.GOAT;
+    game.currentPlayer = incomingPlayer;
     game.phase = roomData.phase || PHASE.PLACEMENT;
     game.goatsPlaced = roomData.goatsPlaced || 0;
     game.goatsCaptured = roomData.goatsCaptured || 0;
@@ -76,6 +105,15 @@ function applyRoomStateToLocal(roomData) {
     game.validMoves = [];
     game.gameOver = roomData.status === 'finished';
   });
+
+  // Fire "your turn" toast when the turn switches to the local player
+  const itIsMyTurn = incomingPlayer === state.playerSide;
+  const turnJustChanged = _lastKnownPlayer !== null && _lastKnownPlayer !== incomingPlayer;
+  if (itIsMyTurn && turnJustChanged && !game.gameOver) {
+    showYourTurnToast();
+  }
+  _lastKnownPlayer = incomingPlayer;
+
   updateUI();
   markDirty();
 }

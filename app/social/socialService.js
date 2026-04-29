@@ -197,6 +197,7 @@ export function createSocialService({ firebase, getContext }) {
   async function acceptChallenge({
     notifId,
     challengerUid,
+    challengerUsername,
     mySide,
     theirSide,
     challengeTimeSelected,
@@ -211,7 +212,9 @@ export function createSocialService({ firebase, getContext }) {
 
     await roomRef.set({
       hostUid: challengerUid,
+      hostUsername: challengerUsername || 'Player',
       guestUid: context.currentUser.uid,
+      guestUsername: context.userStats?.username || 'Player',
       hostSide: theirSide,
       guestSide: mySide,
       timeControl: challengeTimeSelected,

@@ -180,9 +180,9 @@ async function sendChallenge() {
 
 async function dismissNotif(notifId) { await socialService.dismissNotif(notifId); }
 
-async function acceptChallenge(notifId, challengerUid, _challengerUsername, mySide, theirSide, challengeTimeSelected = '5m') {
+async function acceptChallenge(notifId, challengerUid, challengerUsername, mySide, theirSide, challengeTimeSelected = '5m') {
   const result = await socialService.acceptChallenge({
-    notifId, challengerUid, mySide, theirSide, challengeTimeSelected, buildInitialRoomState
+    notifId, challengerUid, challengerUsername, mySide, theirSide, challengeTimeSelected, buildInitialRoomState
   });
   if (!result) return;
   hideOverlay('notif-overlay');

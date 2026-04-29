@@ -793,6 +793,112 @@ header {
   margin: 0 auto;
 }
 
+/* ── Multiplayer username tags ──────────────────────────────── */
+.mp-username-tag {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px 5px 8px;
+  background: rgba(15, 21, 36, 0.82);
+  border: 1px solid rgba(197, 158, 75, 0.18);
+  border-radius: 20px;
+  backdrop-filter: blur(6px);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary, #a0aec0);
+  letter-spacing: 0.02em;
+  z-index: 5;
+  transition: box-shadow 0.35s ease, border-color 0.35s ease, color 0.35s ease;
+  pointer-events: none;
+  user-select: none;
+}
+
+.mp-opponent-tag {
+  top: 14px;
+  left: 14px;
+}
+
+.mp-player-tag {
+  bottom: 14px;
+  left: 14px;
+}
+
+.mp-tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(197, 158, 75, 0.35);
+  flex-shrink: 0;
+  transition: background 0.35s ease, box-shadow 0.35s ease;
+}
+
+.mp-tag-name {
+  line-height: 1;
+}
+
+/* Active-turn glow: tag of the player whose turn it currently is */
+.mp-username-tag.mp-tag-active {
+  border-color: rgba(197, 158, 75, 0.55);
+  color: var(--gold, #c59e4b);
+  box-shadow: 0 0 10px rgba(197, 158, 75, 0.22), 0 0 20px rgba(197, 158, 75, 0.10);
+  animation: mp-tag-glow-pulse 2s ease-in-out infinite;
+}
+
+.mp-username-tag.mp-tag-active .mp-tag-dot {
+  background: var(--gold, #c59e4b);
+  box-shadow: 0 0 6px rgba(197, 158, 75, 0.7);
+}
+
+@keyframes mp-tag-glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(197,158,75,0.20), 0 0 18px rgba(197,158,75,0.08); }
+  50%       { box-shadow: 0 0 14px rgba(197,158,75,0.40), 0 0 28px rgba(197,158,75,0.18); }
+}
+
+/* ── Your Turn toast ─────────────────────────────────────────── */
+.mp-your-turn-toast {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.85);
+  background: linear-gradient(135deg, rgba(197,158,75,0.18) 0%, rgba(15,21,36,0.92) 100%);
+  border: 1px solid rgba(197, 158, 75, 0.5);
+  border-radius: 10px;
+  padding: 10px 22px;
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gold, #c59e4b);
+  letter-spacing: 0.08em;
+  text-align: center;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  backdrop-filter: blur(8px);
+}
+
+.mp-your-turn-toast.mp-toast-show {
+  animation: mp-toast-in 1.8s ease forwards;
+}
+
+.mp-your-turn-toast.mp-toast-hide {
+  animation: mp-toast-out 0.4s ease forwards;
+}
+
+@keyframes mp-toast-in {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.82); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
+  25%  { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
+  75%  { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.90); }
+}
+
+@keyframes mp-toast-out {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
+  to   { opacity: 0; transform: translate(-50%, -50%) scale(0.90); }
+}
+
 .rules-panel {
   display: flex;
   flex-direction: column;
