@@ -79,7 +79,7 @@ class BaghchalAI {
     switch (this.difficulty) {
       case DIFFICULTY.EASY:   return 0;  // No lookahead
       case DIFFICULTY.MEDIUM: return 3;  // 3-ply minimax (paper's heuristic approach)
-      case DIFFICULTY.HARD:   return 0;  // MCTS handles depth automatically
+      case DIFFICULTY.HARD:   return 4;  // 4-ply minimax for goat defense (tiger uses MCTS)
       default: return 3;
     }
   }
@@ -106,8 +106,10 @@ class BaghchalAI {
   // Main entry point - get best move
   // Difficulty routing based on paper's recommendations:
   //   Easy   → random (no strategy, approximate paper's random baseline)
-  //   Medium → heuristic (paper's pattern-based approach, competitive vs casual players)
-  //   Hard   → MCTS for both sides (paper's AlphaZero/MCTS approach, unbeatable for most)
+  //   Medium → full heuristic (paper's pattern-based approach, competitive vs casual players)
+  //   Hard   → MCTS for Tiger (aggressive, positional, paper's AlphaZero approach)
+  //            + deep heuristic for Goat (defensive - heuristic minimax outperforms MCTS
+  //              for blocking because it directly evaluates chain/trap patterns)
   getBestMove(gameState, aiSide) {
     // Clear transposition table for fresh move evaluation
     this.transpositionTable.clear();
@@ -120,10 +122,26 @@ class BaghchalAI {
       case DIFFICULTY.MEDIUM:
         return this.getMediumHeuristicMove(gameState, aiSide);
       case DIFFICULTY.HARD:
-        return this.getMCTSMove(gameState, aiSide);
+        if (aiSide === PIECE_TYPES.TIGER) {
+          // Tiger: MCTS — explores the game tree probabilistically, finds
+          // positional advantages and "strategic sacrifices" (paper Section VI)
+          return this.getMCTSMove(gameState, aiSide);
+        } else {
+          // Goat: Deep heuristic minimax (depth 4)
+          // MCTS with limited sims can't reliably learn the blocking/chain patterns
+          // that make goat defense strong. Direct position evaluation sees further.
+          return this.getHardGoatMove(gameState);
+        }
       default:
         return this.getMediumHeuristicMove(gameState, aiSide);
     }
+  }
+
+  // Hard mode Goat: depth-4 heuristic with aggressive tiger-restriction scoring
+  getHardGoatMove(gameState) {
+    const moves = this.getAllPossibleMoves(gameState, PIECE_TYPES.GOAT);
+    if (moves.length === 0) return null;
+    return this.getGoatHeuristicMove(moves, gameState);
   }
 
   // === EASY MODE: Random play, tiger prefers captures ===
@@ -193,6 +211,10 @@ class BaghchalAI {
     if (gameState.goatsPlaced === 0) {
       const edgeCenterMoves = moves.filter(m => EDGE_CENTERS.includes(m.to));
       if (edgeCenterMoves.length > 0) {
+        // Hard mode evaluates which edge-center is best; others pick any
+        if (this.difficulty === DIFFICULTY.HARD) {
+          return this.selectMoveWithMinimax(edgeCenterMoves, gameState, PIECE_TYPES.GOAT);
+        }
         return edgeCenterMoves[Math.floor(Math.random() * edgeCenterMoves.length)];
       }
     }
@@ -777,9 +799,10 @@ class BaghchalAI {
       }
       score -= trappedTigers * 60;
     } else {
-      // GOAT: Penalize threatened goats (full penalty for medium/hard)
+      // GOAT: Penalize threatened goats — harder mode = heavier penalty so it avoids danger
       const threatenedGoats = this.findThreatenedGoats(gameState);
-      score -= threatenedGoats.length * 150;
+      const threatWeight = this.difficulty === DIFFICULTY.HARD ? 200 : 150;
+      score -= threatenedGoats.length * threatWeight;
       
       // Goat: Reward controlling key intersections
       const keyPositions = [2, 10, 12, 14, 22]; // Cross center
@@ -826,28 +849,46 @@ class BaghchalAI {
         score += gameState.goatsCaptured * 220;
       }
     } else {
-      // Goat strategy
+      // Goat strategy — scaled by difficulty depth
+      const depthBoost = this.difficulty === DIFFICULTY.HARD ? 1.6 : 1.0;
+
       if (phase === 'early') {
         // Early: Control center, build solid structure
-        if (gameState.board[12] === PIECE_TYPES.GOAT) score += 40;
-        // Reward perimeter control
+        if (gameState.board[12] === PIECE_TYPES.GOAT) score += 40 * depthBoost;
+        // Reward perimeter control (paper: "populate the borders first")
         const perimeter = [0,1,2,3,4,5,9,10,14,15,19,20,21,22,23,24];
         let perimeterCount = 0;
         for (const pos of perimeter) {
           if (gameState.board[pos] === PIECE_TYPES.GOAT) perimeterCount++;
         }
-        score += perimeterCount * 8;
+        score += perimeterCount * 8 * depthBoost;
+        // Bonus for claiming edge-centers early (paper's recommended first moves)
+        for (const pos of EDGE_CENTERS) {
+          if (gameState.board[pos] === PIECE_TYPES.GOAT) score += 20 * depthBoost;
+        }
       } else {
         // Mid/Late: Form unbreakable chains, trap tigers
-        score += this.countGoatChains(gameState) * 25;
-        
-        // Reward near-trapped tigers
+        score += this.countGoatChains(gameState) * 30 * depthBoost;
+
+        // Tiger mobility restriction — the primary goat winning mechanism.
+        // Each tiger move removed is worth increasing value as endgame approaches.
+        const lateMultiplier = phase === 'late' ? 2.0 : 1.0;
         for (let i = 0; i < 25; i++) {
           if (gameState.board[i] === PIECE_TYPES.TIGER) {
-            const moves = this.getValidMoves(gameState, i);
-            score += (6 - moves.length) * 20; // Fewer tiger moves = better
+            const tigerMoves = this.getValidMoves(gameState, i);
+            // Exponential reward for nearly-trapped tigers (0 moves = huge bonus)
+            const trapped = tigerMoves.length;
+            if (trapped === 0) score += 500 * depthBoost;       // Fully trapped!
+            else if (trapped === 1) score += 120 * depthBoost;  // One escape only
+            else if (trapped === 2) score += 50 * depthBoost;   // Cornered
+            else score += (6 - trapped) * 18 * lateMultiplier * depthBoost;
           }
         }
+
+        // Reward cantonment: goats forming a safe enclosed area (drawing mechanism)
+        // Paper: "goat can make movement in this area to escape immediate capture"
+        const totalTigerMoves = this.getTotalTigerMoves(gameState);
+        score += Math.max(0, 32 - totalTigerMoves) * 5 * depthBoost;
       }
     }
 
@@ -918,6 +959,17 @@ class BaghchalAI {
     }
 
     return score;
+  }
+
+  // Sum of all legal moves available to all tigers (lower = better for goat)
+  getTotalTigerMoves(gameState) {
+    let total = 0;
+    for (let i = 0; i < 25; i++) {
+      if (gameState.board[i] === PIECE_TYPES.TIGER) {
+        total += this.getValidMoves(gameState, i).length;
+      }
+    }
+    return total;
   }
 
   countGoatChains(gameState) {
