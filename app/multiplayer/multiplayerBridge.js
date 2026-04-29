@@ -7,21 +7,6 @@ import { state } from '../state/store.js';
 import { markDirty } from '../state/store.js';
 import { updateUI } from '../render/uiBindings.js';
 
-// Track last known currentPlayer so we can detect turn changes
-let _lastKnownPlayer = null;
-
-export function showYourTurnToast() {
-  const toast = document.getElementById('mp-your-turn-toast');
-  if (!toast) return;
-  toast.classList.remove('hidden', 'mp-toast-hide');
-  void toast.offsetWidth; // reflow to restart animation
-  toast.classList.add('mp-toast-show');
-  setTimeout(() => {
-    toast.classList.remove('mp-toast-show');
-    toast.classList.add('mp-toast-hide');
-    setTimeout(() => toast.classList.add('hidden'), 400);
-  }, 1800);
-}
 
 let multiplayerService = null;
 let firebaseApi = null;
@@ -45,7 +30,6 @@ export function isApplyingRoomSnapshot() {
 }
 
 export function stopRoomSyncListeners() {
-  _lastKnownPlayer = null;
   state.opponentUsername = null;
   multiplayerService?.stopRoomSyncListeners?.();
 }
@@ -91,11 +75,16 @@ function applyRoomStateToLocal(roomData) {
       : (roomData.hostUsername || 'Opponent');
   }
 
-  const incomingPlayer = roomData.currentPlayer ?? PIECE_TYPES.GOAT;
+  // Only apply board state when the game isn't already finished locally.
+  // game.gameOver is owned exclusively by endGame() — we must NOT set it here,
+  // because this function runs BEFORE onRoomFinished fires in the snapshot
+  // listener. Setting it here would block the onRoomFinished → endGame path
+  // and leave the losing player without a winner overlay.
+  if (game.gameOver) return;
 
   multiplayerService.withAppliedRoomSnapshot(() => {
     game.board = [...roomData.board];
-    game.currentPlayer = incomingPlayer;
+    game.currentPlayer = roomData.currentPlayer ?? PIECE_TYPES.GOAT;
     game.phase = roomData.phase || PHASE.PLACEMENT;
     game.goatsPlaced = roomData.goatsPlaced || 0;
     game.goatsCaptured = roomData.goatsCaptured || 0;
@@ -103,16 +92,7 @@ function applyRoomStateToLocal(roomData) {
     game.tigerIdentities = { ...(roomData.tigerIdentities || {}) };
     game.selectedPiece = null;
     game.validMoves = [];
-    game.gameOver = roomData.status === 'finished';
   });
-
-  // Fire "your turn" toast when the turn switches to the local player
-  const itIsMyTurn = incomingPlayer === state.playerSide;
-  const turnJustChanged = _lastKnownPlayer !== null && _lastKnownPlayer !== incomingPlayer;
-  if (itIsMyTurn && turnJustChanged && !game.gameOver) {
-    showYourTurnToast();
-  }
-  _lastKnownPlayer = incomingPlayer;
 
   updateUI();
   markDirty();

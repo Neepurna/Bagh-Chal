@@ -856,48 +856,6 @@ header {
   50%       { box-shadow: 0 0 14px rgba(197,158,75,0.40), 0 0 28px rgba(197,158,75,0.18); }
 }
 
-/* ── Your Turn toast ─────────────────────────────────────────── */
-.mp-your-turn-toast {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0.85);
-  background: linear-gradient(135deg, rgba(197,158,75,0.18) 0%, rgba(15,21,36,0.92) 100%);
-  border: 1px solid rgba(197, 158, 75, 0.5);
-  border-radius: 10px;
-  padding: 10px 22px;
-  font-family: 'Cinzel', serif;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--gold, #c59e4b);
-  letter-spacing: 0.08em;
-  text-align: center;
-  z-index: 10;
-  pointer-events: none;
-  opacity: 0;
-  backdrop-filter: blur(8px);
-}
-
-.mp-your-turn-toast.mp-toast-show {
-  animation: mp-toast-in 1.8s ease forwards;
-}
-
-.mp-your-turn-toast.mp-toast-hide {
-  animation: mp-toast-out 0.4s ease forwards;
-}
-
-@keyframes mp-toast-in {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.82); }
-  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
-  25%  { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
-  75%  { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.90); }
-}
-
-@keyframes mp-toast-out {
-  from { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
-  to   { opacity: 0; transform: translate(-50%, -50%) scale(0.90); }
-}
 
 .rules-panel {
   display: flex;
