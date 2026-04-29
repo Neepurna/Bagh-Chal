@@ -38,7 +38,7 @@ export const state = {
   playerSide: null,
   gameMode: 'ai',                   // 'ai' | 'multiplayer'
   multiplayerSide: null,
-  aiDifficulty: 'easy',             // 'easy' | 'hard'
+  aiDifficulty: 'easy',             // 'easy' | 'medium' | 'hard'
   aiTimeControl: '3m',
   multiplayerTimeControl: '5m',
 
@@ -65,7 +65,10 @@ export const state = {
   savedGameState: null,
 
   // Position-repetition tracking
+  // positionHistory: rolling log of recent hashes (used for display/debug)
+  // positionCounts: full-game map of hash → occurrence count (used for 3-fold draw)
   positionHistory: [],
+  positionCounts: new Map(),
 
   // Sequential goat flag (cycles 0..19)
   goatFlagCounter: 0,
@@ -110,6 +113,7 @@ export function resetGameState() {
   state.currentMoveIndex = -1;
   state.savedGameState = null;
   state.positionHistory = [];
+  state.positionCounts = new Map();
   state.goatFlagCounter = 0;
 }
 

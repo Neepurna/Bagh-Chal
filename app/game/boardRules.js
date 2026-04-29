@@ -16,6 +16,31 @@ export function getBoardHash(board) {
   return board.join(',');
 }
 
+/**
+ * Position key for repetition detection.
+ * Includes currentPlayer so that the same board with different side-to-move
+ * is correctly treated as a different position (per standard game theory).
+ */
+export function getPositionKey(board, currentPlayer) {
+  return board.join(',') + ':' + currentPlayer;
+}
+
+/**
+ * Check for draw by threefold repetition.
+ * The paper (ref [1]) confirms "Tigers and Goats is a draw" with optimal play,
+ * and describes cantonment movement as the primary drawing mechanism.
+ * Returns true when any position has been reached 3 or more times.
+ *
+ * @param {Map<string, number>} positionCounts - map of positionKey → count
+ * @returns {boolean}
+ */
+export function isThreefoldRepetition(positionCounts) {
+  for (const count of positionCounts.values()) {
+    if (count >= 3) return true;
+  }
+  return false;
+}
+
 export function isDiagonalConnected(r1, c1, r2, c2) {
   if (Math.abs(r1 - r2) !== 1 || Math.abs(c1 - c2) !== 1) {
     return false;

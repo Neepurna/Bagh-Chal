@@ -8,6 +8,15 @@ import { id } from './dom.js';
 import { state } from '../state/store.js';
 
 export function buildWinnerPresentation(message, winner) {
+  // Draw by repetition (cantonment movement — the paper confirms optimal play leads to draw)
+  if (winner === 'draw') {
+    return {
+      title: 'Draw!',
+      kicker: 'Balanced Battle',
+      subtext: 'The position repeated three times. With optimal play, Baghchal is a draw.'
+    };
+  }
+
   const playerWon = (winner === 'tiger' && state.playerSide === PIECE_TYPES.TIGER)
                     || (winner === 'goat' && state.playerSide === PIECE_TYPES.GOAT);
   const winnerLabel = winner === 'tiger' ? 'Tiger' : 'Goat';
@@ -77,9 +86,14 @@ export function showWinnerOverlay(message, winner) {
 
   overlay.dataset.winner = winner;
   if (winnerIcon) {
-    winnerIcon.innerHTML = winner === 'tiger'
-      ? '<img src="assets/bagh.png" class="winner-logo">'
-      : '<img src="assets/bhakhra.png" class="winner-logo-single">';
+    if (winner === 'tiger') {
+      winnerIcon.innerHTML = '<img src="assets/bagh.png" class="winner-logo">';
+    } else if (winner === 'goat') {
+      winnerIcon.innerHTML = '<img src="assets/bhakhra.png" class="winner-logo-single">';
+    } else {
+      // Draw: show both
+      winnerIcon.innerHTML = '<img src="assets/bagh.png" class="winner-logo" style="opacity:0.7;width:40px"> <img src="assets/bhakhra.png" class="winner-logo-single" style="opacity:0.7;width:40px">';
+    }
   }
   if (winnerKicker) winnerKicker.textContent = presentation.kicker;
   if (winnerSubtext) winnerSubtext.textContent = presentation.subtext;

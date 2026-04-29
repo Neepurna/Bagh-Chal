@@ -1,5 +1,13 @@
 // BaghChal AI - Implementing AlphaZero-inspired strategy
-// Supports EASY (basic heuristic), MEDIUM (advanced heuristic), HARD (MCTS)
+// Supports:
+//   EASY   - Pure random play (capture-first for tiger, random for goat)
+//   MEDIUM - Full heuristic based on paper's observed patterns (no MCTS, no randomness)
+//            * Tiger: sure-eat > fork > positional minimax (depth 3)
+//            * Goat:  border-first placement, defend threats, form chains (depth 3)
+//   HARD   - MCTS (Monte Carlo Tree Search) for BOTH sides, AlphaZero-inspired UCT
+//
+// Reference: "AI Strategy Approach Development on Baghchal using AlphaZero"
+// Thapa & Poudel, GCES/Pokhara University, 2024
 
 const PIECE_TYPES = {
   EMPTY: 0,
@@ -13,71 +21,76 @@ const DIFFICULTY = {
   HARD: 'hard'
 };
 
-// Positional weights - center-focused strategy
+// Positional weights tuned to paper's observations (Section III):
+// - Center (12): highest visibility, 8 positions controlled
+// - Edge-centers (2,10,14,22): second most advantageous for tiger
+// - Inner positions (6,7,8,11,13,16,17,18): moderate
+// - Corners (0,4,20,24): worst for tiger (limited movement, easy to trap)
 const POSITION_WEIGHTS = [
-  1, 2, 3, 2, 1,   // Row 0
+  1, 2, 4, 2, 1,   // Row 0  (corners=1, edge-adj=2, top-center=4)
   2, 4, 5, 4, 2,   // Row 1
-  3, 5, 8, 5, 3,   // Row 2 (center = index 12)
+  4, 5, 8, 5, 4,   // Row 2  (center=8, left/right-center=4)
   2, 4, 5, 4, 2,   // Row 3
-  1, 2, 3, 2, 1    // Row 4
+  1, 2, 4, 2, 1    // Row 4
 ];
+
+// Edge-center positions (paper: "center of outside edge" — best first goat placement)
+const EDGE_CENTERS = [2, 10, 14, 22];
+// Border positions for goat's border-first strategy
+const BORDER_POSITIONS = [0,1,2,3,4,5,9,10,14,15,19,20,21,22,23,24];
 
 class BaghchalAI {
   constructor(difficulty = DIFFICULTY.MEDIUM) {
     this.difficulty = difficulty;
+    // MCTS parameters (HARD mode)
     this.simulationCount = this.getSimulationCount();
-    this.explorationConstant = 1.414; // UCT exploration parameter (√2)
+    this.explorationConstant = 1.414; // UCT exploration parameter (√2) per paper eq.(1)
+    // Minimax parameters (MEDIUM mode)
     this.searchDepth = this.getSearchDepth();
-    
-    // Initialize time budgets for iterative deepening
     this.timeBudget = this.getTimeLimit();
-    
+
     // Transposition table for memoization (game state -> evaluation score)
     this.transpositionTable = new Map();
     this.tableHits = 0;
     this.tableMisses = 0;
-    
-    // ENDGAME FIX 1: Limit transposition table size to prevent unbounded memory growth
-    this.MAX_TRANSPOSITION_SIZE = 5000; // Max entries before LRU eviction
-    this.transpositionOrder = []; // LRU tracking
+    this.MAX_TRANSPOSITION_SIZE = 5000;
+    this.transpositionOrder = [];
   }
 
   getSimulationCount() {
-    // Reduced from original counts for faster gameplay
     switch (this.difficulty) {
-      case DIFFICULTY.EASY: return 25;     // Reduced from 50
-      case DIFFICULTY.MEDIUM: return 100;  // Reduced from 200
-      case DIFFICULTY.HARD: return 300;    // Reduced from 500, relies on better heuristics
-      default: return 100;
+      case DIFFICULTY.EASY:   return 0;    // No MCTS for easy
+      case DIFFICULTY.MEDIUM: return 0;    // No MCTS for medium (heuristic only)
+      case DIFFICULTY.HARD:   return 400;  // MCTS simulations per move
+      default: return 0;
     }
   }
-  
+
   getTimeLimit() {
-    // Time budget in milliseconds for iterative deepening
     switch (this.difficulty) {
-      case DIFFICULTY.EASY: return 50;      // 50ms
-      case DIFFICULTY.MEDIUM: return 150;   // 150ms
-      case DIFFICULTY.HARD: return 300;     // 300ms (still feels instant to human)
-      default: return 100;
+      case DIFFICULTY.EASY:   return 30;   // Very fast
+      case DIFFICULTY.MEDIUM: return 200;  // Heuristic thinking time
+      case DIFFICULTY.HARD:   return 400;  // MCTS budget (feels instant to human)
+      default: return 150;
     }
   }
 
   getSearchDepth() {
     switch (this.difficulty) {
-      case DIFFICULTY.EASY: return 2;  // 2-ply lookahead
-      case DIFFICULTY.MEDIUM: return 4; // 4-ply lookahead
-      case DIFFICULTY.HARD: return 0;   // MCTS (no depth limit)
+      case DIFFICULTY.EASY:   return 0;  // No lookahead
+      case DIFFICULTY.MEDIUM: return 3;  // 3-ply minimax (paper's heuristic approach)
+      case DIFFICULTY.HARD:   return 0;  // MCTS handles depth automatically
       default: return 3;
     }
   }
 
   getDefensivePrecision() {
-    // Probability of making correct defensive move
+    // How reliably the AI identifies and responds to threats
     switch (this.difficulty) {
-      case DIFFICULTY.EASY: return 0.01;    // 1% precision (almost random play)
-      case DIFFICULTY.MEDIUM: return 0.80;  // 80% precision (good defense, some mistakes)
-      case DIFFICULTY.HARD: return 0.95;    // 95% precision (very strong defense)
-      default: return 0.80;
+      case DIFFICULTY.EASY:   return 0.0;   // No threat awareness
+      case DIFFICULTY.MEDIUM: return 1.0;   // Always defends (full heuristic precision)
+      case DIFFICULTY.HARD:   return 1.0;   // Full precision (MCTS handles everything)
+      default: return 1.0;
     }
   }
 
@@ -91,114 +104,136 @@ class BaghchalAI {
   }
 
   // Main entry point - get best move
+  // Difficulty routing based on paper's recommendations:
+  //   Easy   → random (no strategy, approximate paper's random baseline)
+  //   Medium → heuristic (paper's pattern-based approach, competitive vs casual players)
+  //   Hard   → MCTS for both sides (paper's AlphaZero/MCTS approach, unbeatable for most)
   getBestMove(gameState, aiSide) {
-    console.log('getBestMove called - difficulty:', this.difficulty, 'aiSide:', aiSide, 'phase:', gameState.phase);
-    
-    // OPTIMIZATION: Clear transposition table for fresh move evaluation
+    // Clear transposition table for fresh move evaluation
     this.transpositionTable.clear();
     this.tableHits = 0;
     this.tableMisses = 0;
-    
-    // Hard mode: Use MCTS for Tiger, Heuristic for Goat (defense is better with heuristic)
-    if (this.difficulty === DIFFICULTY.HARD) {
-      if (aiSide === PIECE_TYPES.TIGER) {
+
+    switch (this.difficulty) {
+      case DIFFICULTY.EASY:
+        return this.getEasyMove(gameState, aiSide);
+      case DIFFICULTY.MEDIUM:
+        return this.getMediumHeuristicMove(gameState, aiSide);
+      case DIFFICULTY.HARD:
         return this.getMCTSMove(gameState, aiSide);
-      } else {
-        // Use heuristic for Goat - better defense
-        console.log('Hard mode: Using heuristic for GOAT');
-        return this.getHeuristicMove(gameState, aiSide);
-      }
-    } else {
-      return this.getHeuristicMove(gameState, aiSide);
+      default:
+        return this.getMediumHeuristicMove(gameState, aiSide);
     }
   }
 
-  // === HEURISTIC MODE ===
-
-  getHeuristicMove(gameState, aiSide) {
+  // === EASY MODE: Random play, tiger prefers captures ===
+  getEasyMove(gameState, aiSide) {
     const moves = this.getAllPossibleMoves(gameState, aiSide);
-    console.log('getHeuristicMove - moves count:', moves.length, 'difficulty:', this.difficulty);
     if (moves.length === 0) return null;
 
-    // EASY MODE: Pure random play (no strategy)
-    if (this.difficulty === DIFFICULTY.EASY) {
-      const randomMove = moves[Math.floor(Math.random() * moves.length)];
-      console.log('🎲 EASY MODE: Playing random move (no strategy)');
-      return randomMove;
-    }
-
-    // MEDIUM MODE: Mix of random and strategic play
-    if (this.difficulty === DIFFICULTY.MEDIUM) {
-      // Always check for defense needs
-      if (aiSide === PIECE_TYPES.GOAT && gameState.phase === 'movement') {
-        const defensiveMoves = this.getDefensiveMoves(gameState, moves);
-        if (defensiveMoves.length > 0) {
-          // Defend 80% of the time when threatened
-          const shouldDefend = Math.random() < 0.80;
-          if (shouldDefend) {
-            console.log('🛡️ MEDIUM MODE: Defending against threat');
-            return this.selectMoveWithMinimax(defensiveMoves, gameState, aiSide);
-          }
-        }
-      }
-      
-      // For non-defensive moves: 50% strategic, 50% random
-      const useStrategy = Math.random() < 0.50;
-      if (!useStrategy) {
-        const randomMove = moves[Math.floor(Math.random() * moves.length)];
-        console.log('🎲 MEDIUM MODE: Playing random move');
-        return randomMove;
-      }
-      console.log('🎯 MEDIUM MODE: Playing strategic move');
-      // Fall through to strategic play
-    }
-
-    // HARD MODE & MEDIUM strategic moves: Use full strategy
-
-    // GOAT PRIORITY: Defend threatened pieces
-    if (aiSide === PIECE_TYPES.GOAT && gameState.phase === 'movement') {
-      const defensiveMoves = this.getDefensiveMoves(gameState, moves);
-      if (defensiveMoves.length > 0) {
-        console.log(`🛡️ GOAT DEFENSE: Defending threatened pieces!`);
-        return this.selectMoveWithMinimax(defensiveMoves, gameState, aiSide);
-      }
-    }
-
-    // Priority check for forced moves
+    // Tiger: capture-first (bare minimum strategy)
     if (aiSide === PIECE_TYPES.TIGER) {
-      const sureEat = this.detectSureEat(moves, gameState);
-      if (sureEat.length > 0) {
-        // If we can capture, evaluate which capture is best
-        return this.selectMoveWithMinimax(sureEat, gameState, aiSide);
+      const captures = moves.filter(m => m.capture !== null);
+      if (captures.length > 0) {
+        return captures[Math.floor(Math.random() * captures.length)];
       }
+    }
+    // Everything else: pure random
+    return moves[Math.floor(Math.random() * moves.length)];
+  }
 
-      // Check for fork opportunities
-      const forks = this.detectFork(moves, gameState);
-      if (forks.length > 0) {
-        return this.selectMoveWithMinimax(forks, gameState, aiSide);
+  // === MEDIUM MODE: Paper's heuristic strategy (no MCTS, no randomness) ===
+  // Based on Section III of the paper: observed patterns from experienced players
+  getMediumHeuristicMove(gameState, aiSide) {
+    const moves = this.getAllPossibleMoves(gameState, aiSide);
+    if (moves.length === 0) return null;
+
+    if (aiSide === PIECE_TYPES.TIGER) {
+      return this.getTigerHeuristicMove(moves, gameState);
+    } else {
+      return this.getGoatHeuristicMove(moves, gameState);
+    }
+  }
+
+  // Tiger heuristic: priority order from paper Section III
+  // 1. Sure-eat (guaranteed capture)
+  // 2. Fork (threaten 2+ goats simultaneously)
+  // 3. Positional minimax (center > edge-center > others)
+  getTigerHeuristicMove(moves, gameState) {
+    // Priority 1: Sure eat - directly capture a goat
+    const captureMoves = moves.filter(m => m.capture !== null);
+    if (captureMoves.length > 0) {
+      // Pick the capture that leads to the best board position
+      return this.selectMoveWithMinimax(captureMoves, gameState, PIECE_TYPES.TIGER);
+    }
+
+    // Priority 2: Fork - move that threatens 2+ goats simultaneously
+    const forkMoves = this.detectFork(moves, gameState);
+    if (forkMoves.length > 0) {
+      return this.selectMoveWithMinimax(forkMoves, gameState, PIECE_TYPES.TIGER);
+    }
+
+    // Priority 3: Best positional move via minimax
+    return this.selectMoveWithMinimax(moves, gameState, PIECE_TYPES.TIGER);
+  }
+
+  // Goat heuristic: based on paper's goat strategy observations
+  // 1. Placement phase: edge-centers first, then borders, avoid threatened spots
+  // 2. Movement phase: defend threatened goats, form chains, restrict tigers
+  getGoatHeuristicMove(moves, gameState) {
+    if (gameState.phase === 'placement') {
+      return this.getGoatPlacementHeuristic(moves, gameState);
+    }
+    return this.getGoatMovementHeuristic(moves, gameState);
+  }
+
+  getGoatPlacementHeuristic(moves, gameState) {
+    // Paper: "Goat is lost if the first move is not the center of an outside edge"
+    // First goat should go to an edge-center (2, 10, 14, 22)
+    if (gameState.goatsPlaced === 0) {
+      const edgeCenterMoves = moves.filter(m => EDGE_CENTERS.includes(m.to));
+      if (edgeCenterMoves.length > 0) {
+        return edgeCenterMoves[Math.floor(Math.random() * edgeCenterMoves.length)];
       }
     }
 
-    // Use minimax for deeper analysis
-    return this.selectMoveWithMinimax(moves, gameState, aiSide);
+    // Paper: "first populate the borders" — prefer border positions
+    const safeMoves = moves.filter(m => m.isSafe !== false);
+    const availableMoves = safeMoves.length > 0 ? safeMoves : moves;
+
+    // Prioritize border positions, then center area
+    const borderMoves = availableMoves.filter(m => BORDER_POSITIONS.includes(m.to));
+    if (borderMoves.length > 0) {
+      return this.selectMoveWithMinimax(borderMoves, gameState, PIECE_TYPES.GOAT);
+    }
+    return this.selectMoveWithMinimax(availableMoves, gameState, PIECE_TYPES.GOAT);
+  }
+
+  getGoatMovementHeuristic(moves, gameState) {
+    // Priority 1: Save any threatened goat
+    const defensiveMoves = this.getDefensiveMoves(gameState, moves);
+    if (defensiveMoves.length > 0) {
+      return this.selectMoveWithMinimax(defensiveMoves, gameState, PIECE_TYPES.GOAT);
+    }
+
+    // Priority 2: Best chain/blockade formation via minimax
+    return this.selectMoveWithMinimax(moves, gameState, PIECE_TYPES.GOAT);
+  }
+
+  // === LEGACY: keep for any external callers ===
+  getHeuristicMove(gameState, aiSide) {
+    return this.getMediumHeuristicMove(gameState, aiSide);
   }
 
   selectMoveWithMinimax(moves, gameState, aiSide) {
     let bestMove = null;
     let bestScore = -Infinity;
 
-    // For goats, prefer safe moves (based on difficulty)
+    // For goats: always prefer safe moves in medium/hard (full precision)
     if (aiSide === PIECE_TYPES.GOAT) {
       const safeMoves = moves.filter(m => m.isSafe !== false);
-      const precision = this.getDefensivePrecision();
-      
-      // Apply precision: sometimes allow unsafe moves based on difficulty
-      if (safeMoves.length > 0 && Math.random() < precision) {
-        moves = safeMoves; // Only consider safe moves
-        console.log(`✅ Filtering to ${safeMoves.length} safe moves (${(precision*100).toFixed(0)}% precision)`);
-      } else if (safeMoves.length > 0) {
-        console.log(`⚠️ Allowing unsafe moves (${(precision*100).toFixed(0)}% precision - failed roll)`);
-        // Don't filter, allow risky moves
+      if (safeMoves.length > 0) {
+        moves = safeMoves;
       }
     }
 
@@ -482,20 +517,17 @@ class BaghchalAI {
     return bestMove || moves[0];
   }
 
-  // === MCTS MODE ===
+  // === HARD MODE: MCTS for both Tiger and Goat ===
+  // Implements UCT formula from paper eq.(1): UCT = wi/ni + c*sqrt(ln(N)/ni)
+  // Both sides use MCTS — paper shows MCTS dominates heuristic every time
 
   getMCTSMove(gameState, aiSide) {
     const rootNode = new MCTSNode(gameState, null, null);
     const startTime = Date.now();
-    
-    // Run MCTS simulations with TIME LIMIT
+
     for (let i = 0; i < this.simulationCount; i++) {
-      // Check time budget to strictly prevent lag
-      if (Date.now() - startTime > this.timeBudget) {
-        console.log(`⏱️ MCTS Time budget exceeded at simulation ${i}, returning best move so far`);
-        break;
-      }
-      
+      if (Date.now() - startTime > this.timeBudget) break;
+
       let node = this.selection(rootNode, aiSide);
       if (!node.isTerminal) {
         node = this.expansion(node, aiSide);
@@ -504,15 +536,13 @@ class BaghchalAI {
       this.backpropagation(node, result);
     }
 
-    // Select best move based on visit count
     const bestMove = this.selectBestChild(rootNode);
-    
-    // Fallback: if MCTS fails, use heuristic
+
+    // Fallback to medium heuristic if MCTS returns nothing
     if (!bestMove) {
-      console.log('⚠️ HARD MODE: MCTS failed, using heuristic fallback');
-      return this.getHeuristicMove(gameState, aiSide);
+      return this.getMediumHeuristicMove(gameState, aiSide);
     }
-    
+
     return bestMove;
   }
 
@@ -747,16 +777,9 @@ class BaghchalAI {
       }
       score -= trappedTigers * 60;
     } else {
-      // GOAT: Penalize threatened goats (scaled by difficulty)
+      // GOAT: Penalize threatened goats (full penalty for medium/hard)
       const threatenedGoats = this.findThreatenedGoats(gameState);
-      const precision = this.getDefensivePrecision();
-      
-      // Scale penalty based on defensive precision
-      // Easy (20%): -30 per threat (weak awareness)
-      // Medium (60%): -90 per threat (moderate awareness)
-      // Hard (100%): -150 per threat (full awareness)
-      const threatPenalty = precision * 150;
-      score -= threatenedGoats.length * threatPenalty;
+      score -= threatenedGoats.length * 150;
       
       // Goat: Reward controlling key intersections
       const keyPositions = [2, 10, 12, 14, 22]; // Cross center
@@ -958,36 +981,20 @@ class BaghchalAI {
     const moves = [];
 
     if (side === PIECE_TYPES.GOAT && gameState.phase === 'placement') {
-      // Placement phase - place goat on empty spots (avoid immediately capturable)
+      // Placement phase - place goat on empty spots, mark if immediately capturable
       for (let i = 0; i < 25; i++) {
         if (gameState.board[i] === PIECE_TYPES.EMPTY) {
-          // Check if placing here would be immediately capturable
           const testState = this.applyMove(gameState, { type: 'place', to: i, from: null, capture: null });
           const wouldBeCapturable = this.isGoatThreatened(testState, i);
-          
-          // Only add safe placements, or if no choice, add all
-          moves.push({ 
-            type: 'place', 
-            to: i, 
-            from: null, 
+          moves.push({
+            type: 'place',
+            to: i,
+            from: null,
             capture: null,
-            isSafe: !wouldBeCapturable // Mark safe placements
+            isSafe: !wouldBeCapturable
           });
         }
       }
-      
-      // Prioritize safe placements based on difficulty
-      const safeMoves = moves.filter(m => m.isSafe);
-      
-      // If there are safe moves, prefer them (especially in hard mode)
-      if (safeMoves.length > 0) {
-        const precision = this.getDefensivePrecision();
-        if (Math.random() < precision) {
-          return safeMoves;
-        }
-      }
-      
-      // If no safe moves exist, or precision check failed, return all moves
       return moves;
     } else {
       // Movement phase - move existing pieces

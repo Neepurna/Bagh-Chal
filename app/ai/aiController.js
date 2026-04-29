@@ -11,6 +11,7 @@ import {
   BOARD_POSITIONS,
   countTrappedPieces,
   getBoardHash,
+  getPositionKey,
   getValidMovesForBoard
 } from '../game/boardRules.js';
 import { saveState } from '../game/historyService.js';
@@ -71,12 +72,12 @@ function getAIMoveFromWorker(gameState, aiSide) {
   });
 }
 
-async function syncBaghchalAIFallback(gameState, aiSide) {
+async function syncBaghchalAIFallback(gameState, aiSide, difficulty = 'hard') {
   if (!BaghchalAIClass) {
     const mod = await import('./BaghchalAI.js');
     BaghchalAIClass = mod.BaghchalAI;
   }
-  const ai = new BaghchalAIClass('hard');
+  const ai = new BaghchalAIClass(difficulty);
   return ai.getBestMove({
     board: gameState.board,
     phase: gameState.phase,
@@ -125,7 +126,10 @@ function aiMove() {
     try {
       if (state.aiDifficulty === 'hard') {
         await executeHardAIMove(aiSide);
+      } else if (state.aiDifficulty === 'medium') {
+        await executeMediumAIMove(aiSide);
       } else {
+        // easy
         executeEasyAIMove(aiSide);
       }
     } finally {
@@ -196,6 +200,20 @@ function applyHardAIMove(bestMove, aiSide) {
   onMoveMade();
 }
 
+// ── Medium AI (paper's heuristic strategy) ────────────────────────────────
+async function executeMediumAIMove(aiSide) {
+  const game = state.game;
+  if (game.gameOver) return;
+
+  let bestMove = null;
+  try {
+    bestMove = await syncBaghchalAIFallback(game, aiSide, 'medium');
+  } catch (err) {
+    console.error('[ai] medium AI failed:', err);
+  }
+  applyHardAIMove(bestMove, aiSide); // reuse same apply logic
+}
+
 // ── Easy AI (random with capture preference) ───────────────────────────────
 function executeEasyAIMove(aiSide) {
   if (aiSide === PIECE_TYPES.TIGER) executeAITigerMove();
@@ -232,6 +250,7 @@ function executeAITigerMove() {
       playSound('pieceMove');
       playSound('tigerCapture');
       game.currentPlayer = PIECE_TYPES.GOAT;
+      pushPositionHistory();
       markDirty();
       hooks.checkWin();
       onMoveMade();
@@ -250,6 +269,7 @@ function executeAITigerMove() {
   delete game.tigerIdentities[t.index];
   playSound('pieceMove');
   game.currentPlayer = PIECE_TYPES.GOAT;
+  pushPositionHistory();
   markDirty();
   hooks.checkWin();
   onMoveMade();
@@ -290,15 +310,24 @@ function executeAIGoatMove() {
     }
   }
 
+  pushPositionHistory();
   markDirty();
   hooks.checkWin();
   onMoveMade();
 }
 
 function pushPositionHistory() {
-  state.positionHistory.push(getBoardHash(state.game.board));
+  const hash = getBoardHash(state.game.board);
+  state.positionHistory.push(hash);
   if (state.positionHistory.length > MAX_POSITION_HISTORY) {
     state.positionHistory.shift();
+  }
+
+  // Full-game repetition tracking (board + whose turn it is)
+  if (state.game.phase === PHASE.MOVEMENT) {
+    const key = getPositionKey(state.game.board, state.game.currentPlayer);
+    const count = (state.positionCounts.get(key) || 0) + 1;
+    state.positionCounts.set(key, count);
   }
 }
 

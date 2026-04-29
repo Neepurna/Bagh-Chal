@@ -10,6 +10,8 @@ import {
   BOARD_POSITIONS,
   countTrappedPieces,
   getBoardHash,
+  getPositionKey,
+  isThreefoldRepetition,
   getValidMovesForBoard,
   getWinState
 } from './boardRules.js';
@@ -168,6 +170,14 @@ export function getValidMovesForCurrent(index) {
 
 export function checkWin() {
   const game = state.game;
+
+  // Check threefold repetition draw (paper: "Tigers and Goats is a draw" with optimal play)
+  // Cantonment movement (goat cycling in a safe area) is the primary drawing mechanism
+  if (game.phase === PHASE.MOVEMENT && isThreefoldRepetition(state.positionCounts)) {
+    endGame('Draw by repetition.', 'draw');
+    return true;
+  }
+
   const winState = getWinState({
     board: game.board,
     phase: game.phase,
@@ -192,7 +202,7 @@ export function endGame(message, winner) {
       .catch((err) => console.error('[mp] failed to finalize room:', err));
   }
 
-  if (state.currentUser) {
+  if (state.currentUser && winner !== 'draw') {
     const playerWon = (winner === 'tiger' && state.playerSide === PIECE_TYPES.TIGER)
                       || (winner === 'goat' && state.playerSide === PIECE_TYPES.GOAT);
     const side = state.playerSide === PIECE_TYPES.TIGER ? 'tiger' : 'goat';
@@ -381,9 +391,19 @@ function afterPlayerMove() {
 }
 
 function pushPositionHistory() {
-  state.positionHistory.push(getBoardHash(state.game.board));
+  // Rolling log for display/debug (keep last N)
+  const hash = getBoardHash(state.game.board);
+  state.positionHistory.push(hash);
   if (state.positionHistory.length > MAX_POSITION_HISTORY) {
     state.positionHistory.shift();
+  }
+
+  // Full-game repetition tracking (board + whose turn it is)
+  // Only track during movement phase — placement cannot repeat positions
+  if (state.game.phase === PHASE.MOVEMENT) {
+    const key = getPositionKey(state.game.board, state.game.currentPlayer);
+    const count = (state.positionCounts.get(key) || 0) + 1;
+    state.positionCounts.set(key, count);
   }
 }
 
@@ -391,6 +411,7 @@ function pushPositionHistory() {
 export {
   countTrappedPieces,
   getBoardHash,
+  getPositionKey,
   GRID_SIZE,
   hideWinnerOverlay
 };
