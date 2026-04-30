@@ -12,7 +12,8 @@ export function saveState() {
     phase: game.phase,
     goatsPlaced: game.goatsPlaced,
     goatsCaptured: game.goatsCaptured,
-    tigerIdentities: { ...game.tigerIdentities }
+    tigerIdentities: { ...game.tigerIdentities },
+    goatIdentities: { ...game.goatIdentities }
   });
   if (state.gameHistory.length > MAX_HISTORY_SNAPSHOTS) {
     state.gameHistory.shift();
@@ -37,6 +38,7 @@ export function prevMove() {
       goatsPlaced: game.goatsPlaced,
       goatsCaptured: game.goatsCaptured,
       tigerIdentities: { ...game.tigerIdentities },
+      goatIdentities: { ...game.goatIdentities },
       selectedPiece: game.selectedPiece,
       validMoves: [...game.validMoves]
     };
@@ -78,6 +80,7 @@ function applySnapshot(snap, withSelection = false) {
   game.goatsPlaced = snap.goatsPlaced;
   game.goatsCaptured = snap.goatsCaptured;
   game.tigerIdentities = { ...snap.tigerIdentities };
+  game.goatIdentities = { ...(snap.goatIdentities || {}) };
   game.selectedPiece = withSelection ? snap.selectedPiece : null;
   game.validMoves = withSelection ? [...(snap.validMoves || [])] : [];
 }

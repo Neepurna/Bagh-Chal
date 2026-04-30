@@ -10,18 +10,21 @@ let openPlayerSelect = () => {};
 let triggerShowPlayerSelect = () => {};
 let setHomeUXByAuthState = () => {};
 let startGuestGame = () => {};
+let startSandboxSession = () => {};
 let pendingGuestSide = null;
 
 export function configureLandingAndOverlays({
   openPlayerSelectOverlay,
   showPlayerSelect,
   setHomeUXByAuthState: setHome,
-  startGuestGame: startGuest
+  startGuestGame: startGuest,
+  startSandboxGame
 }) {
   openPlayerSelect = openPlayerSelectOverlay;
   triggerShowPlayerSelect = showPlayerSelect;
   setHomeUXByAuthState = setHome;
   if (typeof startGuest === 'function') startGuestGame = startGuest;
+  if (typeof startSandboxGame === 'function') startSandboxSession = startSandboxGame;
 }
 
 export function initLandingAndOverlays() {
@@ -65,7 +68,7 @@ export function initLandingAndOverlays() {
     playSound('buttonClick');
   });
 
-  // Tutorial / about / coach overlays
+  // Tutorial / about overlays
   on('tutorial-close', 'click', () => hideOverlay('tutorial-overlay'));
   on('tutorial-start', 'click', () => { hideOverlay('tutorial-overlay'); openPlayerSelect('ai'); });
 
@@ -74,7 +77,7 @@ export function initLandingAndOverlays() {
 
   on('coach-coming-soon-close', 'click', () => hideOverlay('coach-coming-soon-overlay'));
 
-  on('tutorial-btn', 'click', () => { showOverlay('coach-coming-soon-overlay'); playSound('buttonClick'); });
+  on('tutorial-btn', 'click', () => { startSandboxSession(); playSound('buttonClick'); });
   on('tutorial-btn', 'mouseenter', () => playSound('hover'));
 
   on('footer-tutorial', 'click', () => { showOverlay('tutorial-overlay'); playSound('buttonClick'); });

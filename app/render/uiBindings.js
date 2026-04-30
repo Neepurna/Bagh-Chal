@@ -37,6 +37,7 @@ export function updateUI() {
   setText('goatTag', `Placed: ${game.goatsPlaced} / 20`);
 
   updateMultiplayerTags(game);
+  updateSandboxUI(game);
 }
 
 function updateMultiplayerTags(game) {
@@ -66,6 +67,38 @@ function updateMultiplayerTags(game) {
     playerTag.classList.remove('mp-tag-active');
     opponentTag.classList.remove('mp-tag-active');
   }
+}
+
+function updateSandboxUI(game) {
+  const tigerReserve = 4 - countPieces(game.board, PIECE_TYPES.TIGER);
+  const goatReserve = 20 - countPieces(game.board, PIECE_TYPES.GOAT);
+
+  setText('sandbox-tigers-remaining', String(Math.max(0, tigerReserve)));
+  setText('sandbox-goats-remaining', String(Math.max(0, goatReserve)));
+  setText('sandbox-tool-label', getSandboxToolLabel());
+
+  const tigerTool = id('sandbox-tool-tiger');
+  const goatTool = id('sandbox-tool-goat');
+  const eraseTool = id('sandbox-tool-erase');
+  const cancelTool = id('sandbox-tool-cancel');
+
+  tigerTool?.classList.toggle('active', state.sandboxTool === 'tiger');
+  goatTool?.classList.toggle('active', state.sandboxTool === 'goat');
+  eraseTool?.classList.toggle('active', state.sandboxTool === 'erase');
+  cancelTool?.classList.toggle('active', state.sandboxTool === null);
+  tigerTool?.toggleAttribute('disabled', tigerReserve <= 0);
+  goatTool?.toggleAttribute('disabled', goatReserve <= 0);
+}
+
+function getSandboxToolLabel() {
+  if (state.sandboxTool === 'tiger') return 'Placing tigers';
+  if (state.sandboxTool === 'goat') return 'Placing goats';
+  if (state.sandboxTool === 'erase') return 'Removing pieces';
+  return 'Move any piece on the board';
+}
+
+function countPieces(board, pieceType) {
+  return board.reduce((count, piece) => count + (piece === pieceType ? 1 : 0), 0);
 }
 
 function setText(elementId, value) {

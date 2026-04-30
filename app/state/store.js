@@ -36,11 +36,12 @@ export const state = {
 
   // ── Game settings ──────────────────────────────────────────────
   playerSide: null,
-  gameMode: 'ai',                   // 'ai' | 'multiplayer'
+  gameMode: 'ai',                   // 'ai' | 'multiplayer' | 'sandbox'
   multiplayerSide: null,
   aiDifficulty: 'easy',             // 'easy' | 'medium' | 'hard'
   aiTimeControl: '3m',
   multiplayerTimeControl: '5m',
+  sandboxTool: null,                // null | 'tiger' | 'goat' | 'erase'
 
   // ── Game runtime flags ─────────────────────────────────────────
   gameStarted: false,

@@ -273,6 +273,47 @@
             </div>
           </div>
         </div>
+
+        <div class="panel hidden" id="sandbox-panel">
+          <div class="panel-header">
+            <div class="panel-icon teal">🧩</div>
+            <div>
+              <div class="panel-label">Open Board</div>
+              <div class="panel-tag" id="sandbox-tool-label">Move any piece on the board</div>
+            </div>
+          </div>
+          <div class="panel-body sandbox-panel-body">
+            <div class="sandbox-tool-grid">
+              <button class="sandbox-tool-btn" id="sandbox-tool-tiger" type="button">
+                <img src="assets/bagh.png" alt="Tiger" class="sandbox-tool-icon">
+                <span class="sandbox-tool-name">Tiger</span>
+                <span class="sandbox-tool-count" id="sandbox-tigers-remaining">4</span>
+              </button>
+              <button class="sandbox-tool-btn" id="sandbox-tool-goat" type="button">
+                <img src="assets/bhakhra.png" alt="Goat" class="sandbox-tool-icon">
+                <span class="sandbox-tool-name">Goat</span>
+                <span class="sandbox-tool-count" id="sandbox-goats-remaining">20</span>
+              </button>
+            </div>
+            <div class="sandbox-utility-row">
+              <button class="sandbox-utility-btn" id="sandbox-tool-erase" type="button">Erase</button>
+              <button class="sandbox-utility-btn" id="sandbox-tool-cancel" type="button">Move</button>
+            </div>
+            <p class="sandbox-help">Pick a piece from the tray, place it on any empty point, or select a board piece to move it anywhere.</p>
+            <button class="welcome-secondary-btn sandbox-clear-btn" id="sandbox-clear-btn" type="button">Clear Board</button>
+          </div>
+        </div>
+
+        <div class="panel hidden" id="gameActionsPanel">
+          <div class="panel-header">
+            <div class="panel-icon gold">⚙️</div>
+            <div class="panel-label">Game Actions</div>
+          </div>
+          <div class="panel-body action-panel-body">
+            <button class="action-panel-btn action-panel-btn-secondary" id="reset-game-btn" type="button" hidden>Reset Match</button>
+            <button class="action-panel-btn action-panel-btn-danger" id="resign-game-btn" type="button">Resign</button>
+          </div>
+        </div>
         
         <!-- Player Selection Overlay -->
         <div class="winner-overlay" id="player-select-overlay">

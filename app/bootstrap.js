@@ -20,12 +20,17 @@ import { initUiBindings } from './render/uiBindings.js';
 // Game
 import {
   attachCanvasListener,
+  clearSandboxBoard,
   configureGameController,
   endGame,
   exitToHome,
   handleTimeOut,
   initGame,
+  resignCurrentGame,
+  resetCurrentGame,
+  setSandboxTool,
   showPlayerSelect,
+  startSandboxGame,
   startMultiplayerGame,
   checkWin
 } from './game/gameController.js';
@@ -187,7 +192,8 @@ export function bootstrap({ firebase }) {
       state.gameStarted = true;
       state.isFirstAIMove = true;
       initGame();
-    }
+    },
+    startSandboxGame
   });
 
   setOnTimeout(() => handleTimeOut());
@@ -232,6 +238,15 @@ export function bootstrap({ firebase }) {
   on('exit-btn', 'click', exitToHome);
   on('prev-move-btn', 'click', prevMove);
   on('next-move-btn', 'click', nextMove);
+  on('reset-game-btn', 'click', resetCurrentGame);
+  on('resign-game-btn', 'click', () => {
+    if (window.confirm('Are you sure you want to resign this game?')) resignCurrentGame();
+  });
+  on('sandbox-clear-btn', 'click', clearSandboxBoard);
+  on('sandbox-tool-tiger', 'click', () => setSandboxTool('tiger'));
+  on('sandbox-tool-goat', 'click', () => setSandboxTool('goat'));
+  on('sandbox-tool-erase', 'click', () => setSandboxTool('erase'));
+  on('sandbox-tool-cancel', 'click', () => setSandboxTool(null));
 
   // ── Initial render ─────────────────────────────────────────────
   initGame(); // populates the homepage with decorative goats

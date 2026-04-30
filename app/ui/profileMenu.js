@@ -59,6 +59,8 @@ export function setHomeUXByAuthState() {
   id('gameStatePanel')?.classList.add('hidden');
   id('tigerPanel')?.classList.add('hidden');
   id('goatPanel')?.classList.add('hidden');
+  id('sandbox-panel')?.classList.add('hidden');
+  id('gameActionsPanel')?.classList.add('hidden');
   toggleMoveNavigation(false);
 
   if (shouldShowAppShell) scheduleCanvasResize();

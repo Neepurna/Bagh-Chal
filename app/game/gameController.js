@@ -62,6 +62,7 @@ export function initGame(options = {}) {
   const shouldPlayStartSound = options.playStartSound ?? started;
   const shouldShowPanels = options.showPanels ?? started;
   const shouldStartTimer = options.startTimer ?? started;
+  const layout = options.layout ?? 'standard';
   const shouldTriggerAutoAI = options.autoAIMove
     ?? (started && state.gameMode === 'ai' && state.playerSide === PIECE_TYPES.TIGER);
 
@@ -71,20 +72,22 @@ export function initGame(options = {}) {
   resetGameState();
   const game = state.game;
 
-  // Tigers at corners
-  game.board[0] = PIECE_TYPES.TIGER;  game.tigerIdentities[0] = 0;
-  game.board[4] = PIECE_TYPES.TIGER;  game.tigerIdentities[4] = 1;
-  game.board[20] = PIECE_TYPES.TIGER; game.tigerIdentities[20] = 2;
-  game.board[24] = PIECE_TYPES.TIGER; game.tigerIdentities[24] = 3;
+  if (layout === 'standard') {
+    // Tigers at corners
+    game.board[0] = PIECE_TYPES.TIGER;  game.tigerIdentities[0] = 0;
+    game.board[4] = PIECE_TYPES.TIGER;  game.tigerIdentities[4] = 1;
+    game.board[20] = PIECE_TYPES.TIGER; game.tigerIdentities[20] = 2;
+    game.board[24] = PIECE_TYPES.TIGER; game.tigerIdentities[24] = 3;
 
-  // Decorative goats on the homepage
-  if (decorativeGoats) {
-    const goatPositions = [6, 8, 12, 16, 18];
-    goatPositions.forEach((pos, index) => {
-      game.board[pos] = PIECE_TYPES.GOAT;
-      game.goatsPlaced++;
-      game.goatIdentities[pos] = index % 20;
-    });
+    // Decorative goats on the homepage
+    if (decorativeGoats) {
+      const goatPositions = [6, 8, 12, 16, 18];
+      goatPositions.forEach((pos, index) => {
+        game.board[pos] = PIECE_TYPES.GOAT;
+        game.goatsPlaced++;
+        game.goatIdentities[pos] = index % 20;
+      });
+    }
   }
 
   if (shouldPlayStartSound) playSound('newGame');
@@ -95,10 +98,7 @@ export function initGame(options = {}) {
 
   if (shouldShowPanels) {
     setDisplay('welcome-screen', 'none');
-    id('gameStatePanel')?.classList.remove('hidden');
-    id('tigerPanel')?.classList.remove('hidden');
-    id('goatPanel')?.classList.remove('hidden');
-    toggleMoveNavigation(true);
+    updateModePanels({ playing: true });
     if (shouldStartTimer) startTimer();
   } else {
     hooks.setHomeUXByAuthState();
@@ -122,6 +122,7 @@ export function exitToHome() {
   stopTimer();
   state.gameStarted = false;
   state.gameMode = 'ai';
+  state.sandboxTool = null;
   hooks.stopRoomSyncListeners();
   state.currentRoomId = null;
   state.currentRoomCode = null;
@@ -138,6 +139,7 @@ export function showPlayerSelect() {
   stopTimer();
   state.gameStarted = false;
   state.gameMode = 'ai';
+  state.sandboxTool = null;
   hooks.stopRoomSyncListeners();
   state.currentRoomId = null;
   state.currentRoomCode = null;
@@ -153,6 +155,7 @@ export function startMultiplayerGame(roomId, side, timeControl = '5m', { onSubsc
   state.gameMode = 'multiplayer';
   state.gameStarted = true;
   state.isFirstAIMove = false;
+  state.sandboxTool = null;
 
   hooks.stopRoomSyncListeners();
   if (typeof onSubscribe === 'function') onSubscribe(roomId);
@@ -161,6 +164,30 @@ export function startMultiplayerGame(roomId, side, timeControl = '5m', { onSubsc
   id('room-waiting')?.classList.add('hidden');
   hideOverlay('player-select-overlay');
   initGame();
+}
+
+export function startSandboxGame() {
+  clearPendingAsyncActions();
+  stopTimer();
+  hooks.stopRoomSyncListeners();
+  state.currentRoomId = null;
+  state.currentRoomCode = null;
+  state.playerSide = null;
+  state.gameMode = 'sandbox';
+  state.gameStarted = true;
+  state.isFirstAIMove = false;
+  state.sandboxTool = null;
+  hideOverlay('winner-overlay');
+  hideOverlay('player-select-overlay');
+  initGame({
+    started: true,
+    decorativeGoats: false,
+    playStartSound: false,
+    showPanels: true,
+    startTimer: false,
+    autoAIMove: false,
+    layout: 'empty'
+  });
 }
 
 // ── Game flow helpers ──────────────────────────────────────────────────────
@@ -246,7 +273,6 @@ export function attachCanvasListener() {
 function handleClick(event) {
   const game = state.game;
   if (game.gameOver || !state.gameStarted || state.currentMoveIndex !== -1) return;
-  if (game.currentPlayer !== state.playerSide) return;
 
   const canvas = getCanvas();
   if (!canvas) return;
@@ -258,6 +284,15 @@ function handleClick(event) {
 
   const clickedIndex = getClickedPosition(x, y);
   if (clickedIndex === -1) return;
+
+  if (state.gameMode === 'sandbox') {
+    handleSandboxClick(clickedIndex);
+    updateUI();
+    markDirty();
+    return;
+  }
+
+  if (game.currentPlayer !== state.playerSide) return;
 
   const phase = game.phase;
   const isPlacement = phase === PHASE.PLACEMENT;
@@ -277,6 +312,66 @@ function handleClick(event) {
 
   updateUI();
   markDirty();
+}
+
+function handleSandboxClick(clickedIndex) {
+  const game = state.game;
+  const clickedPiece = game.board[clickedIndex];
+
+  if (state.sandboxTool === 'erase') {
+    if (clickedPiece === PIECE_TYPES.EMPTY) return;
+    saveState();
+    removeSandboxPiece(clickedIndex);
+    game.selectedPiece = null;
+    game.validMoves = [];
+    syncSandboxMeta();
+    playSound('buttonClick');
+    return;
+  }
+
+  if (game.selectedPiece !== null) {
+    if (clickedIndex === game.selectedPiece) {
+      game.selectedPiece = null;
+      return;
+    }
+
+    if (clickedPiece === PIECE_TYPES.EMPTY) {
+      saveState();
+      moveSandboxPiece(game.selectedPiece, clickedIndex);
+      game.selectedPiece = null;
+      game.validMoves = [];
+      syncSandboxMeta();
+      playSound('pieceMove');
+      return;
+    }
+
+    state.sandboxTool = null;
+    game.selectedPiece = clickedIndex;
+    return;
+  }
+
+  if (clickedPiece !== PIECE_TYPES.EMPTY) {
+    state.sandboxTool = null;
+    game.selectedPiece = clickedIndex;
+    return;
+  }
+
+  if (state.sandboxTool === 'tiger' && countPiecesOnBoard(PIECE_TYPES.TIGER) < 4) {
+    saveState();
+    game.board[clickedIndex] = PIECE_TYPES.TIGER;
+    game.tigerIdentities[clickedIndex] = nextTigerIdentity();
+    syncSandboxMeta();
+    playSound('pieceMove');
+    return;
+  }
+
+  if (state.sandboxTool === 'goat' && countPiecesOnBoard(PIECE_TYPES.GOAT) < 20) {
+    saveState();
+    game.board[clickedIndex] = PIECE_TYPES.GOAT;
+    game.goatIdentities[clickedIndex] = nextGoatFlag();
+    syncSandboxMeta();
+    playSound('pieceMove');
+  }
 }
 
 function handleGoatPlacement(clickedIndex) {
@@ -385,8 +480,119 @@ function moveTigerOnBoard(move) {
 function afterPlayerMove() {
   if (state.gameMode === 'multiplayer') {
     hooks.syncMultiplayerState().catch((err) => console.error('[mp] sync failed:', err));
-  } else {
+  } else if (state.gameMode === 'ai') {
     scheduleAIMove();
+  }
+}
+
+export function setSandboxTool(tool) {
+  state.sandboxTool = tool;
+  state.game.selectedPiece = null;
+  state.game.validMoves = [];
+  updateUI();
+  markDirty();
+}
+
+export function resetCurrentGame() {
+  if (state.gameMode !== 'ai' || !state.gameStarted) return;
+  hideWinnerOverlay();
+  initGame({
+    started: true,
+    decorativeGoats: false,
+    playStartSound: false
+  });
+}
+
+export function clearSandboxBoard() {
+  if (state.gameMode !== 'sandbox') return;
+  state.sandboxTool = null;
+  initGame({
+    started: true,
+    decorativeGoats: false,
+    playStartSound: false,
+    showPanels: true,
+    startTimer: false,
+    autoAIMove: false,
+    layout: 'empty'
+  });
+}
+
+export function resignCurrentGame() {
+  if (!state.gameStarted || state.game.gameOver) return;
+  if (state.gameMode !== 'ai' && state.gameMode !== 'multiplayer') return;
+
+  const playerIsTiger = state.playerSide === PIECE_TYPES.TIGER;
+  const winner = playerIsTiger ? 'goat' : 'tiger';
+  const message = state.gameMode === 'multiplayer'
+    ? 'Opponent wins by resignation.'
+    : `${winner === 'tiger' ? 'Tiger' : 'Goat'} wins by resignation.`;
+
+  endGame(message, winner);
+}
+
+function updateModePanels({ playing }) {
+  const showStandardPanels = playing && state.gameMode !== 'sandbox';
+  const showSandboxPanel = playing && state.gameMode === 'sandbox';
+  const showActionPanel = playing && state.gameMode !== 'sandbox';
+
+  id('gameStatePanel')?.classList.toggle('hidden', !showStandardPanels);
+  id('tigerPanel')?.classList.toggle('hidden', !showStandardPanels);
+  id('goatPanel')?.classList.toggle('hidden', !showStandardPanels);
+  id('sandbox-panel')?.classList.toggle('hidden', !showSandboxPanel);
+  id('gameActionsPanel')?.classList.toggle('hidden', !showActionPanel);
+  id('reset-game-btn')?.toggleAttribute('hidden', state.gameMode !== 'ai');
+  id('resign-game-btn')?.toggleAttribute('hidden', state.gameMode === 'sandbox');
+
+  const resignLabel = id('resign-game-btn');
+  if (resignLabel) resignLabel.textContent = state.gameMode === 'multiplayer' ? 'Resign Match' : 'Resign';
+
+  toggleMoveNavigation(showStandardPanels);
+}
+
+function syncSandboxMeta() {
+  const game = state.game;
+  game.goatsPlaced = countPiecesOnBoard(PIECE_TYPES.GOAT);
+  game.goatsCaptured = 0;
+  game.phase = game.goatsPlaced >= 20 ? PHASE.MOVEMENT : PHASE.PLACEMENT;
+  game.currentPlayer = PIECE_TYPES.GOAT;
+}
+
+function countPiecesOnBoard(pieceType) {
+  return state.game.board.reduce((count, piece) => count + (piece === pieceType ? 1 : 0), 0);
+}
+
+function nextTigerIdentity() {
+  const used = new Set(Object.values(state.game.tigerIdentities));
+  for (let identity = 0; identity < 4; identity++) {
+    if (!used.has(identity)) return identity;
+  }
+  return 0;
+}
+
+function moveSandboxPiece(fromIndex, toIndex) {
+  const game = state.game;
+  const piece = game.board[fromIndex];
+  game.board[toIndex] = piece;
+  game.board[fromIndex] = PIECE_TYPES.EMPTY;
+
+  if (piece === PIECE_TYPES.TIGER) {
+    game.tigerIdentities[toIndex] = game.tigerIdentities[fromIndex];
+    delete game.tigerIdentities[fromIndex];
+  } else if (piece === PIECE_TYPES.GOAT) {
+    game.goatIdentities[toIndex] = game.goatIdentities[fromIndex];
+    delete game.goatIdentities[fromIndex];
+  }
+}
+
+function removeSandboxPiece(index) {
+  const game = state.game;
+  const piece = game.board[index];
+  game.board[index] = PIECE_TYPES.EMPTY;
+
+  if (piece === PIECE_TYPES.TIGER) {
+    delete game.tigerIdentities[index];
+  } else if (piece === PIECE_TYPES.GOAT) {
+    delete game.goatIdentities[index];
   }
 }
 
