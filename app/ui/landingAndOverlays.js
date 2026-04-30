@@ -89,9 +89,6 @@ export function initLandingAndOverlays() {
   });
 
   // Lobby (chess.com style menu)
-  on('lobby-play-online-btn', 'click', () => { openPlayerSelect('ai'); playSound('buttonClick'); });
-  on('lobby-play-online-btn', 'mouseenter', () => playSound('hover'));
-
   on('lobby-friend-btn', 'click', () => {
     if (!state.currentUser) {
       showOverlay('signup-overlay');
@@ -104,9 +101,6 @@ export function initLandingAndOverlays() {
 
   on('lobby-tournament-btn', 'click', () => { openPlayerSelect('tournament'); playSound('buttonClick'); });
   on('lobby-tournament-btn', 'mouseenter', () => playSound('hover'));
-
-  on('lobby-history-link', 'click', (e) => { e.preventDefault(); playSound('buttonClick'); });
-  on('lobby-leaderboard-link', 'click', (e) => { e.preventDefault(); playSound('buttonClick'); });
 
   // Sign-up overlay close
   on('signup-close', 'click', () => hideOverlay('signup-overlay'));
