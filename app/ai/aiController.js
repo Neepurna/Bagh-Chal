@@ -72,7 +72,7 @@ function getAIMoveFromWorker(gameState, aiSide) {
   });
 }
 
-async function syncBaghchalAIFallback(gameState, aiSide, difficulty = 'hard') {
+async function syncBaghchalAIFallback(gameState, aiSide, difficulty = 'hard', positionCounts = null) {
   if (!BaghchalAIClass) {
     const mod = await import('./BaghchalAI.js');
     BaghchalAIClass = mod.BaghchalAI;
@@ -84,7 +84,7 @@ async function syncBaghchalAIFallback(gameState, aiSide, difficulty = 'hard') {
     goatsPlaced: gameState.goatsPlaced,
     goatsCaptured: gameState.goatsCaptured,
     currentPlayer: aiSide
-  }, aiSide);
+  }, aiSide, positionCounts);
 }
 
 // ── Move scheduling ────────────────────────────────────────────────────────
@@ -143,11 +143,13 @@ async function executeHardAIMove(aiSide) {
   const game = state.game;
   if (game.gameOver) return;
 
+  // Pass positionCounts so MCTS can avoid loops
+  const positionCounts = state.positionCounts;
+
   let bestMove = await getAIMoveFromWorker(game, aiSide);
   if (!bestMove) {
-    console.warn('[ai] worker unavailable, running synchronous fallback');
     try {
-      bestMove = await syncBaghchalAIFallback(game, aiSide);
+      bestMove = await syncBaghchalAIFallback(game, aiSide, 'hard', positionCounts);
     } catch (err) {
       console.error('[ai] fallback failed:', err);
     }
@@ -207,7 +209,7 @@ async function executeMediumAIMove(aiSide) {
 
   let bestMove = null;
   try {
-    bestMove = await syncBaghchalAIFallback(game, aiSide, 'medium');
+    bestMove = await syncBaghchalAIFallback(game, aiSide, 'medium', state.positionCounts);
   } catch (err) {
     console.error('[ai] medium AI failed:', err);
   }

@@ -110,7 +110,9 @@ class BaghchalAI {
   //   Hard   → MCTS for Tiger (aggressive, positional, paper's AlphaZero approach)
   //            + deep heuristic for Goat (defensive - heuristic minimax outperforms MCTS
   //              for blocking because it directly evaluates chain/trap patterns)
-  getBestMove(gameState, aiSide) {
+  // positionCounts: optional Map<positionKey,count> from the live game,
+  // forwarded to MCTS so it can steer away from repeated positions.
+  getBestMove(gameState, aiSide, positionCounts = null) {
     // Clear transposition table for fresh move evaluation
     this.transpositionTable.clear();
     this.tableHits = 0;
@@ -123,13 +125,10 @@ class BaghchalAI {
         return this.getMediumHeuristicMove(gameState, aiSide);
       case DIFFICULTY.HARD:
         if (aiSide === PIECE_TYPES.TIGER) {
-          // Tiger: MCTS — explores the game tree probabilistically, finds
-          // positional advantages and "strategic sacrifices" (paper Section VI)
-          return this.getMCTSMove(gameState, aiSide);
+          // Tiger: MCTS with capture-first guarantee and loop prevention
+          return this.getMCTSMove(gameState, aiSide, positionCounts);
         } else {
-          // Goat: Deep heuristic minimax (depth 4)
-          // MCTS with limited sims can't reliably learn the blocking/chain patterns
-          // that make goat defense strong. Direct position evaluation sees further.
+          // Goat: Deep heuristic minimax (depth 4) — better than MCTS for defense
           return this.getHardGoatMove(gameState);
         }
       default:
@@ -539,11 +538,27 @@ class BaghchalAI {
     return bestMove || moves[0];
   }
 
-  // === HARD MODE: MCTS for both Tiger and Goat ===
+  // === HARD MODE: MCTS for Tiger ===
   // Implements UCT formula from paper eq.(1): UCT = wi/ni + c*sqrt(ln(N)/ni)
-  // Both sides use MCTS — paper shows MCTS dominates heuristic every time
+  //
+  // positionCounts (optional): Map<positionKey, count> from the live game.
+  // Used to steer away from moves that would create threefold repetition.
 
-  getMCTSMove(gameState, aiSide) {
+  getMCTSMove(gameState, aiSide, positionCounts = null) {
+    // ── Hard rule 1: Tiger MUST capture when a capture is available ──────────
+    // Paper (Section III.2): "consuming goats is primarily advantageous for tigers."
+    // MCTS can sometimes skip captures for positional reasons; we forbid this.
+    if (aiSide === PIECE_TYPES.TIGER) {
+      const allMoves = this.getAllPossibleMoves(gameState, aiSide);
+      const captures = allMoves.filter(m => m.capture !== null);
+      if (captures.length === 1) return captures[0];
+      if (captures.length > 1) {
+        // Multiple captures: pick the one leaving the best board position
+        return this.selectBestByPosition(captures, gameState, aiSide);
+      }
+    }
+
+    // ── Run MCTS for non-capture moves ───────────────────────────────────────
     const rootNode = new MCTSNode(gameState, null, null);
     const startTime = Date.now();
 
@@ -558,14 +573,51 @@ class BaghchalAI {
       this.backpropagation(node, result);
     }
 
-    const bestMove = this.selectBestChild(rootNode);
+    // ── Select best child, with loop prevention ──────────────────────────────
+    const bestMove = this.selectBestChildAntiLoop(rootNode, gameState, positionCounts);
 
-    // Fallback to medium heuristic if MCTS returns nothing
+    // Fallback to heuristic if MCTS returns nothing
     if (!bestMove) {
       return this.getMediumHeuristicMove(gameState, aiSide);
     }
 
     return bestMove;
+  }
+
+  // Pick best child by visits, but skip moves that would create a 2nd-visit
+  // to any position (one more visit away from triggering threefold-draw).
+  selectBestChildAntiLoop(rootNode, gameState, positionCounts) {
+    if (rootNode.children.length === 0) return null;
+
+    // Sort children by visits descending
+    const ranked = rootNode.children
+      .filter(c => c.move !== null)
+      .sort((a, b) => b.visits - a.visits);
+
+    if (ranked.length === 0) return null;
+
+    // If no position history available, just return most-visited
+    if (!positionCounts || positionCounts.size === 0) {
+      return ranked[0].move;
+    }
+
+    // Try each candidate move in visit order; skip those heading into a position
+    // that has already been visited twice (one more = draw, which we should avoid
+    // when winning/fighting as tiger)
+    for (const child of ranked) {
+      if (!child.move) continue;
+      const nextState = this.applyMove(gameState, child.move);
+      // Build the key as the live game does: board + currentPlayer after the move
+      const keyAfterMove = nextState.board.join(',') + ':' + nextState.currentPlayer;
+      const currentCount = positionCounts.get(keyAfterMove) || 0;
+      if (currentCount < 2) {
+        return child.move; // Safe — won't cause draw
+      }
+      // This move heads toward a repeated position; try the next-best child
+    }
+
+    // All moves lead to repeated positions (very rare) — take the most-visited anyway
+    return ranked[0].move;
   }
 
   // MCTS Phase 1: Selection using UCT
