@@ -236,6 +236,7 @@ export function bootstrap({ firebase }) {
   // Game-area buttons that only the bootstrap can wire (they need exitToHome
   // and the move history controls together).
   on('exit-btn', 'click', exitToHome);
+  on('header-home-btn', 'click', exitToHome);
   on('prev-move-btn', 'click', prevMove);
   on('next-move-btn', 'click', nextMove);
   on('reset-game-btn', 'click', resetCurrentGame);
@@ -243,6 +244,7 @@ export function bootstrap({ firebase }) {
     if (window.confirm('Are you sure you want to resign this game?')) resignCurrentGame();
   });
   on('sandbox-clear-btn', 'click', clearSandboxBoard);
+  on('sandbox-exit-btn', 'click', exitToHome);
   on('sandbox-tool-tiger', 'click', () => setSandboxTool('tiger'));
   on('sandbox-tool-goat', 'click', () => setSandboxTool('goat'));
   on('sandbox-tool-erase', 'click', () => setSandboxTool('erase'));

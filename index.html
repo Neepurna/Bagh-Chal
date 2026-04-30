@@ -60,14 +60,14 @@
   <div class="container">
     <div id="app-shell">
     <header>
-      <div class="header-brand">
+      <button class="header-brand" id="header-home-btn" type="button" aria-label="Go to home page">
         <div class="brand-mark" aria-hidden="true">
           <img src="assets/Baghchal Logo-2.png" alt="" class="brand-mark-img">
         </div>
         <div class="brand-copy">
           <div class="header-title">Bagh Chal</div>
         </div>
-      </div>
+      </button>
       <nav class="header-nav" id="header-nav">
         <!-- Sign In Button (shown when not logged in) -->
         <button class="nav-btn primary" id="sign-in-btn" style="display: none;">
@@ -300,7 +300,10 @@
               <button class="sandbox-utility-btn" id="sandbox-tool-cancel" type="button">Move</button>
             </div>
             <p class="sandbox-help">Pick a piece from the tray, place it on any empty point, or select a board piece to move it anywhere.</p>
-            <button class="welcome-secondary-btn sandbox-clear-btn" id="sandbox-clear-btn" type="button">Clear Board</button>
+            <div class="sandbox-action-row">
+              <button class="welcome-secondary-btn sandbox-clear-btn" id="sandbox-clear-btn" type="button">Clear Board</button>
+              <button class="welcome-secondary-btn sandbox-exit-btn" id="sandbox-exit-btn" type="button">Exit to Home</button>
+            </div>
           </div>
         </div>
 

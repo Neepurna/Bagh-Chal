@@ -93,7 +93,11 @@ export function updateMoveNavigation() {
   const nextBtn = id('next-move-btn');
   const counter = id('move-counter');
 
-  if (!state.gameStarted || state.gameHistory.length === 0) {
+  const canShowMoveNav = state.gameStarted
+    && state.gameHistory.length > 0
+    && (state.gameMode === 'ai' || state.gameMode === 'multiplayer');
+
+  if (!canShowMoveNav) {
     container.classList.add('hidden');
     return;
   }
