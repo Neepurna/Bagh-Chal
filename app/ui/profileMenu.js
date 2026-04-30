@@ -69,7 +69,6 @@ export function updateUIForSignedInUser() {
   setDisplay('sign-in-btn', 'none');
   setDisplay('profile-menu', 'block');
   setDisplay('notif-bell', 'flex');
-  setDisplay('friends-nav-btn', 'flex');
 
   if (state.currentUser) {
     const profileImg = id('profile-img');
@@ -87,7 +86,6 @@ export function updateUIForSignedOutUser() {
   setDisplay('sign-in-btn', 'block');
   setDisplay('profile-menu', 'none');
   setDisplay('notif-bell', 'none');
-  setDisplay('friends-nav-btn', 'none');
   setHomeUXByAuthState();
 }
 

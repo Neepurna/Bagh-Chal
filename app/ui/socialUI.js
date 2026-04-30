@@ -102,7 +102,7 @@ function renderFriendsList(friends) {
         <div class="friend-sub">@${f.username}</div>
       </div>
       <div class="friend-actions">
-        <button class="fa-btn challenge" onclick="openChallengeFlow('${f.uid}','${f.username}')">⚔️ Custom Challenge</button>
+        <button class="fa-btn challenge" onclick="openChallengeFlow('${f.uid}','${f.username}')">⚔️ Challenge</button>
       </div>
     </div>`).join('');
 }
@@ -207,7 +207,6 @@ function updateNotifBadge(items) {
   const actionableCount = reqCount + challCount;
 
   setBadge('notif-badge', actionableCount);
-  setBadge('friend-req-badge', reqCount);
   setBadge('req-tab-badge', reqCount);
   setBadge('chall-tab-badge', challCount);
 }
@@ -343,11 +342,6 @@ export function initSocialUI() {
   on('notif-bell', 'click', () => { showOverlay('notif-overlay'); playSound('buttonClick'); });
   on('notif-close', 'click', () => hideOverlay('notif-overlay'));
 
-  on('friends-nav-btn', 'click', () => {
-    showOverlay('friends-overlay');
-    switchFriendsTab('friends');
-    playSound('buttonClick');
-  });
   on('friends-close', 'click', () => hideOverlay('friends-overlay'));
 
   ['friends', 'search', 'requests'].forEach((tab) => {

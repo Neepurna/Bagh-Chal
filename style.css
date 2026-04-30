@@ -3013,7 +3013,7 @@ footer {
 }
 .notif-bell:hover { border-color: var(--gold); background: var(--gold-dim); }
 
-.notif-badge, .friend-req-badge, .req-tab-badge {
+.notif-badge, .req-tab-badge {
   position: absolute;
   top: -6px; right: -6px;
   background: #e94560;
@@ -3029,24 +3029,7 @@ footer {
   padding: 0 4px;
   pointer-events: none;
 }
-.notif-badge.hidden, .friend-req-badge.hidden, .req-tab-badge.hidden { display: none; }
-
-.friends-nav-btn {
-  position: relative;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 7px 12px;
-  font-size: 0.85rem;
-  font-family: 'Cinzel', serif;
-  font-weight: 600;
-  cursor: pointer;
-  color: var(--text-primary);
-  transition: all 0.2s;
-  letter-spacing: 0.04em;
-}
-.friends-nav-btn:hover { border-color: var(--teal); color: var(--teal); }
-.friends-nav-btn .friend-req-badge { top: -6px; right: -6px; }
+.notif-badge.hidden, .req-tab-badge.hidden { display: none; }
 
 /* ===== FRIENDS OVERLAY CARD ===== */
 .friends-card, .notif-card {
@@ -3328,7 +3311,6 @@ header {
 }
 
 .nav-btn,
-.friends-nav-btn,
 .notif-bell,
 .profile-btn {
   min-height: 56px;
@@ -3357,7 +3339,6 @@ header {
 
 .nav-btn:hover,
 .nav-btn.primary:hover,
-.friends-nav-btn:hover,
 .notif-bell:hover,
 .profile-btn:hover {
   transform: translateY(-2px);
@@ -3382,11 +3363,6 @@ header {
   font-size: 1.15rem;
   line-height: 1;
   transform: translateY(-1px);
-}
-
-.friends-nav-btn {
-  padding: 12px 18px;
-  color: var(--text-primary);
 }
 
 .profile-btn {
@@ -3909,7 +3885,6 @@ footer {
   }
 
   .nav-btn,
-  .friends-nav-btn,
   .profile-btn {
     width: 100%;
   }
