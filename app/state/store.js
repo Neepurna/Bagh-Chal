@@ -64,6 +64,7 @@ export const state = {
   gameHistory: [],
   currentMoveIndex: -1,
   savedGameState: null,
+  historyNavigationVisible: false,
 
   // Position-repetition tracking
   // positionHistory: rolling log of recent hashes (used for display/debug)

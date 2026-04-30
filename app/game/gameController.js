@@ -533,7 +533,7 @@ export function resignCurrentGame() {
 function updateModePanels({ playing }) {
   const showStandardPanels = playing && state.gameMode !== 'sandbox';
   const showSandboxPanel = playing && state.gameMode === 'sandbox';
-  const showActionPanel = playing && state.gameMode !== 'sandbox';
+  const showActionPanel = false;
 
   id('gameStatePanel')?.classList.toggle('hidden', !showStandardPanels);
   id('tigerPanel')?.classList.toggle('hidden', !showStandardPanels);
@@ -546,7 +546,7 @@ function updateModePanels({ playing }) {
   const resignLabel = id('resign-game-btn');
   if (resignLabel) resignLabel.textContent = state.gameMode === 'multiplayer' ? 'Resign Match' : 'Resign';
 
-  toggleMoveNavigation(showStandardPanels);
+  toggleMoveNavigation(false);
 }
 
 function syncSandboxMeta() {

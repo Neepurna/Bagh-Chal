@@ -50,6 +50,8 @@ export function setHomeUXByAuthState() {
 
   const sidebarWelcome = id('welcome-screen');
   if (sidebarWelcome) sidebarWelcome.style.display = 'flex';
+  id('play-sidebar')?.classList.add('hidden');
+  id('game-layout')?.classList.remove('game-layout-playing');
 
   const loggedOutSidebar = id('logged-out-sidebar-welcome');
   if (loggedOutSidebar) loggedOutSidebar.hidden = Boolean(state.currentUser) || isGuestOnly;

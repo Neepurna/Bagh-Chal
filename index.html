@@ -109,19 +109,51 @@
       </nav>
     </header>
 
-    <div class="game-layout">
+    <div class="game-layout" id="game-layout">
+      <aside class="play-sidebar hidden" id="play-sidebar">
+        <div class="play-sidebar-card">
+          <div class="play-sidebar-header">
+            <div>
+              <div class="play-sidebar-kicker">Game Room</div>
+              <h2 class="play-sidebar-title" id="play-panel-title">Play BaghChal</h2>
+            </div>
+          </div>
+
+          <div class="play-player-stack">
+            <div class="play-player-card" id="play-opponent-card">
+              <div class="play-player-meta">
+                <span class="play-turn-indicator" id="play-opponent-indicator" aria-hidden="true"></span>
+                <div>
+                  <div class="play-player-name" id="play-opponent-name">Mr.Bot</div>
+                  <div class="play-player-sub" id="play-opponent-side-label">Opponent plays as Tiger</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="play-player-card" id="play-player-card">
+              <div class="play-player-meta">
+                <span class="play-turn-indicator" id="play-player-indicator" aria-hidden="true"></span>
+                <div>
+                  <div class="play-player-name" id="play-player-name">You</div>
+                  <div class="play-player-sub" id="play-side-label">You play as Goat</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="play-sidebar-note" id="bot-profile-copy">Easy bot is on the board.</div>
+
+          <div class="play-sidebar-actions">
+            <button class="play-control-btn" id="undo-game-btn" type="button" hidden>Undo</button>
+            <button class="play-control-btn play-control-btn-danger" id="resign-left-btn" type="button">Resign</button>
+            <button class="play-control-btn" id="restart-left-btn" type="button" hidden>Restart</button>
+          </div>
+        </div>
+      </aside>
+
       <main class="board-wrap">
         <div class="board-container">
-          <!-- Multiplayer username tags (hidden unless in MP mode) -->
-          <div class="mp-username-tag mp-opponent-tag hidden" id="mp-opponent-tag">
-            <span class="mp-tag-dot"></span>
-            <span class="mp-tag-name" id="mp-opponent-name">Opponent</span>
-          </div>
           <canvas id="game-canvas"></canvas>
-          <div class="mp-username-tag mp-player-tag hidden" id="mp-player-tag">
-            <span class="mp-tag-dot"></span>
-            <span class="mp-tag-name" id="mp-player-name">You</span>
-          </div>
         </div>
       </main>
 

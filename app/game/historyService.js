@@ -72,6 +72,32 @@ export function nextMove() {
   markDirty();
 }
 
+export function undoLastTurn() {
+  if (state.gameMode !== 'ai' || !state.gameStarted || state.gameHistory.length === 0) return false;
+
+  const playerToMove = state.playerSide;
+  let targetIndex = state.gameHistory.length - 1;
+
+  // If the AI has already replied, revert the full turn pair so the player is
+  // back on move. If the AI has not moved yet, revert only the player's move.
+  if (state.game.currentPlayer === playerToMove && state.gameHistory.length >= 2) {
+    targetIndex = state.gameHistory.length - 2;
+  }
+
+  const snap = state.gameHistory[targetIndex];
+  if (!snap) return false;
+
+  applySnapshot(snap, /* withSelection */ true);
+  state.gameHistory = state.gameHistory.slice(0, targetIndex);
+  state.currentMoveIndex = -1;
+  state.savedGameState = null;
+  state.positionHistory = [];
+  state.positionCounts = new Map();
+  updateMoveNavigation();
+  markDirty();
+  return true;
+}
+
 function applySnapshot(snap, withSelection = false) {
   const game = state.game;
   game.board = [...snap.board];
@@ -93,7 +119,8 @@ export function updateMoveNavigation() {
   const nextBtn = id('next-move-btn');
   const counter = id('move-counter');
 
-  const canShowMoveNav = state.gameStarted
+  const canShowMoveNav = state.historyNavigationVisible
+    && state.gameStarted
     && state.gameHistory.length > 0
     && (state.gameMode === 'ai' || state.gameMode === 'multiplayer');
 
@@ -112,6 +139,7 @@ export function updateMoveNavigation() {
 export function toggleMoveNavigation(show) {
   const container = id('move-nav-container');
   if (!container) return;
+  state.historyNavigationVisible = !!show;
   if (show) {
     updateMoveNavigation();
   } else {

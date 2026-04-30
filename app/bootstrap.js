@@ -35,7 +35,7 @@ import {
   checkWin
 } from './game/gameController.js';
 import { setOnTimeout } from './game/timerService.js';
-import { prevMove, nextMove } from './game/historyService.js';
+import { prevMove, nextMove, undoLastTurn } from './game/historyService.js';
 
 // Multiplayer
 import {
@@ -49,6 +49,7 @@ import {
 
 // AI
 import { configureAIController } from './ai/aiController.js';
+import { clearPendingAITimeouts } from './ai/aiController.js';
 
 // UI
 import { id, on, hideOverlay } from './ui/dom.js';
@@ -239,8 +240,16 @@ export function bootstrap({ firebase }) {
   on('header-home-btn', 'click', exitToHome);
   on('prev-move-btn', 'click', prevMove);
   on('next-move-btn', 'click', nextMove);
+  on('undo-game-btn', 'click', () => {
+    clearPendingAITimeouts();
+    if (undoLastTurn()) playSound('buttonClick');
+  });
   on('reset-game-btn', 'click', resetCurrentGame);
+  on('restart-left-btn', 'click', resetCurrentGame);
   on('resign-game-btn', 'click', () => {
+    if (window.confirm('Are you sure you want to resign this game?')) resignCurrentGame();
+  });
+  on('resign-left-btn', 'click', () => {
     if (window.confirm('Are you sure you want to resign this game?')) resignCurrentGame();
   });
   on('sandbox-clear-btn', 'click', clearSandboxBoard);

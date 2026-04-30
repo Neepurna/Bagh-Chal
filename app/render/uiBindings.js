@@ -37,6 +37,7 @@ export function updateUI() {
   setText('goatTag', `Placed: ${game.goatsPlaced} / 20`);
 
   updateMultiplayerTags(game);
+  updatePlaySidebar(game);
   updateSandboxUI(game);
 }
 
@@ -69,6 +70,44 @@ function updateMultiplayerTags(game) {
   }
 }
 
+function updatePlaySidebar(game) {
+  const playingStandardGame = state.gameStarted
+    && (state.gameMode === 'ai' || state.gameMode === 'multiplayer');
+
+  const playSidebar = id('play-sidebar');
+  if (playSidebar) playSidebar.classList.toggle('hidden', !playingStandardGame);
+
+  const gameLayout = id('game-layout');
+  if (gameLayout) gameLayout.classList.toggle('game-layout-playing', playingStandardGame);
+
+  if (!playingStandardGame) return;
+
+  const playerName = state.userStats?.username || state.currentUser?.displayName || 'You';
+  const opponentName = state.gameMode === 'ai' ? 'Mr.Bot' : (state.opponentUsername || 'Opponent');
+
+  setText('play-panel-title', state.gameMode === 'ai' ? 'Play BaghChal' : 'Friend Match');
+  setText('play-player-name', playerName);
+  setText('play-opponent-name', opponentName);
+  setText('play-side-label', state.playerSide === PIECE_TYPES.TIGER ? 'You play as Tiger' : 'You play as Goat');
+  setText('play-opponent-side-label', state.playerSide === PIECE_TYPES.TIGER ? 'Opponent plays as Goat' : 'Opponent plays as Tiger');
+  setText('bot-profile-copy', state.gameMode === 'ai'
+    ? (state.aiDifficulty === 'hard' ? 'Hard bot ready for a real fight.' : `${capitalize(state.aiDifficulty)} bot is on the board.`)
+    : 'Live game against your friend.');
+
+  const isPlayerTurn = game.currentPlayer === state.playerSide;
+  id('play-player-card')?.classList.toggle('active', isPlayerTurn);
+  id('play-opponent-card')?.classList.toggle('active', !isPlayerTurn);
+  id('play-player-indicator')?.classList.toggle('active', isPlayerTurn);
+  id('play-opponent-indicator')?.classList.toggle('active', !isPlayerTurn);
+
+  id('undo-game-btn')?.toggleAttribute('hidden', state.gameMode !== 'ai');
+  id('restart-left-btn')?.toggleAttribute('hidden', state.gameMode !== 'ai');
+  id('undo-game-btn')?.toggleAttribute(
+    'disabled',
+    !(state.gameMode === 'ai' && game.currentPlayer === state.playerSide && state.gameHistory.length > 0)
+  );
+}
+
 function updateSandboxUI(game) {
   const tigerReserve = 4 - countPieces(game.board, PIECE_TYPES.TIGER);
   const goatReserve = 20 - countPieces(game.board, PIECE_TYPES.GOAT);
@@ -99,6 +138,11 @@ function getSandboxToolLabel() {
 
 function countPieces(board, pieceType) {
   return board.reduce((count, piece) => count + (piece === pieceType ? 1 : 0), 0);
+}
+
+function capitalize(value) {
+  if (!value) return '';
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function setText(elementId, value) {

@@ -276,6 +276,150 @@ header {
   align-items: start;
 }
 
+.game-layout.game-layout-playing {
+  grid-template-columns: 290px minmax(0, 1fr) 360px;
+  align-items: stretch;
+}
+
+.play-sidebar {
+  display: flex;
+  flex-direction: column;
+}
+
+.play-sidebar-card {
+  background: linear-gradient(180deg, rgba(23, 42, 66, 0.96), rgba(18, 31, 49, 0.98));
+  border: 1px solid rgba(102, 170, 228, 0.2);
+  border-radius: 18px;
+  padding: 22px 20px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 18px 44px rgba(7, 14, 24, 0.28), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.play-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.play-sidebar-kicker {
+  font-family: 'Cinzel', serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(182, 210, 238, 0.62);
+  margin-bottom: 8px;
+}
+
+.play-sidebar-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1.5rem;
+  color: #edf5ff;
+  letter-spacing: 0.04em;
+}
+
+.play-player-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.play-player-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(160, 204, 241, 0.12);
+  border-radius: 14px;
+  padding: 16px 14px;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.play-player-card.active {
+  border-color: rgba(92, 233, 141, 0.42);
+  background: rgba(92, 233, 141, 0.08);
+  box-shadow: 0 0 0 1px rgba(92, 233, 141, 0.08) inset;
+}
+
+.play-player-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.play-turn-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(173, 197, 219, 0.32);
+  box-shadow: 0 0 0 6px rgba(173, 197, 219, 0.05);
+  flex-shrink: 0;
+}
+
+.play-turn-indicator.active {
+  background: #5ce98d;
+  box-shadow: 0 0 12px rgba(92, 233, 141, 0.9), 0 0 0 6px rgba(92, 233, 141, 0.12);
+}
+
+.play-player-name {
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  color: #f3f7fd;
+  letter-spacing: 0.04em;
+}
+
+.play-player-sub {
+  margin-top: 4px;
+  font-size: 0.84rem;
+  color: rgba(205, 221, 237, 0.72);
+}
+
+.play-sidebar-note {
+  margin-top: 2px;
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  color: rgba(233, 242, 252, 0.85);
+  line-height: 1.5;
+  font-size: 0.9rem;
+}
+
+.play-sidebar-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: auto;
+}
+
+.play-control-btn {
+  min-height: 54px;
+  border-radius: 14px;
+  border: 1px solid rgba(100, 172, 226, 0.28);
+  background: linear-gradient(180deg, rgba(59, 99, 137, 0.96), rgba(42, 76, 107, 0.98));
+  color: #edf4ff;
+  font-family: 'Cinzel', serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, filter 0.2s ease;
+}
+
+.play-control-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(126, 213, 255, 0.6);
+  filter: brightness(1.08);
+}
+
+.play-control-btn[hidden] {
+  display: none !important;
+}
+
+.play-control-btn-danger {
+  border-color: rgba(210, 96, 96, 0.3);
+  background: linear-gradient(180deg, rgba(137, 55, 55, 0.96), rgba(105, 39, 39, 0.98));
+}
+
 /* ── SIDEBAR PANELS ── */
 .sidebar {
   display: flex;
@@ -708,20 +852,38 @@ header {
 }
 
 .move-nav-container {
-  position: absolute;
-  bottom: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  z-index: 10;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: rgba(15, 21, 36, 0.74);
-  border: 1px solid rgba(197,158,75,0.16);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 14px 28px rgba(8, 12, 20, 0.28);
+  display: none !important;
+}
+
+@media (max-width: 1200px) {
+  .game-layout.game-layout-playing {
+    grid-template-columns: 250px minmax(0, 1fr) 320px;
+    gap: 22px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .game-layout.game-layout-playing {
+    grid-template-columns: 1fr;
+  }
+
+  .play-sidebar {
+    order: 1;
+  }
+
+  .board-wrap {
+    order: 2;
+  }
+
+  .sidebar {
+    order: 3;
+  }
+}
+
+@media (max-width: 720px) {
+  .play-sidebar-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 .move-nav-container.hidden {
