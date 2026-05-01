@@ -91,8 +91,8 @@ export function showWinnerOverlay(message, winner) {
     } else if (winner === 'goat') {
       winnerIcon.innerHTML = '<img src="assets/bhakhra.png" class="winner-logo-single">';
     } else {
-      // Draw: show both
-      winnerIcon.innerHTML = '<img src="assets/bagh.png" class="winner-logo" style="opacity:0.7;width:40px"> <img src="assets/bhakhra.png" class="winner-logo-single" style="opacity:0.7;width:40px">';
+      // Draw: no icons needed
+      winnerIcon.innerHTML = '';
     }
   }
   if (winnerKicker) winnerKicker.textContent = presentation.kicker;

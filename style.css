@@ -298,6 +298,13 @@ header {
   box-shadow: 0 18px 44px rgba(7, 14, 24, 0.28), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
+.play-sidebar-top {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1; /* Pushes actions to the bottom if min-height applies */
+}
+
 .play-sidebar-header {
   display: flex;
   justify-content: space-between;
@@ -862,9 +869,63 @@ header {
   }
 }
 
+.stats-panel-group {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
 @media (max-width: 1024px) {
   .game-layout.game-layout-playing {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .stats-panel-group {
+    flex-direction: row;
+    gap: 12px;
+    align-items: stretch;
+  }
+  
+  .stats-panel-group .panel {
+    flex: 1;
+    margin: 0;
+  }
+
+  .board-container {
+    border-radius: 14px 14px 0 0;
+    margin-bottom: -16px; /* offset the layout gap */
+  }
+
+  #gameStatePanel {
+    border-radius: 0 0 14px 14px;
+    margin-top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  #gameStatePanel .panel-header {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+    flex: 1;
+  }
+
+  #gameStatePanel .panel-body {
+    display: flex;
+    gap: 16px;
+    flex: 1.5;
+    justify-content: flex-end;
+    align-items: center;
+    margin: 0;
+  }
+
+  #gameStatePanel .stat-row {
+    flex-direction: column;
+    align-items: flex-end;
+    margin: 0;
   }
 
   .play-sidebar {
@@ -877,6 +938,36 @@ header {
 
   .sidebar {
     order: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Extract actions from sidebar visually using flex order hack */
+  .play-sidebar {
+    display: contents;
+  }
+  .play-sidebar-card {
+    display: contents; /* Break out inner components */
+  }
+  .play-sidebar-top {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    background: linear-gradient(180deg, rgba(23, 42, 66, 0.96), rgba(18, 31, 49, 0.98));
+    border: 1px solid rgba(102, 170, 228, 0.2);
+    border-radius: 18px;
+    padding: 20px;
+    order: 1;
+    box-shadow: 0 10px 30px rgba(7, 14, 24, 0.2);
+  }
+  .play-sidebar-actions {
+    order: 4; /* Pushes it to the bottom of the game-layout column */
+    background: linear-gradient(180deg, rgba(23, 42, 66, 0.96), rgba(18, 31, 49, 0.98));
+    border: 1px solid rgba(102, 170, 228, 0.2);
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 10px 30px rgba(7, 14, 24, 0.2);
   }
 }
 
@@ -3472,32 +3563,39 @@ footer {
 .notif-actions { display: flex; gap: 6px; margin-top: 8px; }
 
 /* Challenge side picker (inside challenge flow) */
+#challenge-sent-text {
+  word-break: break-word;
+  line-height: 1.25;
+  font-size: 1.35rem;
+  margin-bottom: 16px;
+  padding: 0 12px;
+}
+
 .challenge-side-picker {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   margin: 12px 0;
-  justify-content: center;
+  justify-content: stretch;
 }
 
 .challenge-time-picker {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin: 10px 0 2px;
-  justify-content: center;
 }
 
 .challenge-time-picker .csp-btn {
-  max-width: 70px;
-  min-width: 64px;
-  padding: 9px 8px;
-  font-size: 0.78rem;
+  max-width: none;
+  min-width: 0;
+  padding: 10px 4px;
+  font-size: 0.85rem;
 }
 
 .csp-btn {
   flex: 1;
-  max-width: 150px;
-  padding: 12px;
+  max-width: none;
+  padding: 12px 8px;
   border-radius: 8px;
   border: 2px solid var(--border);
   background: var(--bg-mid);

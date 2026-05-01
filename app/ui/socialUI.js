@@ -128,18 +128,20 @@ function openChallengeFlow(toUid, toUsername) {
         <button class="csp-btn" id="csp-goat" onclick="selectChallengeSide('goat')">🐐 Goat</button>
         <button class="csp-btn active" id="csp-random" onclick="selectChallengeSide('random')">🎲 Random</button>
       </div>
-      <div style="margin:8px 0 4px;font-size:0.85rem;color:var(--text-secondary);">Time control:</div>
+      <div style="margin:16px 0 4px;font-size:0.85rem;color:var(--text-secondary);">Time control:</div>
       <div class="challenge-time-picker">
         <button class="csp-btn" id="ctime-3m" onclick="selectChallengeTime('3m')">3m</button>
         <button class="csp-btn active" id="ctime-5m" onclick="selectChallengeTime('5m')">5m</button>
         <button class="csp-btn" id="ctime-10m" onclick="selectChallengeTime('10m')">10m</button>
         <button class="csp-btn" id="ctime-infinite" onclick="selectChallengeTime('infinite')">∞</button>
       </div>
-      <button class="room-btn create" style="margin-top:12px;max-width:100%;" onclick="sendChallenge()">Send Challenge ⚔️</button>
+      <button class="room-btn create" style="margin-top:20px;width:100%;" onclick="sendChallenge()">Send Challenge</button>
     `;
   }
   const spinner = overlay.querySelector('.waiting-spinner');
   if (spinner) spinner.style.display = 'none';
+  const topIcon = id('challenge-top-icon');
+  if (topIcon) topIcon.textContent = '⚔️';
   overlay.classList.add('show');
 }
 
@@ -170,9 +172,11 @@ async function sendChallenge() {
   if (!overlay) return;
   const text = id('challenge-sent-text');
   const sub = id('challenge-sent-sub');
-  if (text) text.textContent = '⚔️ Challenge sent!';
+  const topIcon = id('challenge-top-icon');
+  if (topIcon) topIcon.textContent = '⏳';
+  if (text) text.textContent = 'Challenge sent!';
   if (sub) {
-    sub.innerHTML = `<strong>${challengeTargetName}</strong> plays as ${result.opponentSide} — you play as ${result.challengerSide} · ${challengeTime}`;
+    sub.innerHTML = `<p class="waiting-text" style="line-height:1.4"><strong>${challengeTargetName}</strong> plays as ${result.opponentSide}<br>You play as ${result.challengerSide} · ${challengeTime}</p>`;
   }
   const spinner = overlay.querySelector('.waiting-spinner');
   if (spinner) spinner.style.display = '';

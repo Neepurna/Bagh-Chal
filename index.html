@@ -112,36 +112,38 @@
     <div class="game-layout" id="game-layout">
       <aside class="play-sidebar hidden" id="play-sidebar">
         <div class="play-sidebar-card">
-          <div class="play-sidebar-header">
-            <div>
-              <div class="play-sidebar-kicker">Game Room</div>
-              <h2 class="play-sidebar-title" id="play-panel-title">Play BaghChal</h2>
+          <div class="play-sidebar-top">
+            <div class="play-sidebar-header">
+              <div>
+                <div class="play-sidebar-kicker">Game Room</div>
+                <h2 class="play-sidebar-title" id="play-panel-title">Play BaghChal</h2>
+              </div>
             </div>
-          </div>
 
-          <div class="play-player-stack">
-            <div class="play-player-card" id="play-opponent-card">
-              <div class="play-player-meta">
-                <span class="play-turn-indicator" id="play-opponent-indicator" aria-hidden="true"></span>
-                <div>
-                  <div class="play-player-name" id="play-opponent-name">Mr.Bot</div>
-                  <div class="play-player-sub" id="play-opponent-side-label">Opponent plays as Tiger</div>
+            <div class="play-player-stack">
+              <div class="play-player-card" id="play-opponent-card">
+                <div class="play-player-meta">
+                  <span class="play-turn-indicator" id="play-opponent-indicator" aria-hidden="true"></span>
+                  <div>
+                    <div class="play-player-name" id="play-opponent-name">Mr.Bot</div>
+                    <div class="play-player-sub" id="play-opponent-side-label">Opponent plays as Tiger</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="play-player-card" id="play-player-card">
+                <div class="play-player-meta">
+                  <span class="play-turn-indicator" id="play-player-indicator" aria-hidden="true"></span>
+                  <div>
+                    <div class="play-player-name" id="play-player-name">You</div>
+                    <div class="play-player-sub" id="play-side-label">You play as Goat</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div class="play-player-card" id="play-player-card">
-              <div class="play-player-meta">
-                <span class="play-turn-indicator" id="play-player-indicator" aria-hidden="true"></span>
-                <div>
-                  <div class="play-player-name" id="play-player-name">You</div>
-                  <div class="play-player-sub" id="play-side-label">You play as Goat</div>
-                </div>
-              </div>
-            </div>
+            <div class="play-sidebar-note" id="bot-profile-copy">Easy bot is on the board.</div>
           </div>
-
-          <div class="play-sidebar-note" id="bot-profile-copy">Easy bot is on the board.</div>
 
           <div class="play-sidebar-actions">
             <button class="play-control-btn" id="undo-game-btn" type="button" hidden>Undo</button>
@@ -262,49 +264,55 @@
           </div>
         </div>
 
-        <!-- Tiger Panel -->
-        <div class="panel hidden" id="tigerPanel">
-          <div class="panel-header">
-            <div class="panel-icon red">🐯</div>
-            <div class="panel-label">Tiger</div>
-            <div class="panel-tag" id="tigerTag">Captures: 0 / 5</div>
+        <!-- Tiger and Goat Panel Group -->
+        <div class="stats-panel-group">
+          <!-- Tiger Panel -->
+          <div class="panel hidden" id="tigerPanel">
+            <div class="panel-header">
+              <div class="panel-icon red">🐯</div>
+              <div class="panel-label">Tiger</div>
+              <div class="panel-tag" id="tigerTag">Captures: 0 / 5</div>
+            </div>
+            <div class="panel-body">
+              <div class="stat-row">
+                <span class="stat-label">Candidates Captured</span>
+                <span class="stat-value" id="tiger-captures">0</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Needed to Win</span>
+                <span class="stat-value" style="color: var(--red);">5</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill red" id="captureProgress" style="width: 0%"></div>
+              </div>
+            </div>
           </div>
-          <div class="panel-body">
-            <div class="stat-row">
-              <span class="stat-label">Candidates Captured</span>
-              <span class="stat-value" id="tiger-captures">0</span>
+
+          <!-- Candidates Panel -->
+          <div class="panel hidden" id="goatPanel">
+            <div class="panel-header">
+              <div class="panel-icon gold">🐐</div>
+              <div class="panel-label">Goat</div>
+              <div class="panel-tag" id="goatTag">Placed: 0 / 20</div>
             </div>
-            <div class="stat-row">
-              <span class="stat-label">Needed to Win</span>
-              <span class="stat-value" style="color: var(--red);">5</span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill red" id="captureProgress" style="width: 0%"></div>
+            <div class="panel-body">
+              <div class="stat-row">
+                <span class="stat-label">Remaining</span>
+                <span class="stat-value" id="goats-remaining">20</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Tiger Trapped</span>
+                <span class="stat-value" id="tigers-trapped">0 / 4</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill gold" id="placedProgress" style="width: 0%"></div>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Candidates Panel -->
-        <div class="panel hidden" id="goatPanel">
-          <div class="panel-header">
-            <div class="panel-icon gold">🐐</div>
-            <div class="panel-label">Goat</div>
-            <div class="panel-tag" id="goatTag">Placed: 0 / 20</div>
-          </div>
-          <div class="panel-body">
-            <div class="stat-row">
-              <span class="stat-label">Remaining</span>
-              <span class="stat-value" id="goats-remaining">20</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">Tiger Trapped</span>
-              <span class="stat-value" id="tigers-trapped">0 / 4</span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill gold" id="placedProgress" style="width: 0%"></div>
-            </div>
-          </div>
-        </div>
+        <!-- External actions hook for Mobile -->
+        <div class="mobile-play-actions hidden" id="mobile-play-actions"></div>
 
         <div class="panel hidden" id="sandbox-panel">
           <div class="panel-header">
@@ -538,14 +546,16 @@
           </div>
         </div>
 
-        <!-- ===== CHALLENGE SENT OVERLAY ===== -->
+        <!-- ===== CHALLENGE FLOW OVERLAY ===== -->
         <div class="winner-overlay" id="challenge-sent-overlay">
           <div class="winner-card" style="max-width:360px;">
-            <div style="font-size:3rem;margin-bottom:12px;">⚔️</div>
-            <h2 class="select-title" id="challenge-sent-text">Challenge sent!</h2>
-            <p class="waiting-text" id="challenge-sent-sub">Waiting for opponent to accept…</p>
+            <div style="font-size:3rem;margin-bottom:12px;line-height:1;" id="challenge-top-icon">⚔️</div>
+            <h2 class="select-title" style="text-transform:uppercase;" id="challenge-sent-text">Challenge sent!</h2>
+            <div id="challenge-sent-sub" style="margin-bottom: 20px;">
+              <p class="waiting-text">Waiting for opponent to accept…</p>
+            </div>
             <div class="waiting-spinner" style="margin:16px auto;"></div>
-            <button class="cancel-room-btn" id="cancel-challenge-btn">Cancel Challenge</button>
+            <button class="cancel-room-btn" id="cancel-challenge-btn">Cancel</button>
           </div>
         </div>
         
