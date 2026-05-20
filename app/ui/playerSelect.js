@@ -55,9 +55,7 @@ export function openPlayerSelectOverlay(view = 'ai') {
 export function initPlayerSelectUI() {
   // Side selection buttons
   on('select-goat', 'click', () => onSideClick(PIECE_TYPES.GOAT));
-  on('select-goat', 'mouseenter', () => playSound('hover'));
   on('select-tiger', 'click', () => onSideClick(PIECE_TYPES.TIGER));
-  on('select-tiger', 'mouseenter', () => playSound('hover'));
 
   // Mode tabs
   on('mode-tab-ai', 'click', () => { configurePlayerSelectOverlay('ai'); playSound('buttonClick'); });
@@ -74,7 +72,6 @@ export function initPlayerSelectUI() {
       state.aiDifficulty = btn.dataset.difficulty;
       playSound('buttonClick');
     });
-    btn.addEventListener('mouseenter', () => playSound('hover'));
   });
 
   // Time-control buttons
@@ -85,7 +82,6 @@ export function initPlayerSelectUI() {
       state.aiTimeControl = btn.dataset.timeControl;
       playSound('buttonClick');
     });
-    btn.addEventListener('mouseenter', () => playSound('hover'));
   });
 }
 

@@ -30,7 +30,6 @@ export function configureLandingAndOverlays({
 export function initLandingAndOverlays() {
   // Welcome / lobby start buttons
   on('welcome-start-btn', 'click', () => { openPlayerSelect('ai'); playSound('buttonClick'); });
-  on('welcome-start-btn', 'mouseenter', () => playSound('hover'));
 
   on('logged-out-start-btn', 'click', () => { openPlayerSelect('ai'); playSound('buttonClick'); });
   on('logged-out-tutorial-btn', 'click', () => { showOverlay('tutorial-overlay'); playSound('buttonClick'); });
@@ -55,9 +54,7 @@ export function initLandingAndOverlays() {
 
   on('guest-mode-close', 'click', () => hideOverlay('guest-mode-overlay'));
   on('guest-select-goat', 'click', () => setGuestSide(PIECE_TYPES.GOAT));
-  on('guest-select-goat', 'mouseenter', () => playSound('hover'));
   on('guest-select-tiger', 'click', () => setGuestSide(PIECE_TYPES.TIGER));
-  on('guest-select-tiger', 'mouseenter', () => playSound('hover'));
   on('guest-start-confirm', 'click', () => {
     if (!pendingGuestSide) return;
     state.playerSide = pendingGuestSide;
@@ -78,17 +75,14 @@ export function initLandingAndOverlays() {
   on('coach-coming-soon-close', 'click', () => hideOverlay('coach-coming-soon-overlay'));
 
   on('tutorial-btn', 'click', () => { startSandboxSession(); playSound('buttonClick'); });
-  on('tutorial-btn', 'mouseenter', () => playSound('hover'));
 
   on('footer-tutorial', 'click', () => { showOverlay('tutorial-overlay'); playSound('buttonClick'); });
-  on('footer-tutorial', 'mouseenter', () => playSound('hover'));
 
   on('footer-settings', 'click', () => showOverlay('settings-overlay'));
 
   // About buttons (multiple instances — header and footer)
   qsa('#about-btn, #footer-about').forEach((btn) => {
     btn.addEventListener('click', () => { showOverlay('about-overlay'); playSound('buttonClick'); });
-    btn.addEventListener('mouseenter', () => playSound('hover'));
   });
 
   // Lobby (chess.com style menu)
@@ -100,10 +94,8 @@ export function initLandingAndOverlays() {
     showOverlay('friends-overlay');
     playSound('buttonClick');
   });
-  on('lobby-friend-btn', 'mouseenter', () => playSound('hover'));
 
   on('lobby-tournament-btn', 'click', () => { openPlayerSelect('tournament'); playSound('buttonClick'); });
-  on('lobby-tournament-btn', 'mouseenter', () => playSound('hover'));
 
   // Sign-up overlay close
   on('signup-close', 'click', () => hideOverlay('signup-overlay'));
