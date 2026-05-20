@@ -102,7 +102,7 @@ function renderFriendsList(friends) {
         <div class="friend-sub">@${f.username}</div>
       </div>
       <div class="friend-actions">
-        <button class="fa-btn challenge" onclick="openChallengeFlow('${f.uid}','${f.username}')">⚔️ Challenge</button>
+        <button class="fa-btn challenge" onclick="openChallengeFlow('${f.uid}','${f.username}')">Challenge</button>
       </div>
     </div>`).join('');
 }
@@ -122,13 +122,13 @@ function openChallengeFlow(toUid, toUsername) {
   const subEl = id('challenge-sent-sub');
   if (subEl) {
     subEl.innerHTML = `
-      <div style="margin:10px 0 4px;font-size:0.85rem;color:var(--text-secondary);">Choose side:</div>
+      <div class="challenge-label">Choose side:</div>
       <div class="challenge-side-picker">
         <button class="csp-btn" id="csp-tiger" onclick="selectChallengeSide('tiger')">🐯 Tiger</button>
         <button class="csp-btn" id="csp-goat" onclick="selectChallengeSide('goat')">🐐 Goat</button>
         <button class="csp-btn active" id="csp-random" onclick="selectChallengeSide('random')">🎲 Random</button>
       </div>
-      <div style="margin:16px 0 4px;font-size:0.85rem;color:var(--text-secondary);">Time control:</div>
+      <div class="challenge-label">Time control:</div>
       <div class="challenge-time-picker">
         <button class="csp-btn" id="ctime-3m" onclick="selectChallengeTime('3m')">3m</button>
         <button class="csp-btn active" id="ctime-5m" onclick="selectChallengeTime('5m')">5m</button>
@@ -141,7 +141,7 @@ function openChallengeFlow(toUid, toUsername) {
   const spinner = overlay.querySelector('.waiting-spinner');
   if (spinner) spinner.style.display = 'none';
   const topIcon = id('challenge-top-icon');
-  if (topIcon) topIcon.textContent = '⚔️';
+  if (topIcon) topIcon.textContent = '';
   overlay.classList.add('show');
 }
 

@@ -4,7 +4,7 @@ const soundUrls = {
   tigerCapture: '/assets/sound/capture.wav',
   winning:      '/assets/sound/Victoriy.wav',
   losing:       '/assets/sound/Defeat.wav',
-  buttonClick:  '/assets/sound/click.wav'
+  buttonClick:  '/assets/sound/click.mp3'
 };
 
 const soundCache = {};
