@@ -78,7 +78,7 @@ body::before {
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 20px 48px;
+  padding: 8px 20px 48px;
 }
 
 /* ── Typography helpers ───────────────────────────────────────────── */
@@ -338,7 +338,8 @@ header {
 
 @media (min-width: 900px) {
   .game-layout {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+    gap: 28px;
   }
   .game-layout .board-wrap {
     order: 1;
@@ -369,6 +370,11 @@ header {
   width: 100%;
   max-width: 560px;
   margin: 0 auto;
+  background: var(--paper);
+  border: var(--border-thick);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  padding: 18px;
 }
 
 #game-canvas {
@@ -377,9 +383,9 @@ header {
   height: auto;
   max-width: 560px;
   margin: 0 auto;
-  border: var(--border-thick);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
+  border: var(--border);
+  border-radius: calc(var(--radius-xl) - 6px);
+  box-shadow: var(--shadow);
   background: #F5F0E4;
   cursor: pointer;
 }
@@ -660,7 +666,7 @@ header {
   border: var(--border-thick);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
-  padding: 28px 24px;
+  padding: 24px 22px;
 }
 
 #logged-out-sidebar-welcome h2 {
@@ -762,54 +768,57 @@ header {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: var(--border);
 }
 
 .lobby-panel-icon { font-size: 1.6rem; }
 
 .lobby-panel-title {
   font-family: var(--font-display);
-  font-size: 1.8rem;
-  letter-spacing: 0.06em;
+  font-size: 1.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--black);
 }
 
 .lobby-menu {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .lobby-menu-item {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: var(--cream);
-  border: var(--border);
-  border-radius: var(--radius-lg);
-  padding: 12px 14px;
+  background: var(--paper);
+  border: var(--border-thick);
+  border-radius: var(--radius-xl);
+  padding: 12px 16px;
   cursor: pointer;
   transition: all var(--transition);
   text-align: left;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow);
   width: 100%;
 }
 
 .lobby-menu-item:hover {
   background: var(--yellow);
-  box-shadow: 1px 1px 0 var(--black);
-  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--black);
+  transform: translate(1px, 1px);
 }
 
 .lobby-menu-icon {
   width: 40px;
   height: 40px;
   border-radius: var(--radius);
-  border: var(--border);
+  border: var(--border-thick);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   flex-shrink: 0;
   background: var(--white);
 }
@@ -828,12 +837,12 @@ header {
 
 .lobby-menu-title {
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   color: var(--black);
 }
 
 .lobby-menu-sub {
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   color: #666;
 }
 
@@ -2587,7 +2596,6 @@ footer {
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: 0;
 }
 
 /* ══════════════════════════════════════════════════════════════════
