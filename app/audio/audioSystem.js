@@ -1,10 +1,11 @@
 const soundUrls = {
-  newGame: '/music/newgamestart.mp3',
-  pieceMove: '/music/Piece-Move.mp3',
-  tigerCapture: '/music/tiger-points.mp3',
-  winning: '/music/winning-sound.mp3',
-  hover: '/music/hover.mp3',
-  buttonClick: '/music/click.mp3'
+  newGame:      '/assets/sound/confirmation_001.mp3',
+  pieceMove:    '/assets/sound/Piece-Move.mp3',
+  tigerCapture: '/assets/sound/capture.wav',
+  winning:      '/assets/sound/Victoriy.wav',
+  losing:       '/assets/sound/Defeat.wav',
+  hover:        '/assets/sound/hover.wav',
+  buttonClick:  '/assets/sound/click.wav'
 };
 
 const soundCache = {};

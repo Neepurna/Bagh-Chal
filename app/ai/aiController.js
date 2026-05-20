@@ -96,8 +96,6 @@ function getAIThinkingTime() {
   return Math.random() * 500;
 }
 
-function showAIThinking() { document.getElementById('ai-thinking')?.classList.add('show'); }
-function hideAIThinking() { document.getElementById('ai-thinking')?.classList.remove('show'); }
 
 export function clearPendingAITimeouts() {
   if (state.pendingAITurnTimeout) {
@@ -119,7 +117,6 @@ function aiMove() {
   const aiSide = state.playerSide === PIECE_TYPES.GOAT ? PIECE_TYPES.TIGER : PIECE_TYPES.GOAT;
   if (game.currentPlayer !== aiSide || game.gameOver || !state.gameStarted) return;
 
-  showAIThinking();
   const delay = getAIThinkingTime();
   state.pendingAITurnTimeout = setTimeout(async () => {
     state.pendingAITurnTimeout = null;
@@ -133,7 +130,6 @@ function aiMove() {
         executeEasyAIMove(aiSide);
       }
     } finally {
-      hideAIThinking();
     }
   }, delay);
 }

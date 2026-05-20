@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-  <meta name="theme-color" content="#0a0d16">
+  <meta name="theme-color" content="#F2EDE0">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Bagh Chal — An ancient nepali board game</title>
-  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Cinzel:wght@400;600;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
   
   <!-- Firebase SDK -->
@@ -25,7 +25,7 @@
     <div class="landing-overlay"></div>
     <div class="landing-hero">
       <div class="landing-mark">
-        <img src="assets/Baghchal Logo-2.png" alt="Baghchal emblem" class="landing-mark-img">
+        <img src="assets/Logo.png" alt="Baghchal emblem" class="landing-mark-img">
       </div>
       <div class="landing-title-block">
         <h1 class="landing-title">BAGHCHAL</h1>
@@ -62,7 +62,7 @@
     <header>
       <button class="header-brand" id="header-home-btn" type="button" aria-label="Go to home page">
         <div class="brand-mark" aria-hidden="true">
-          <img src="assets/Baghchal Logo-2.png" alt="" class="brand-mark-img">
+          <img src="assets/Logo.png" alt="" class="brand-mark-img">
         </div>
         <div class="brand-copy">
           <div class="header-title">Bagh Chal</div>
@@ -325,12 +325,12 @@
           <div class="panel-body sandbox-panel-body">
             <div class="sandbox-tool-grid">
               <button class="sandbox-tool-btn" id="sandbox-tool-tiger" type="button">
-                <img src="assets/bagh.png" alt="Tiger" class="sandbox-tool-icon">
+                <img src="assets/Tiger.png" alt="Tiger" class="sandbox-tool-icon">
                 <span class="sandbox-tool-name">Tiger</span>
                 <span class="sandbox-tool-count" id="sandbox-tigers-remaining">4</span>
               </button>
               <button class="sandbox-tool-btn" id="sandbox-tool-goat" type="button">
-                <img src="assets/bhakhra.png" alt="Goat" class="sandbox-tool-icon">
+                <img src="assets/Goat.png" alt="Goat" class="sandbox-tool-icon">
                 <span class="sandbox-tool-name">Goat</span>
                 <span class="sandbox-tool-count" id="sandbox-goats-remaining">20</span>
               </button>
@@ -407,11 +407,11 @@
 
               <div class="player-selection">
                 <div class="selection-card" id="select-goat">
-                  <img src="assets/bhakhra.png" alt="Goat" class="selection-logo">
+                  <img src="assets/Goat.png" alt="Goat" class="selection-logo">
                   <h3>GOAT</h3>
                 </div>
                 <div class="selection-card" id="select-tiger">
-                  <img src="assets/bagh.png" alt="Tiger" class="selection-logo">
+                  <img src="assets/Tiger.png" alt="Tiger" class="selection-logo">
                   <h3>TIGER</h3>
                 </div>
               </div>
@@ -486,14 +486,6 @@
               </svg>
               Sign in with Google
             </button>
-          </div>
-        </div>
-        
-        <!-- AI Thinking Overlay -->
-        <div class="ai-thinking" id="ai-thinking">
-          <div class="thinking-content">
-            <div class="thinking-spinner"></div>
-            <p>AI is thinking...</p>
           </div>
         </div>
 
@@ -1007,11 +999,11 @@
       <p class="guest-mode-copy">Jump into a local match with the current BaghChal board experience. No account, no extra pages.</p>
       <div class="player-selection guest-mode-selection">
         <div class="selection-card" id="guest-select-goat">
-          <img src="assets/bhakhra.png" alt="Goat" class="selection-logo">
+          <img src="assets/Goat.png" alt="Goat" class="selection-logo">
           <h3>GOAT</h3>
         </div>
         <div class="selection-card" id="guest-select-tiger">
-          <img src="assets/bagh.png" alt="Tiger" class="selection-logo">
+          <img src="assets/Tiger.png" alt="Tiger" class="selection-logo">
           <h3>TIGER</h3>
         </div>
       </div>
@@ -1029,7 +1021,7 @@
        and prevents the flash of the app-shell for logged-out users.
        Removed by JS after onAuthStateChanged fires the first time. -->
   <div id="auth-loading-screen" class="auth-loading-screen">
-    <img src="assets/Baghchal Logo-2.png" alt="Loading Bagh Chal…" class="auth-loading-logo">
+    <img src="assets/Logo.png" alt="Loading Bagh Chal…" class="auth-loading-logo">
     <div class="auth-loading-dots">
       <span></span><span></span><span></span>
     </div>

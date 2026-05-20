@@ -34,10 +34,8 @@ export function initBoardRenderer() {
   // Lazy-load images. Each image triggers a redraw when it loads so the board
   // appears as soon as it's ready (no need to gate the first draw on imagesLoaded).
   const sources = {
-    tigerPiece: 'assets/bagh.png',
-    goatPiece: 'assets/bhakhra.png',
-    backdrop: 'assets/Backdrop.png',
-    board: 'assets/baghchal.png'
+    tigerPiece: 'assets/Tiger.png',
+    goatPiece:  'assets/Goat.png'
   };
   for (const [key, src] of Object.entries(sources)) {
     const img = new Image();
@@ -120,30 +118,29 @@ function drawOctagonPath(x, y, radius) {
 function drawBoard() {
   const game = state.game;
   const size = Math.min(canvas.width, canvas.height);
-
-  // Backdrop
-  const boardGradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-  boardGradient.addColorStop(0, '#7694b0');
-  boardGradient.addColorStop(0.5, '#5f7892');
-  boardGradient.addColorStop(1, '#4d657d');
-  ctx.fillStyle = boardGradient;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  const boardGlow = ctx.createRadialGradient(
-    canvas.width * 0.48, canvas.height * 0.42, 0,
-    canvas.width * 0.48, canvas.height * 0.42, canvas.width * 0.52
-  );
-  boardGlow.addColorStop(0, 'rgba(255, 255, 255, 0.16)');
-  boardGlow.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.fillStyle = boardGlow;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
   const padding = size * 0.1;
   const cellSize = (size - 2 * padding) / (GRID_SIZE - 1);
 
-  // Grid lines
-  ctx.strokeStyle = 'rgba(247, 251, 255, 0.86)';
-  ctx.lineWidth = 2.6;
+  // ── Background — warm cream ──────────────────────────────────────
+  ctx.fillStyle = '#F5F0E4';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Subtle dot-grid texture
+  ctx.fillStyle = 'rgba(17,17,17,0.06)';
+  const dotSpacing = cellSize * 0.5;
+  for (let dx = dotSpacing; dx < canvas.width; dx += dotSpacing) {
+    for (let dy = dotSpacing; dy < canvas.height; dy += dotSpacing) {
+      ctx.beginPath();
+      ctx.arc(dx, dy, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ── Grid lines — bold black ──────────────────────────────────────
+  ctx.strokeStyle = '#111111';
+  ctx.lineWidth = Math.max(2, size * 0.004);
+  ctx.lineCap = 'round';
+
   for (let i = 0; i < GRID_SIZE; i++) {
     ctx.beginPath();
     ctx.moveTo(padding, padding + i * cellSize);
@@ -155,7 +152,8 @@ function drawBoard() {
     ctx.stroke();
   }
 
-  // Diagonals
+  // ── Diagonals ────────────────────────────────────────────────────
+  ctx.lineWidth = Math.max(1.5, size * 0.003);
   const diag = (x1, y1, x2, y2) => {
     ctx.beginPath();
     ctx.moveTo(padding + x1 * cellSize, padding + y1 * cellSize);
@@ -169,20 +167,42 @@ function drawBoard() {
   diag(2, 4, 0, 2);
   diag(0, 2, 2, 0);
 
-  // Valid-move indicators
+  // ── Intersection dots ────────────────────────────────────────────
+  const dotR = Math.max(3, size * 0.007);
+  for (let i = 0; i < 25; i++) {
+    if (game.board[i] !== PIECE_TYPES.EMPTY) continue;
+    const { row, col } = BOARD_POSITIONS[i];
+    const x = padding + col * cellSize;
+    const y = padding + row * cellSize;
+    ctx.fillStyle = '#111111';
+    ctx.beginPath();
+    ctx.arc(x, y, dotR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ── Valid-move indicators — yellow circles ───────────────────────
   if (game.validMoves.length > 0) {
-    ctx.fillStyle = 'rgba(99, 204, 255, 0.28)';
     for (const move of game.validMoves) {
       const { row, col } = BOARD_POSITIONS[move.to];
       const x = padding + col * cellSize;
       const y = padding + row * cellSize;
+      const r = cellSize * 0.22;
+      // Shadow offset (neubrutalist)
+      ctx.fillStyle = '#111111';
       ctx.beginPath();
-      ctx.arc(x, y, cellSize * 0.2, 0, Math.PI * 2);
+      ctx.arc(x + 3, y + 3, r, 0, Math.PI * 2);
       ctx.fill();
+      ctx.fillStyle = '#FFD60A';
+      ctx.strokeStyle = '#111111';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
     }
   }
 
-  // Pieces
+  // ── Pieces ───────────────────────────────────────────────────────
   for (let i = 0; i < 25; i++) {
     const piece = game.board[i];
     if (piece === PIECE_TYPES.EMPTY) continue;
@@ -198,89 +218,80 @@ function drawTiger(x, y, cellSize, index) {
   const game = state.game;
   const isSelected = game.selectedPiece === index;
   const isCurrentTurn = game.currentPlayer === PIECE_TYPES.TIGER;
-  const chipRadius = cellSize * 0.4;
+  const r = cellSize * 0.38;
+  const shadowOffset = Math.max(3, r * 0.18);
+  const border = Math.max(2.5, r * 0.1);
 
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-  ctx.shadowBlur = 10;
-  ctx.shadowOffsetX = 2;
-  ctx.shadowOffsetY = 4;
+  // Neubrutalist offset shadow
   ctx.fillStyle = '#111111';
-  drawOctagonPath(x, y, chipRadius);
+  ctx.beginPath();
+  ctx.arc(x + shadowOffset, y + shadowOffset, r, 0, Math.PI * 2);
   ctx.fill();
-  resetShadow();
 
+  // Tiger chip background — red
+  ctx.fillStyle = isSelected ? '#FFD60A' : '#E8251B';
+  ctx.strokeStyle = '#111111';
+  ctx.lineWidth = border;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Tiger image
   const tigerImg = images.tigerPiece;
-  const innerR = chipRadius * 0.82;
-  if (tigerImg && tigerImg.complete) {
+  const innerR = r * 0.78;
+  if (tigerImg && tigerImg.complete && tigerImg.naturalWidth > 0) {
     ctx.save();
-    drawOctagonPath(x, y, innerR);
+    ctx.beginPath();
+    ctx.arc(x, y, innerR, 0, Math.PI * 2);
     ctx.clip();
     ctx.drawImage(tigerImg, x - innerR, y - innerR, innerR * 2, innerR * 2);
     ctx.restore();
   }
 
-  if (isSelected) {
-    ctx.shadowColor = '#e9f3ff'; ctx.shadowBlur = 20;
-    ctx.strokeStyle = '#f4f8ff'; ctx.lineWidth = 4;
-  } else if (isCurrentTurn) {
-    ctx.shadowColor = '#6fd4ff'; ctx.shadowBlur = 14;
-    ctx.strokeStyle = '#6fd4ff'; ctx.lineWidth = 4;
-  } else {
-    ctx.strokeStyle = 'rgba(255,255,255,0.86)';
-    ctx.lineWidth = 2;
+  // Active-turn ring — yellow
+  if (isCurrentTurn && !isSelected) {
+    ctx.strokeStyle = '#FFD60A';
+    ctx.lineWidth = Math.max(2, r * 0.12);
+    ctx.beginPath();
+    ctx.arc(x, y, r + border, 0, Math.PI * 2);
+    ctx.stroke();
   }
-  drawOctagonPath(x, y, chipRadius);
-  ctx.stroke();
-  resetShadow();
-
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
-  ctx.beginPath();
-  ctx.arc(x - chipRadius * 0.28, y - chipRadius * 0.32, chipRadius * 0.42, 0, Math.PI * 2);
-  ctx.fill();
 }
 
 function drawGoat(x, y, cellSize, index) {
   const game = state.game;
   const isSelected = game.selectedPiece === index;
-  const chipRadius = cellSize * 0.4;
+  const r = cellSize * 0.38;
+  const shadowOffset = Math.max(3, r * 0.18);
+  const border = Math.max(2.5, r * 0.1);
 
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetX = 2;
-  ctx.shadowOffsetY = 4;
-  ctx.fillStyle = '#ffffff';
+  // Neubrutalist offset shadow
+  ctx.fillStyle = '#111111';
   ctx.beginPath();
-  ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
+  ctx.arc(x + shadowOffset, y + shadowOffset, r, 0, Math.PI * 2);
   ctx.fill();
-  resetShadow();
 
+  // Goat chip background — cream/white
+  ctx.fillStyle = isSelected ? '#FFD60A' : '#F5F0E4';
+  ctx.strokeStyle = '#111111';
+  ctx.lineWidth = border;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Goat image
   const goatImg = images.goatPiece;
-  const goatInnerR = chipRadius * 0.82;
-  if (goatImg && goatImg.complete) {
+  const innerR = r * 0.78;
+  if (goatImg && goatImg.complete && goatImg.naturalWidth > 0) {
     ctx.save();
     ctx.beginPath();
-    ctx.arc(x, y, goatInnerR, 0, Math.PI * 2);
+    ctx.arc(x, y, innerR, 0, Math.PI * 2);
     ctx.clip();
-    ctx.drawImage(goatImg, x - goatInnerR, y - goatInnerR, goatInnerR * 2, goatInnerR * 2);
+    ctx.drawImage(goatImg, x - innerR, y - innerR, innerR * 2, innerR * 2);
     ctx.restore();
   }
-
-  if (isSelected) {
-    ctx.shadowColor = '#5bc9ff'; ctx.shadowBlur = 14;
-    ctx.strokeStyle = '#5bc9ff'; ctx.lineWidth = 4;
-  } else {
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-    ctx.lineWidth = 2;
-  }
-  ctx.beginPath();
-  ctx.arc(x, y, chipRadius, 0, Math.PI * 2);
-  ctx.stroke();
-  resetShadow();
-
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
-  ctx.beginPath();
-  ctx.arc(x - chipRadius * 0.28, y - chipRadius * 0.32, chipRadius * 0.42, 0, Math.PI * 2);
-  ctx.fill();
 }
 
 function resetShadow() {

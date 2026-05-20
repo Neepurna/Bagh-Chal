@@ -87,9 +87,9 @@ export function showWinnerOverlay(message, winner) {
   overlay.dataset.winner = winner;
   if (winnerIcon) {
     if (winner === 'tiger') {
-      winnerIcon.innerHTML = '<img src="assets/bagh.png" class="winner-logo">';
+      winnerIcon.innerHTML = '<img src="assets/Tiger.png" class="winner-logo">';
     } else if (winner === 'goat') {
-      winnerIcon.innerHTML = '<img src="assets/bhakhra.png" class="winner-logo-single">';
+      winnerIcon.innerHTML = '<img src="assets/Goat.png" class="winner-logo-single">';
     } else {
       // Draw: no icons needed
       winnerIcon.innerHTML = '';
