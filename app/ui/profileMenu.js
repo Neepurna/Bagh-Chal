@@ -34,11 +34,15 @@ export function updateStatsDisplay() {
   const goatWins = id('stats-goat-wins');
   const rating = id('stats-rating');
   const adventure = id('stats-adventure');
+  const ratedWins = id('stats-rated-wins');
+  const ratedLosses = id('stats-rated-losses');
   if (games) games.textContent = u.gamesPlayed ?? 0;
   if (tigerWins) tigerWins.textContent = u.tigerWins ?? 0;
   if (goatWins) goatWins.textContent = u.goatWins ?? 0;
   if (rating) rating.textContent = u.rating ?? 500;
   if (adventure) adventure.textContent = `${u.adventureCompleted ?? 0} / 6`;
+  if (ratedWins) ratedWins.textContent = u.ratedWins ?? 0;
+  if (ratedLosses) ratedLosses.textContent = u.ratedLosses ?? 0;
 }
 
 export function setHomeUXByAuthState() {

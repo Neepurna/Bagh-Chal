@@ -49,7 +49,7 @@ export function initLandingAndOverlays() {
     playSound('buttonClick');
   });
   on('landing-about-btn', 'click', () => { showOverlay('about-overlay'); playSound('buttonClick'); });
-  on('landing-history-btn', 'click', () => { showOverlay('about-overlay'); playSound('buttonClick'); });
+  on('landing-history-btn', 'click', () => { showOverlay('history-overlay'); playSound('buttonClick'); });
   on('landing-terms-btn', 'click', () => { showOverlay('terms-overlay'); playSound('buttonClick'); });
 
   // Game-area button: play again / exit
@@ -74,18 +74,24 @@ export function initLandingAndOverlays() {
 
   on('about-close', 'click', () => hideOverlay('about-overlay'));
   on('about-start', 'click', () => { hideOverlay('about-overlay'); openPlayerSelect('ai'); });
+  on('history-close', 'click', () => hideOverlay('history-overlay'));
   on('terms-close', 'click', () => hideOverlay('terms-overlay'));
 
   on('coach-coming-soon-close', 'click', () => hideOverlay('coach-coming-soon-overlay'));
 
   on('tutorial-btn', 'click', () => { startSandboxSession(); playSound('buttonClick'); });
+  on('profile-open-board-btn', 'click', () => {
+    id('profile-dropdown')?.classList.remove('show');
+    startSandboxSession();
+    playSound('buttonClick');
+  });
 
   on('footer-tutorial', 'click', () => { showOverlay('tutorial-overlay'); playSound('buttonClick'); });
 
   on('footer-settings', 'click', () => showOverlay('settings-overlay'));
 
   // About buttons (multiple instances — header and footer)
-  qsa('#about-btn, #footer-about').forEach((btn) => {
+  qsa('#footer-about').forEach((btn) => {
     btn.addEventListener('click', () => { showOverlay('about-overlay'); playSound('buttonClick'); });
   });
 

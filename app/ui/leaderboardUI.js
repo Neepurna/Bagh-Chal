@@ -3,7 +3,8 @@ import { loadLeaderboard } from '../game/ratingService.js';
 import { id, on, showOverlay, hideOverlay } from './dom.js';
 
 export function initLeaderboardUI() {
-  on('lobby-leaderboard-btn', 'click', async () => {
+  on('profile-leaderboard-btn', 'click', async () => {
+    id('profile-dropdown')?.classList.remove('show');
     showOverlay('leaderboard-overlay');
     playSound('buttonClick');
     await renderLeaderboard();

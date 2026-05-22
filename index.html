@@ -88,28 +88,47 @@
             <span id="profile-username">User</span>
           </button>
           <div class="profile-dropdown" id="profile-dropdown">
-            <div class="profile-stats">
-              <h3>Your Stats</h3>
-              <div class="stat-row">
-                <span>Games Played:</span>
-                <span id="stats-games">0</span>
+            <div class="profile-dashboard">
+              <div class="profile-dashboard-head">
+                <div>
+                  <div class="profile-dashboard-kicker">User Dashboard</div>
+                  <h3>Your Stats</h3>
+                </div>
+                <div class="profile-rating-chip">
+                  <span id="stats-rating">500</span>
+                  <small>rating</small>
+                </div>
               </div>
-              <div class="stat-row">
-                <span>As Tiger:</span>
-                <span id="stats-tiger-wins">0</span>
+              <div class="profile-dashboard-grid">
+                <div class="dashboard-stat">
+                  <span id="stats-games">0</span>
+                  <small>Games</small>
+                </div>
+                <div class="dashboard-stat">
+                  <span id="stats-tiger-wins">0</span>
+                  <small>Tiger Wins</small>
+                </div>
+                <div class="dashboard-stat">
+                  <span id="stats-goat-wins">0</span>
+                  <small>Goat Wins</small>
+                </div>
+                <div class="dashboard-stat">
+                  <span id="stats-adventure">0 / 6</span>
+                  <small>Adventure</small>
+                </div>
+                <div class="dashboard-stat">
+                  <span id="stats-rated-wins">0</span>
+                  <small>Rated Wins</small>
+                </div>
+                <div class="dashboard-stat">
+                  <span id="stats-rated-losses">0</span>
+                  <small>Rated Losses</small>
+                </div>
               </div>
-              <div class="stat-row">
-                <span>As Goat:</span>
-                <span id="stats-goat-wins">0</span>
-              </div>
-              <div class="stat-row">
-                <span>Rating:</span>
-                <span id="stats-rating">500</span>
-              </div>
-              <div class="stat-row">
-                <span>Adventure:</span>
-                <span id="stats-adventure">0 / 6</span>
-              </div>
+            </div>
+            <div class="profile-action-grid">
+              <button class="profile-action-btn" id="profile-leaderboard-btn" type="button">Leaderboard</button>
+              <button class="profile-action-btn" id="profile-open-board-btn" type="button">Open Board</button>
             </div>
             <button class="sign-out-btn" id="sign-out-btn">Sign Out</button>
           </div>
@@ -210,30 +229,6 @@
           <!-- ── Menu Items ── -->
           <div class="lobby-menu">
 
-            <button class="lobby-menu-item" id="welcome-start-btn">
-              <span class="lobby-menu-icon lobby-icon--blue">🖥</span>
-              <div class="lobby-menu-text">
-                <span class="lobby-menu-title">Play Bot</span>
-                <span class="lobby-menu-sub">Challenge the computer — Easy to Master</span>
-              </div>
-            </button>
-
-            <button class="lobby-menu-item" id="tutorial-btn">
-              <span class="lobby-menu-icon lobby-icon--amber">🎓</span>
-              <div class="lobby-menu-text">
-                <span class="lobby-menu-title">Open Board</span>
-                <span class="lobby-menu-sub">Open a guided board experience</span>
-              </div>
-            </button>
-
-            <button class="lobby-menu-item" id="lobby-friend-btn">
-              <span class="lobby-menu-icon lobby-icon--green">🤝</span>
-              <div class="lobby-menu-text">
-                <span class="lobby-menu-title">Play a Friend</span>
-                <span class="lobby-menu-sub">Invite a friend to a game of BaghChal</span>
-              </div>
-            </button>
-
             <button class="lobby-menu-item" id="lobby-adventure-btn">
               <span class="lobby-menu-icon lobby-icon--red">⛰</span>
               <div class="lobby-menu-text">
@@ -242,27 +237,27 @@
               </div>
             </button>
 
+            <button class="lobby-menu-item" id="welcome-start-btn">
+              <span class="lobby-menu-icon lobby-icon--blue">🖥</span>
+              <div class="lobby-menu-text">
+                <span class="lobby-menu-title">Play a Bot (AI)</span>
+                <span class="lobby-menu-sub">Challenge the computer — Easy to Master</span>
+              </div>
+            </button>
+
+            <button class="lobby-menu-item" id="lobby-friend-btn">
+              <span class="lobby-menu-icon lobby-icon--green">🤝</span>
+              <div class="lobby-menu-text">
+                <span class="lobby-menu-title">Challenge a Friend</span>
+                <span class="lobby-menu-sub">Invite a friend to a game of BaghChal</span>
+              </div>
+            </button>
+
             <button class="lobby-menu-item" id="lobby-tournament-btn">
               <span class="lobby-menu-icon lobby-icon--gold">🏅</span>
               <div class="lobby-menu-text">
-                <span class="lobby-menu-title">Tournaments</span>
+                <span class="lobby-menu-title">Tournament Mode</span>
                 <span class="lobby-menu-sub">Join an Arena where anyone can win</span>
-              </div>
-            </button>
-
-            <button class="lobby-menu-item" id="lobby-leaderboard-btn">
-              <span class="lobby-menu-icon lobby-icon--blue">♛</span>
-              <div class="lobby-menu-text">
-                <span class="lobby-menu-title">Public Leaderboard</span>
-                <span class="lobby-menu-sub">Ranked by rating, games played, and adventure progress</span>
-              </div>
-            </button>
-
-            <button class="lobby-menu-item" id="about-btn">
-              <span class="lobby-menu-icon lobby-icon--red">📜</span>
-              <div class="lobby-menu-text">
-                <span class="lobby-menu-title">About BaghChal</span>
-                <span class="lobby-menu-sub">Discover this ancient Nepali heritage</span>
               </div>
             </button>
 
@@ -1042,6 +1037,35 @@
         </section>
 
         <button class="play-again-btn tutorial-start" id="about-start">Start Playing!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Overlay -->
+  <div class="tutorial-overlay" id="history-overlay">
+    <div class="tutorial-content">
+      <button class="tutorial-close" id="history-close">✕</button>
+
+      <div class="tutorial-scroll">
+        <h1 class="tutorial-title">History of Baghchal</h1>
+        <p class="tutorial-subtitle">A traditional Nepali strategy game of tigers and goats</p>
+
+        <section class="tutorial-section">
+          <h2>Origins</h2>
+          <p>Baghchal, also written as Bagh Chal, means tiger move in Nepali. The game is traditionally played on a five-by-five network of intersecting lines, often carved into wood, stone slabs, and public resting places across Nepal.</p>
+          <p>The game reflects a predator-and-prey contest: four tigers try to capture goats, while twenty goats cooperate to surround and immobilize the tigers.</p>
+        </section>
+
+        <section class="tutorial-section highlight">
+          <h2>Why It Matters</h2>
+          <p>Baghchal is asymmetric, unlike many equal-army board games. Each side has a different goal, a different rhythm, and a different kind of intelligence: tiger play is tactical and aggressive, while goat play is positional, patient, and collective.</p>
+        </section>
+
+        <section class="tutorial-section">
+          <h2>Modern Play</h2>
+          <p>Computer versions of Baghchal turn an old social game into a testbed for search, heuristics, and Monte Carlo Tree Search. The research paper in this project notes that tigers have early advantage, but optimal goat structure can force draws or wins by trapping every tiger.</p>
+          <p>That is why this web version treats Baghchal as both heritage and a serious strategy game, with bot difficulty, ratings, saved games, and adventure progression.</p>
+        </section>
       </div>
     </div>
   </div>
