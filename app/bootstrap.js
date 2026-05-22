@@ -39,7 +39,12 @@ import {
 import { setOnTimeout } from './game/timerService.js';
 import { prevMove, nextMove, undoLastTurn } from './game/historyService.js';
 import { restorePersistedGame } from './game/gamePersistence.js';
-import { syncPlayerProfile } from './game/ratingService.js';
+import {
+  getLeaderboardScore,
+  loadSupabasePlayerProfile,
+  syncPlayerProfile
+} from './game/ratingService.js';
+import { configureSupabaseFirebaseAuth } from './services/supabaseClient.js';
 
 // Multiplayer
 import {
@@ -195,6 +200,11 @@ export function bootstrap({ firebase }) {
     setHomeUXByAuthState,
     startGuestGame: () => {
       state.gameMode = 'ai';
+      state.matchRatingType = 'unrated';
+      state.adventureModeActive = false;
+      state.adventureBotId = null;
+      state.aiDifficulty = 'easy';
+      state.aiTimeControl = '3m';
       state.gameStarted = true;
       state.isFirstAIMove = true;
       initGame();
@@ -209,11 +219,13 @@ export function bootstrap({ firebase }) {
   ({ auth, db } = initializeAuth({
     firebase,
     onUsernameSetupRequired: showUsernameSetup,
-    onSignedIn: ({ user, userStats: nextStats, auth: nextAuth, db: nextDb, redirectAction, needsUsernameSetup }) => {
+    onSignedIn: async ({ user, userStats: nextStats, auth: nextAuth, db: nextDb, redirectAction, needsUsernameSetup }) => {
       state.currentUser = user;
       state.userStats = nextStats;
       auth = nextAuth;
       db = nextDb;
+      configureSupabaseFirebaseAuth(auth);
+      await hydrateSupabaseProfile(user);
       setSentryUser(user);
       state.pendingPostSignInAction = needsUsernameSetup ? redirectAction : null;
       hideAuthLoadingScreen(); // reveal app only after auth is confirmed
@@ -225,6 +237,7 @@ export function bootstrap({ firebase }) {
       state.currentUser = null;
       auth = nextAuth;
       db = nextDb;
+      configureSupabaseFirebaseAuth(auth);
       setSentryUser(null);
       hideAuthLoadingScreen(); // reveal landing page only after auth confirmed absent
       updateUIForSignedOutUser();
@@ -331,29 +344,41 @@ function runPostSignInAction(action) {
 }
 
 async function updateUserStats(won, side) {
-  if (!state.currentUser || !db) return;
+  if (!state.currentUser) return;
   try {
-    const userRef = db.collection('users').doc(state.currentUser.uid);
-    const updates = { gamesPlayed: firebaseApi.firestore.FieldValue.increment(1) };
     if (won) {
       if (side === 'tiger') {
-        updates.tigerWins = firebaseApi.firestore.FieldValue.increment(1);
         state.userStats.tigerWins++;
       } else {
-        updates.goatWins = firebaseApi.firestore.FieldValue.increment(1);
         state.userStats.goatWins++;
       }
     }
     state.userStats.gamesPlayed++;
-    updates.rating = state.userStats.rating ?? 500;
-    updates.ratedWins = state.userStats.ratedWins || 0;
-    updates.ratedLosses = state.userStats.ratedLosses || 0;
-    updates.adventureLevel = state.userStats.adventureLevel || 0;
-    updates.adventureCompleted = state.userStats.adventureCompleted || 0;
-    await userRef.update(updates);
     await syncPlayerProfile();
     updateStatsDisplay();
   } catch (err) {
     console.error('Error updating stats:', err);
   }
+}
+
+async function hydrateSupabaseProfile(user) {
+  const profile = await loadSupabasePlayerProfile(user);
+  if (profile) {
+    state.userStats = {
+      ...state.userStats,
+      username: profile.username || profile.display_name || state.userStats.username || 'Player',
+      gamesPlayed: profile.games_played || 0,
+      tigerWins: profile.tiger_wins || 0,
+      goatWins: profile.goat_wins || 0,
+      rating: profile.rating ?? 500,
+      ratedWins: profile.rated_wins || 0,
+      ratedLosses: profile.rated_losses || 0,
+      adventureLevel: profile.adventure_level || 0,
+      adventureCompleted: profile.adventure_completed || 0
+    };
+    return;
+  }
+
+  state.userStats.leaderboardScore = getLeaderboardScore();
+  await syncPlayerProfile();
 }

@@ -1,6 +1,6 @@
 import { PIECE_TYPES } from '../config/gameConfig.js';
 import { state } from '../state/store.js';
-import { ensureSupabasePlayer, getSupabaseClient } from '../services/supabaseClient.js';
+import { getSupabaseClient } from '../services/supabaseClient.js';
 import { syncPlayerProfile } from './ratingService.js';
 
 const ACTIVE_GAME_KEY = 'baghchal.activeGame.v1';
@@ -121,12 +121,11 @@ export function clearPersistedActiveGame() {
 
 async function syncGameToSupabase(snapshot) {
   const supabase = getSupabaseClient();
-  const player = await ensureSupabasePlayer();
-  if (!supabase || !player) return;
+  if (!supabase || !state.currentUser?.uid) return;
 
   const payload = {
     id: snapshot.id,
-    player_id: player.id,
+    firebase_uid: state.currentUser.uid,
     status: snapshot.status,
     game_mode: snapshot.gameMode,
     player_side: snapshot.playerSide === PIECE_TYPES.TIGER ? 'tiger' : 'goat',

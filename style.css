@@ -2545,6 +2545,40 @@ header {
   color: #444;
 }
 
+.history-rule-table {
+  display: grid;
+  grid-template-columns: 0.85fr 1fr 1fr;
+  border: var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+}
+
+.history-rule-table > div {
+  padding: 10px;
+  border-right: 1px solid var(--black);
+  border-bottom: 1px solid var(--black);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.history-rule-table > div:nth-child(3n) {
+  border-right: 0;
+}
+
+.history-rule-table > div:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+.history-rule-head {
+  background: var(--black);
+  color: var(--white);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 /* visual grid for game setup */
 .visual-grid {
   display: grid;

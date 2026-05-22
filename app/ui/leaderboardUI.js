@@ -17,9 +17,9 @@ async function renderLeaderboard() {
   if (!list) return;
   list.innerHTML = '<p class="friends-empty">Loading leaderboard...</p>';
 
-  const rows = await loadLeaderboard(10);
+  const rows = await loadLeaderboard({ limit: 10 });
   if (!rows.length) {
-    list.innerHTML = '<p class="friends-empty">Leaderboard will appear after the first Supabase sync.</p>';
+    list.innerHTML = '<p class="friends-empty">Leaderboard will appear after players complete saved games.</p>';
     return;
   }
 
@@ -28,7 +28,7 @@ async function renderLeaderboard() {
       <span class="leaderboard-rank">${index + 1}</span>
       <span class="leaderboard-name">${escapeHtml(row.display_name || 'Player')}</span>
       <span class="leaderboard-score">${row.leaderboard_score || row.rating || 500}</span>
-      <span class="leaderboard-meta">R ${row.rating || 500} · G ${row.games_played || 0} · A ${row.adventure_completed || 0}/6</span>
+      <span class="leaderboard-meta">Avg ${row.leaderboard_score || row.rating || 500} · R ${row.rating || 500} · G ${row.games_played || 0} · A ${row.adventure_completed || 0}/6</span>
     </div>
   `).join('');
 }

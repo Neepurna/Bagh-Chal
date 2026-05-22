@@ -53,7 +53,23 @@ export function initLandingAndOverlays() {
   on('landing-terms-btn', 'click', () => { showOverlay('terms-overlay'); playSound('buttonClick'); });
 
   // Game-area button: play again / exit
-  on('play-again-btn', 'click', triggerShowPlayerSelect);
+  on('play-again-btn', 'click', () => {
+    if (state.guestModeActive && !state.currentUser) {
+      hideOverlay('winner-overlay');
+      state.gameMode = 'ai';
+      state.matchRatingType = 'unrated';
+      state.adventureModeActive = false;
+      state.adventureBotId = null;
+      state.aiDifficulty = 'easy';
+      state.aiTimeControl = '3m';
+      state.gameStarted = true;
+      state.isFirstAIMove = true;
+      startGuestGame();
+      playSound('buttonClick');
+      return;
+    }
+    triggerShowPlayerSelect();
+  });
 
   on('guest-mode-close', 'click', () => hideOverlay('guest-mode-overlay'));
   on('guest-select-goat', 'click', () => setGuestSide(PIECE_TYPES.GOAT));

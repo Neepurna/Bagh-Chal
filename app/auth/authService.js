@@ -1,3 +1,5 @@
+import { getSupabaseClient } from '../services/supabaseClient.js';
+
 const firebaseConfig = {
   apiKey: "AIzaSyCwZWRiXb_KwyNpUcQUfRNJQvQyf-o6x5g",
   authDomain: "baghchal-26da2.firebaseapp.com",
@@ -275,9 +277,56 @@ export async function saveUsername({
   onUsernameSaved,
   onUsernameError
 }) {
-  if (!currentUser || !db) return;
+  if (!currentUser) return;
 
   const clean = username.trim().toLowerCase();
+  const supabase = getSupabaseClient();
+
+  if (supabase) {
+    try {
+      const { data: existing, error: lookupError } = await supabase
+        .from('player_profiles')
+        .select('firebase_uid')
+        .eq('username', clean)
+        .maybeSingle();
+
+      if (lookupError) throw lookupError;
+      if (existing && existing.firebase_uid !== currentUser.uid) {
+        onUsernameError?.('❌ Username already taken — try another.');
+        return;
+      }
+
+      const payload = {
+        firebase_uid: currentUser.uid,
+        username: clean,
+        display_name: username.trim(),
+        email: currentUser.email,
+        photo_url: currentUser.photoURL || '',
+        games_played: 0,
+        tiger_wins: 0,
+        goat_wins: 0,
+        rating: 500,
+        rated_wins: 0,
+        rated_losses: 0,
+        adventure_level: 0,
+        adventure_completed: 0,
+        leaderboard_score: 167,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase.from('player_profiles').upsert(payload);
+      if (error) throw error;
+      onUsernameSaved?.(clean);
+      return;
+    } catch (error) {
+      console.error('Error saving Supabase username:', error);
+      onUsernameError?.('❌ Error saving — try again.');
+      return;
+    }
+  }
+
+  if (!db) return;
+
   const existing = await db.collection('usernames').doc(clean).get();
   if (existing.exists) {
     onUsernameError?.('❌ Username already taken — try another.');

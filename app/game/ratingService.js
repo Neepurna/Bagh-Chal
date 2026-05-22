@@ -1,5 +1,5 @@
 import { state } from '../state/store.js';
-import { ensureSupabasePlayer, getSupabaseClient } from '../services/supabaseClient.js';
+import { getSupabaseClient } from '../services/supabaseClient.js';
 
 const RATING_FLOOR = 100;
 const BASE_RATING = 500;
@@ -19,7 +19,7 @@ export function getLeaderboardScore(stats = state.userStats) {
   const rating = stats.rating ?? BASE_RATING;
   const games = stats.gamesPlayed || 0;
   const adventure = stats.adventureCompleted || stats.adventureLevel || 0;
-  return rating + Math.min(games, 500) + adventure * 50;
+  return Math.round((rating + Math.min(games, 500) + adventure * 100) / 3);
 }
 
 export function applyLocalRatingResult({ playerWon, playerSide, difficulty }) {
@@ -33,13 +33,15 @@ export function applyLocalRatingResult({ playerWon, playerSide, difficulty }) {
 
 export async function syncPlayerProfile() {
   const supabase = getSupabaseClient();
-  const player = await ensureSupabasePlayer();
-  if (!supabase || !player) return;
+  if (!supabase || !state.currentUser?.uid) return;
 
   const username = state.userStats?.username || state.currentUser?.displayName || 'Player';
   const payload = {
-    id: player.id,
+    firebase_uid: state.currentUser.uid,
     display_name: username,
+    username: state.userStats?.username || username,
+    email: state.currentUser.email || null,
+    photo_url: state.currentUser.photoURL || null,
     rating: state.userStats.rating ?? BASE_RATING,
     games_played: state.userStats.gamesPlayed || 0,
     tiger_wins: state.userStats.tigerWins || 0,
@@ -56,7 +58,25 @@ export async function syncPlayerProfile() {
   if (error) console.warn('[supabase] profile sync failed:', error.message);
 }
 
-export async function loadLeaderboard(limit = 10) {
+export async function loadSupabasePlayerProfile(user) {
+  const supabase = getSupabaseClient();
+  if (!supabase || !user?.uid) return null;
+
+  const { data, error } = await supabase
+    .from('player_profiles')
+    .select('*')
+    .eq('firebase_uid', user.uid)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[supabase] profile load failed:', error.message);
+    return null;
+  }
+
+  return data;
+}
+
+export async function loadLeaderboard({ limit = 10 } = {}) {
   const supabase = getSupabaseClient();
   if (!supabase) {
     return [{
@@ -68,7 +88,6 @@ export async function loadLeaderboard(limit = 10) {
     }];
   }
 
-  await ensureSupabasePlayer();
   const { data, error } = await supabase
     .from('player_profiles')
     .select('display_name,rating,games_played,adventure_completed,leaderboard_score')

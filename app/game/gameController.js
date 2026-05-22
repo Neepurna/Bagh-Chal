@@ -264,11 +264,6 @@ export function endGame(message, winner) {
                 || (winner === 'goat' && state.playerSide === PIECE_TYPES.GOAT);
   }
 
-  if (state.currentUser && winner !== 'draw') {
-    const side = state.playerSide === PIECE_TYPES.TIGER ? 'tiger' : 'goat';
-    hooks.updateUserStats(playerWon, side);
-  }
-
   if (state.gameMode === 'ai' && state.matchRatingType === 'rated' && winner !== 'draw') {
     ratingDelta = applyLocalRatingResult({
       playerWon,
@@ -285,6 +280,11 @@ export function endGame(message, winner) {
       state.userStats.adventureCompleted = Math.max(state.userStats.adventureCompleted || 0, 6);
     }
     syncPlayerProfile();
+  }
+
+  if (state.currentUser && winner !== 'draw') {
+    const side = state.playerSide === PIECE_TYPES.TIGER ? 'tiger' : 'goat';
+    hooks.updateUserStats(playerWon, side);
   }
 
   completePersistedGame({ winner, message, ratingDelta });
