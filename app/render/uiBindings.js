@@ -79,6 +79,7 @@ function updatePlaySidebar(game) {
 
   const gameLayout = id('game-layout');
   if (gameLayout) gameLayout.classList.toggle('game-layout-playing', playingStandardGame);
+  document.body.classList.toggle('game-playing', playingStandardGame);
 
   const mobilePlayActions = id('mobile-play-actions');
   if (mobilePlayActions) mobilePlayActions.classList.toggle('hidden', !playingStandardGame);

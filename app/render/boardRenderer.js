@@ -12,6 +12,7 @@ import { markDirty, onRedraw, state } from '../state/store.js';
 
 let canvas = null;
 let ctx = null;
+let boardResizeObserver = null;
 
 const images = {
   tigerPiece: null,
@@ -51,6 +52,11 @@ export function initBoardRenderer() {
 
   // Resize handler — re-fits canvas to its container, then triggers a redraw.
   window.addEventListener('resize', resizeCanvas, { passive: true });
+  const container = document.querySelector('.board-container');
+  if (container && 'ResizeObserver' in window) {
+    boardResizeObserver = new ResizeObserver(scheduleCanvasResize);
+    boardResizeObserver.observe(container);
+  }
 
   // Subscribe to store changes — this is the only place draw() runs.
   onRedraw(() => {
@@ -58,6 +64,7 @@ export function initBoardRenderer() {
   });
 
   // Kick off initial draw.
+  resizeCanvas();
   markDirty();
 }
 
@@ -67,8 +74,7 @@ export function resizeCanvas() {
   const container = document.querySelector('.board-container');
   if (!container) return;
   const availableWidth = Math.max(container.clientWidth - 48, 320);
-  const availableHeight = Math.max(container.clientHeight - 48, 320);
-  const cssSize = Math.min(availableWidth, availableHeight, 980);
+  const cssSize = Math.min(availableWidth, 980);
   const dpr = window.devicePixelRatio || 1;
   canvas.width = cssSize * dpr;
   canvas.height = cssSize * dpr;

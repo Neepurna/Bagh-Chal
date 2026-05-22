@@ -71,20 +71,31 @@ export function onMoveMade() {
 
 function updateTimerDisplay() {
   const el = id('timer-text');
-  if (!el) return;
+  const playerClock = id('play-player-clock');
+  const opponentClock = id('play-opponent-clock');
+  const isPlayerTurn = state.game.currentPlayer === state.playerSide;
 
   if (!Number.isFinite(currentTime)) {
-    el.textContent = '∞';
-    el.classList.remove('warning', 'danger');
+    setTimerText(el, '∞');
+    setTimerText(playerClock, isPlayerTurn ? '∞' : '--');
+    setTimerText(opponentClock, isPlayerTurn ? '--' : '∞');
+    el?.classList.remove('warning', 'danger');
     return;
   }
 
   const totalSec = Math.max(0, Math.ceil(currentTime));
   const mins = Math.floor(totalSec / 60);
   const secs = String(totalSec % 60).padStart(2, '0');
-  el.textContent = `${mins}:${secs}`;
+  const label = `${mins}:${secs}`;
+  setTimerText(el, label);
+  setTimerText(playerClock, isPlayerTurn ? label : '--');
+  setTimerText(opponentClock, isPlayerTurn ? '--' : label);
 
-  el.classList.remove('warning', 'danger');
-  if (currentTime <= 10) el.classList.add('danger');
-  else if (currentTime <= 30) el.classList.add('warning');
+  el?.classList.remove('warning', 'danger');
+  if (currentTime <= 10) el?.classList.add('danger');
+  else if (currentTime <= 30) el?.classList.add('warning');
+}
+
+function setTimerText(el, value) {
+  if (el) el.textContent = value;
 }
