@@ -280,22 +280,8 @@ export function bootstrap() {
 
   // DO NOT call updateUIForSignedOutUser() here.
   // The auth-loading-screen overlay covers the page while Supabase resolves
-  // the persisted auth state from localStorage. Once onAuthStateChanged fires
-  // (either onSignedIn or onSignedOut), hideAuthLoadingScreen() is called and
-  // the correct UI is revealed — no flash of the landing page for logged-in
-  // users, no flash of the app-shell for logged-out users.
-  //
-  // Safety net: if Supabase takes longer than 5 s to respond (e.g. SDK blocked
-  // by an ad-blocker), we fall through to the signed-out state so the user is
-  // never stuck on the loading screen.
-  const _authFallbackTimer = setTimeout(() => {
-    if (!state.currentUser) {
-      hideAuthLoadingScreen();
-      updateUIForSignedOutUser();
-    }
-  }, 5000);
-  // Store on window so the auth callbacks can cancel it.
-  window.__authFallbackTimer = _authFallbackTimer;
+  // persisted auth or exchanges an OAuth callback code. Auth callbacks reveal
+  // the correct signed-in/signed-out UI once the session state is known.
 }
 
 // ── Helpers used by bootstrap-internal hooks ─────────────────────
@@ -306,12 +292,6 @@ export function bootstrap() {
  * Also clears the 5-second safety-net fallback timer.
  */
 function hideAuthLoadingScreen() {
-  // Cancel the safety-net timer so it doesn't fire after auth already resolved.
-  if (window.__authFallbackTimer) {
-    clearTimeout(window.__authFallbackTimer);
-    window.__authFallbackTimer = null;
-  }
-
   const screen = document.getElementById('auth-loading-screen');
   if (!screen) return; // already removed
 

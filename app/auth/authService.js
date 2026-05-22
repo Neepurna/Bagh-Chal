@@ -75,8 +75,14 @@ export function initializeAuth({ onSignedIn, onSignedOut, onUsernameSetupRequire
     return { auth: null };
   }
 
-  async function handleSession(session) {
+  let lastHandledKey = null;
+
+  async function handleSession(session, { force = false } = {}) {
     const rawUser = session?.user || null;
+    const key = rawUser ? `user:${rawUser.id}` : 'signed-out';
+    if (!force && key === lastHandledKey) return;
+    lastHandledKey = key;
+
     if (!rawUser) {
       onSignedOut?.({ auth: supabase.auth });
       return;
@@ -99,8 +105,29 @@ export function initializeAuth({ onSignedIn, onSignedOut, onUsernameSetupRequire
     });
   }
 
-  supabase.auth.getSession().then(({ data }) => handleSession(data.session));
-  const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+  (async () => {
+    const url = new URL(window.location.href);
+    const authCode = url.searchParams.get('code');
+
+    if (authCode) {
+      const { data, error } = await supabase.auth.exchangeCodeForSession(authCode);
+      url.searchParams.delete('code');
+      window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+
+      if (error) {
+        console.error('[supabase] OAuth callback exchange failed:', error.message);
+      } else if (data?.session) {
+        await handleSession(data.session, { force: true });
+        return;
+      }
+    }
+
+    const { data } = await supabase.auth.getSession();
+    await handleSession(data.session, { force: true });
+  })();
+
+  const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'INITIAL_SESSION') return;
     setTimeout(() => handleSession(session), 0);
   });
 
