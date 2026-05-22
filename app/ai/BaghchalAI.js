@@ -40,14 +40,16 @@ const EDGE_CENTERS = [2, 10, 14, 22];
 const BORDER_POSITIONS = [0,1,2,3,4,5,9,10,14,15,19,20,21,22,23,24];
 
 class BaghchalAI {
-  constructor(difficulty = DIFFICULTY.MEDIUM) {
+  constructor(difficulty = DIFFICULTY.MEDIUM, options = {}) {
     this.difficulty = difficulty;
+    this.profile = options.profile || null;
     // MCTS parameters (HARD mode)
     this.simulationCount = this.getSimulationCount();
     this.explorationConstant = 1.414; // UCT exploration parameter (√2) per paper eq.(1)
     // Minimax parameters (MEDIUM mode)
     this.searchDepth = this.getSearchDepth();
     this.timeBudget = this.getTimeLimit();
+    this.applyProfileTuning();
 
     // Transposition table for memoization (game state -> evaluation score)
     this.transpositionTable = new Map();
@@ -55,6 +57,21 @@ class BaghchalAI {
     this.tableMisses = 0;
     this.MAX_TRANSPOSITION_SIZE = 5000;
     this.transpositionOrder = [];
+  }
+
+  applyProfileTuning() {
+    const profile = this.profile || '';
+    if (profile.startsWith('goat_')) {
+      this.searchDepth += profile === 'goat_deep_chain' ? 2 : 1;
+      this.timeBudget += profile === 'goat_deep_chain' ? 220 : 140;
+    }
+    if (profile === 'tiger_apex') {
+      this.simulationCount += 300;
+      this.timeBudget += 250;
+    } else if (profile.startsWith('tiger_')) {
+      this.simulationCount += 120;
+      this.timeBudget += 120;
+    }
   }
 
   getSimulationCount() {
@@ -218,9 +235,19 @@ class BaghchalAI {
       }
     }
 
-    // Paper: "first populate the borders" — prefer border positions
+    // Paper: "first populate the borders" — prefer border positions, but also
+    // preview tiger's next capture so goat does not walk into a forced fork.
     const safeMoves = moves.filter(m => m.isSafe !== false);
-    const availableMoves = safeMoves.length > 0 ? safeMoves : moves;
+    const previewedMoves = (safeMoves.length > 0 ? safeMoves : moves)
+      .map((move) => ({
+        move,
+        risk: this.previewTigerReplyRisk(this.applyMove(gameState, move))
+      }))
+      .sort((a, b) => a.risk - b.risk);
+    const lowestRisk = previewedMoves[0]?.risk ?? 0;
+    const availableMoves = previewedMoves
+      .filter((entry) => entry.risk === lowestRisk)
+      .map((entry) => entry.move);
 
     // Prioritize border positions, then center area
     const borderMoves = availableMoves.filter(m => BORDER_POSITIONS.includes(m.to));
@@ -237,8 +264,37 @@ class BaghchalAI {
       return this.selectMoveWithMinimax(defensiveMoves, gameState, PIECE_TYPES.GOAT);
     }
 
-    // Priority 2: Best chain/blockade formation via minimax
-    return this.selectMoveWithMinimax(moves, gameState, PIECE_TYPES.GOAT);
+    // Priority 2: Pre-move one tiger reply ahead, then choose the deepest
+    // blockade/cantonment move from the least risky candidate set.
+    const previewedMoves = moves
+      .map((move) => ({
+        move,
+        risk: this.previewTigerReplyRisk(this.applyMove(gameState, move))
+      }))
+      .sort((a, b) => a.risk - b.risk);
+    const lowestRisk = previewedMoves[0]?.risk ?? 0;
+    const candidateMoves = previewedMoves
+      .filter((entry) => entry.risk === lowestRisk)
+      .map((entry) => entry.move);
+    return this.selectMoveWithMinimax(candidateMoves.length ? candidateMoves : moves, gameState, PIECE_TYPES.GOAT);
+  }
+
+  previewTigerReplyRisk(nextState) {
+    const tigerMoves = this.getAllPossibleMoves(nextState, PIECE_TYPES.TIGER);
+    if (tigerMoves.length === 0) return -1000;
+
+    let risk = 0;
+    const captures = tigerMoves.filter((move) => move.capture !== null);
+    risk += captures.length * 300;
+    for (const tigerMove of tigerMoves) {
+      const tigerState = this.applyMove(nextState, tigerMove);
+      risk += this.findThreatenedGoats(tigerState).length * 35;
+      risk -= Math.max(0, 20 - this.getTotalTigerMoves(tigerState)) * 5;
+    }
+
+    if (nextState.board[12] === PIECE_TYPES.GOAT) risk -= 35;
+    risk -= this.countGoatChains(nextState) * 3;
+    return risk;
   }
 
   // === LEGACY: keep for any external callers ===
@@ -872,6 +928,11 @@ class BaghchalAI {
         }
       }
       score += (16 - tigerMobility) * 8; // Reward low tiger mobility
+
+      // Premeditated goat play: reward positions where tiger has no strong
+      // capture reply next turn, especially for adventure goat bosses.
+      const profileBoost = this.profile?.startsWith('goat_') ? 1.4 : 1.0;
+      score -= this.previewTigerReplyRisk(gameState) * 0.25 * profileBoost;
     }
 
     return score;

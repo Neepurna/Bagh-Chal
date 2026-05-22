@@ -44,6 +44,11 @@ async function loadUserData(db, user) {
         gamesPlayed: data.gamesPlayed || 0,
         tigerWins: data.tigerWins || 0,
         goatWins: data.goatWins || 0,
+        rating: data.rating || 500,
+        ratedWins: data.ratedWins || 0,
+        ratedLosses: data.ratedLosses || 0,
+        adventureLevel: data.adventureLevel || 0,
+        adventureCompleted: data.adventureCompleted || 0,
         username: data.username || user.displayName || 'Player'
       };
 
@@ -289,6 +294,11 @@ export async function saveUsername({
       gamesPlayed: 0,
       tigerWins: 0,
       goatWins: 0,
+      rating: 500,
+      ratedWins: 0,
+      ratedLosses: 0,
+      adventureLevel: 0,
+      adventureCompleted: 0,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     batch.set(db.collection('usernames').doc(clean), { uid: currentUser.uid });

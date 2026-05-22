@@ -30,6 +30,17 @@ import {
 import { updateUI } from '../render/uiBindings.js';
 import { hideOverlay, id, setDisplay } from '../ui/dom.js';
 import { hideWinnerOverlay, showWinnerOverlay } from '../ui/winnerOverlay.js';
+import { getAdventureBot, isFinalAdventureBot } from './adventureConfig.js';
+import {
+  applyLocalRatingResult,
+  syncPlayerProfile
+} from './ratingService.js';
+import {
+  beginPersistedGame,
+  clearPersistedActiveGame,
+  completePersistedGame,
+  persistActiveGame
+} from './gamePersistence.js';
 import {
   markDirty,
   MAX_POSITION_HISTORY,
@@ -100,6 +111,7 @@ export function initGame(options = {}) {
     setDisplay('welcome-screen', 'none');
     updateModePanels({ playing: true });
     if (shouldStartTimer) startTimer();
+    if (options.persistStart !== false) beginPersistedGame();
   } else {
     hooks.setHomeUXByAuthState();
   }
@@ -127,6 +139,10 @@ export function exitToHome() {
   state.currentRoomId = null;
   state.currentRoomCode = null;
   if (!state.currentUser) state.guestModeActive = false;
+  state.adventureModeActive = false;
+  state.adventureBotId = null;
+  state.matchRatingType = 'unrated';
+  clearPersistedActiveGame();
   hideOverlay('winner-overlay');
   hideOverlay('player-select-overlay');
   hooks.resetMultiplayerUI();
@@ -190,6 +206,18 @@ export function startSandboxGame() {
   });
 }
 
+export function resumePersistedGame() {
+  initializeAIWorker();
+  setDisplay('welcome-screen', 'none');
+  updateModePanels({ playing: true });
+  startTimer();
+  updateUI();
+  markDirty();
+
+  const aiSide = state.playerSide === PIECE_TYPES.GOAT ? PIECE_TYPES.TIGER : PIECE_TYPES.GOAT;
+  if (state.gameMode === 'ai' && state.game.currentPlayer === aiSide) scheduleAIMove(250);
+}
+
 // ── Game flow helpers ──────────────────────────────────────────────────────
 export function getValidMovesForCurrent(index) {
   return getValidMovesForBoard(index, state.game.board, BOARD_POSITIONS).map(({ to, capture }) => ({ to, capture }));
@@ -229,12 +257,37 @@ export function endGame(message, winner) {
       .catch((err) => console.error('[mp] failed to finalize room:', err));
   }
 
+  let ratingDelta = 0;
+  let playerWon = false;
+  if (winner !== 'draw') {
+    playerWon = (winner === 'tiger' && state.playerSide === PIECE_TYPES.TIGER)
+                || (winner === 'goat' && state.playerSide === PIECE_TYPES.GOAT);
+  }
+
   if (state.currentUser && winner !== 'draw') {
-    const playerWon = (winner === 'tiger' && state.playerSide === PIECE_TYPES.TIGER)
-                      || (winner === 'goat' && state.playerSide === PIECE_TYPES.GOAT);
     const side = state.playerSide === PIECE_TYPES.TIGER ? 'tiger' : 'goat';
     hooks.updateUserStats(playerWon, side);
   }
+
+  if (state.gameMode === 'ai' && state.matchRatingType === 'rated' && winner !== 'draw') {
+    ratingDelta = applyLocalRatingResult({
+      playerWon,
+      playerSide: state.playerSide,
+      difficulty: state.aiDifficulty
+    });
+  }
+
+  if (state.adventureModeActive && playerWon && state.adventureBotId) {
+    const bot = getAdventureBot(state.adventureBotId);
+    state.userStats.adventureLevel = Math.max(state.userStats.adventureLevel || 0, bot.unlockLevel + 1);
+    state.userStats.adventureCompleted = Math.max(state.userStats.adventureCompleted || 0, bot.unlockLevel + 1);
+    if (isFinalAdventureBot(bot.id)) {
+      state.userStats.adventureCompleted = Math.max(state.userStats.adventureCompleted || 0, 6);
+    }
+    syncPlayerProfile();
+  }
+
+  completePersistedGame({ winner, message, ratingDelta });
 
   showWinnerOverlay(message, winner);
   toggleMoveNavigation(false);
@@ -247,7 +300,8 @@ export function endGame(message, winner) {
       decorativeGoats: false,
       playStartSound: false,
       startTimer: false,
-      autoAIMove: false
+      autoAIMove: false,
+      persistStart: false
     });
     state.gameStarted = false; // disable clicks while overlay is up
     markDirty();
@@ -385,6 +439,7 @@ function handleGoatPlacement(clickedIndex) {
   if (game.goatsPlaced === 20) game.phase = PHASE.MOVEMENT;
   game.currentPlayer = PIECE_TYPES.TIGER;
   pushPositionHistory();
+  persistActiveGame();
   updateUI();
   onMoveMade();
   if (!checkWin()) afterPlayerMove();
@@ -407,6 +462,7 @@ function handleTigerSelectOrMove(clickedIndex) {
       saveState();
       moveTigerOnBoard(move);
       pushPositionHistory();
+      persistActiveGame();
       if (!checkWin()) afterPlayerMove();
       return;
     }
@@ -443,6 +499,7 @@ function handleGoatSelectOrMove(clickedIndex) {
     game.validMoves = [];
     game.currentPlayer = PIECE_TYPES.TIGER;
     pushPositionHistory();
+    persistActiveGame();
     updateUI();
     if (!checkWin()) afterPlayerMove();
     return;
@@ -485,6 +542,27 @@ function afterPlayerMove() {
   }
 }
 
+export function startAdventureGame(botId) {
+  const bot = getAdventureBot(botId);
+  clearPendingAsyncActions();
+  stopTimer();
+  hooks.stopRoomSyncListeners();
+  state.currentRoomId = null;
+  state.currentRoomCode = null;
+  state.gameMode = 'ai';
+  state.matchRatingType = 'rated';
+  state.adventureModeActive = true;
+  state.adventureBotId = bot.id;
+  state.aiDifficulty = bot.difficulty;
+  state.playerSide = bot.side === 'tiger' ? PIECE_TYPES.GOAT : PIECE_TYPES.TIGER;
+  state.gameStarted = true;
+  state.isFirstAIMove = true;
+  state.sandboxTool = null;
+  hideOverlay('winner-overlay');
+  hideOverlay('player-select-overlay');
+  initGame({ started: true, decorativeGoats: false, playStartSound: true });
+}
+
 export function setSandboxTool(tool) {
   state.sandboxTool = tool;
   state.game.selectedPiece = null;
@@ -495,6 +573,7 @@ export function setSandboxTool(tool) {
 
 export function resetCurrentGame() {
   if (state.gameMode !== 'ai' || !state.gameStarted) return;
+  if (state.matchRatingType === 'rated') return;
   hideWinnerOverlay();
   initGame({
     started: true,
@@ -545,6 +624,13 @@ function updateModePanels({ playing }) {
 
   const resignLabel = id('resign-game-btn');
   if (resignLabel) resignLabel.textContent = state.gameMode === 'multiplayer' ? 'Resign Match' : 'Resign';
+
+  const rated = state.matchRatingType === 'rated';
+  id('reset-game-btn')?.toggleAttribute('hidden', state.gameMode !== 'ai' || rated);
+  id('restart-left-btn')?.toggleAttribute('hidden', state.gameMode !== 'ai' || rated);
+  id('undo-game-btn')?.toggleAttribute('hidden', state.gameMode !== 'ai' || rated);
+  id('mobile-undo-btn')?.toggleAttribute('hidden', rated);
+  id('mobile-restart-btn')?.toggleAttribute('hidden', rated);
 
   toggleMoveNavigation(false);
 }

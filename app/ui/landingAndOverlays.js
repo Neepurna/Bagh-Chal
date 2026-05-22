@@ -11,6 +11,7 @@ let triggerShowPlayerSelect = () => {};
 let setHomeUXByAuthState = () => {};
 let startGuestGame = () => {};
 let startSandboxSession = () => {};
+let startAdventureSession = () => {};
 let pendingGuestSide = null;
 
 export function configureLandingAndOverlays({
@@ -18,13 +19,15 @@ export function configureLandingAndOverlays({
   showPlayerSelect,
   setHomeUXByAuthState: setHome,
   startGuestGame: startGuest,
-  startSandboxGame
+  startSandboxGame,
+  startAdventureGame
 }) {
   openPlayerSelect = openPlayerSelectOverlay;
   triggerShowPlayerSelect = showPlayerSelect;
   setHomeUXByAuthState = setHome;
   if (typeof startGuest === 'function') startGuestGame = startGuest;
   if (typeof startSandboxGame === 'function') startSandboxSession = startSandboxGame;
+  if (typeof startAdventureGame === 'function') startAdventureSession = startAdventureGame;
 }
 
 export function initLandingAndOverlays() {
@@ -97,9 +100,14 @@ export function initLandingAndOverlays() {
   });
 
   on('lobby-tournament-btn', 'click', () => { openPlayerSelect('tournament'); playSound('buttonClick'); });
+  on('lobby-adventure-btn', 'click', () => { openPlayerSelect('adventure'); playSound('buttonClick'); });
 
   // Sign-up overlay close
   on('signup-close', 'click', () => hideOverlay('signup-overlay'));
+}
+
+export function launchAdventureBot(botId) {
+  startAdventureSession(botId);
 }
 
 function setGuestSide(side) {

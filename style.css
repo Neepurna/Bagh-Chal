@@ -1237,7 +1237,14 @@ header {
   gap: 8px;
 }
 
-.difficulty-btn {
+.rating-type-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.difficulty-btn,
+.rating-type-btn {
   background: var(--cream);
   border: var(--border);
   border-radius: var(--radius);
@@ -1248,13 +1255,15 @@ header {
   box-shadow: var(--shadow-sm);
 }
 
-.difficulty-btn:hover {
+.difficulty-btn:hover,
+.rating-type-btn:hover {
   background: var(--yellow);
   box-shadow: 1px 1px 0 var(--black);
   transform: translate(2px, 2px);
 }
 
-.difficulty-btn.active {
+.difficulty-btn.active,
+.rating-type-btn.active {
   background: var(--black);
   color: var(--white);
   box-shadow: none;
@@ -1321,6 +1330,7 @@ header {
 }
 
 .time-control-btn.active .time-control-meta { color: rgba(255,255,255,0.6); }
+.rating-type-btn.active .time-control-meta { color: rgba(255,255,255,0.6); }
 
 .player-selection {
   display: grid;
@@ -1367,6 +1377,117 @@ header {
   font-size: 1.3rem;
   letter-spacing: 0.1em;
   color: var(--black);
+}
+
+.rating-selection,
+.adventure-section {
+  margin-bottom: 20px;
+}
+
+.adventure-copy {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.adventure-bot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.adventure-bot-card {
+  display: grid;
+  gap: 5px;
+  min-height: 124px;
+  padding: 14px;
+  text-align: left;
+  background: var(--cream);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  color: var(--black);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.adventure-bot-card:not(:disabled):hover {
+  background: var(--yellow);
+  box-shadow: 1px 1px 0 var(--black);
+  transform: translate(2px, 2px);
+}
+
+.adventure-bot-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.adventure-bot-level,
+.adventure-bot-title,
+.adventure-bot-action,
+.leaderboard-meta {
+  font-size: 0.74rem;
+  color: #666;
+}
+
+.adventure-bot-name {
+  font-weight: 800;
+  color: var(--red);
+}
+
+.adventure-bot-action {
+  margin-top: auto;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.leaderboard-card {
+  max-width: 560px;
+}
+
+.leaderboard-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  background: var(--cream);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.leaderboard-rank {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--black);
+  color: var(--yellow);
+  font-weight: 800;
+}
+
+.leaderboard-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+}
+
+.leaderboard-score {
+  font-weight: 800;
+  color: var(--red);
+}
+
+.leaderboard-meta {
+  grid-column: 2 / -1;
 }
 
 /* ── Tournament / Coming soon ─────────────────────────────────────── */

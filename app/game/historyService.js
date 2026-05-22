@@ -74,6 +74,7 @@ export function nextMove() {
 
 export function undoLastTurn() {
   if (state.gameMode !== 'ai' || !state.gameStarted || state.gameHistory.length === 0) return false;
+  if (state.matchRatingType === 'rated') return false;
 
   const playerToMove = state.playerSide;
   let targetIndex = state.gameHistory.length - 1;

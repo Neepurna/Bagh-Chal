@@ -32,9 +32,13 @@ export function updateStatsDisplay() {
   const games = id('stats-games');
   const tigerWins = id('stats-tiger-wins');
   const goatWins = id('stats-goat-wins');
+  const rating = id('stats-rating');
+  const adventure = id('stats-adventure');
   if (games) games.textContent = u.gamesPlayed ?? 0;
   if (tigerWins) tigerWins.textContent = u.tigerWins ?? 0;
   if (goatWins) goatWins.textContent = u.goatWins ?? 0;
+  if (rating) rating.textContent = u.rating ?? 500;
+  if (adventure) adventure.textContent = `${u.adventureCompleted ?? 0} / 6`;
 }
 
 export function setHomeUXByAuthState() {

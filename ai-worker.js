@@ -4,7 +4,7 @@ import { BaghchalAI } from './app/ai/BaghchalAI.js';
 initWorkerSentry();
 
 self.onmessage = function(event) {
-  const { board, phase, goatsPlaced, goatsCaptured, aiSide, difficulty } = event.data;
+  const { board, phase, goatsPlaced, goatsCaptured, aiSide, difficulty, profile } = event.data;
 
   try {
     const gameState = {
@@ -16,7 +16,7 @@ self.onmessage = function(event) {
     };
 
     const startTime = Date.now();
-    const ai = new BaghchalAI(difficulty);
+    const ai = new BaghchalAI(difficulty, { profile });
     const bestMove = ai.getBestMove(gameState, aiSide);
     const timeSpent = Date.now() - startTime;
 

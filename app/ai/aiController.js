@@ -17,6 +17,8 @@ import {
 import { saveState } from '../game/historyService.js';
 import { onMoveMade } from '../game/timerService.js';
 import { markDirty, MAX_POSITION_HISTORY, nextGoatFlag, state } from '../state/store.js';
+import { persistActiveGame } from '../game/gamePersistence.js';
+import { getAdventureBot } from '../game/adventureConfig.js';
 
 // Lazy-imported (to avoid pulling MCTS classes when running easy mode only).
 let BaghchalAIClass = null;
@@ -67,7 +69,8 @@ function getAIMoveFromWorker(gameState, aiSide) {
       goatsPlaced: gameState.goatsPlaced,
       goatsCaptured: gameState.goatsCaptured,
       aiSide,
-      difficulty: 'hard'
+      difficulty: 'hard',
+      profile: state.adventureModeActive ? getAdventureBot(state.adventureBotId).profile : null
     });
   });
 }
@@ -77,7 +80,9 @@ async function syncBaghchalAIFallback(gameState, aiSide, difficulty = 'hard', po
     const mod = await import('./BaghchalAI.js');
     BaghchalAIClass = mod.BaghchalAI;
   }
-  const ai = new BaghchalAIClass(difficulty);
+  const ai = new BaghchalAIClass(difficulty, {
+    profile: state.adventureModeActive ? getAdventureBot(state.adventureBotId).profile : null
+  });
   return ai.getBestMove({
     board: gameState.board,
     phase: gameState.phase,
@@ -192,6 +197,7 @@ function applyHardAIMove(bestMove, aiSide) {
   }
 
   pushPositionHistory();
+  persistActiveGame();
   playSound('pieceMove');
   markDirty();
   hooks.checkWin();
@@ -249,6 +255,7 @@ function executeAITigerMove() {
       playSound('tigerCapture');
       game.currentPlayer = PIECE_TYPES.GOAT;
       pushPositionHistory();
+      persistActiveGame();
       markDirty();
       hooks.checkWin();
       onMoveMade();
@@ -268,6 +275,7 @@ function executeAITigerMove() {
   playSound('pieceMove');
   game.currentPlayer = PIECE_TYPES.GOAT;
   pushPositionHistory();
+  persistActiveGame();
   markDirty();
   hooks.checkWin();
   onMoveMade();
@@ -309,6 +317,7 @@ function executeAIGoatMove() {
   }
 
   pushPositionHistory();
+  persistActiveGame();
   markDirty();
   hooks.checkWin();
   onMoveMade();

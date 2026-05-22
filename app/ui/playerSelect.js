@@ -5,6 +5,8 @@ import { playSound } from '../audio/audioSystem.js';
 import { PIECE_TYPES } from '../config/gameConfig.js';
 import { id, on, qsa, setHidden, showOverlay, hideOverlay } from './dom.js';
 import { state } from '../state/store.js';
+import { ADVENTURE_BOTS } from '../game/adventureConfig.js';
+import { launchAdventureBot } from './landingAndOverlays.js';
 
 let onStartGameCallback = null;
 let resetMultiplayerUICallback = () => {};
@@ -21,8 +23,25 @@ export function configurePlayerSelectOverlay(view = 'ai') {
   const modeTabs = id('player-select-mode-tabs');
   const aiTab = id('mode-tab-ai');
   const tournamentTab = id('mode-tab-player');
+  const adventureTab = id('mode-tab-adventure');
   const aiContent = id('ai-tab-content');
   const multiplayerSection = id('multiplayer-section');
+  const adventureSection = id('adventure-section');
+
+  if (view === 'adventure') {
+    state.gameMode = 'ai';
+    state.adventureModeActive = true;
+    if (title) { title.hidden = false; title.textContent = 'Adventure Mode'; }
+    setHidden('player-select-mode-tabs', true);
+    if (aiTab) { aiTab.hidden = true; aiTab.classList.remove('active'); }
+    if (tournamentTab) { tournamentTab.hidden = true; tournamentTab.classList.remove('active'); }
+    if (adventureTab) { adventureTab.hidden = false; adventureTab.classList.add('active'); }
+    if (aiContent) aiContent.classList.add('hidden');
+    if (multiplayerSection) multiplayerSection.classList.add('hidden');
+    if (adventureSection) adventureSection.classList.remove('hidden');
+    renderAdventureBots();
+    return;
+  }
 
   if (view === 'tournament') {
     state.gameMode = 'multiplayer';
@@ -32,16 +51,21 @@ export function configurePlayerSelectOverlay(view = 'ai') {
     if (tournamentTab) { tournamentTab.hidden = false; tournamentTab.classList.add('active'); }
     if (aiContent) aiContent.classList.add('hidden');
     if (multiplayerSection) multiplayerSection.classList.remove('hidden');
+    if (adventureSection) adventureSection.classList.add('hidden');
     return;
   }
 
   state.gameMode = 'ai';
+  state.adventureModeActive = false;
+  state.adventureBotId = null;
   if (title) { title.hidden = false; title.textContent = 'Play Bot'; }
   setHidden('player-select-mode-tabs', true);
   if (aiTab) { aiTab.hidden = false; aiTab.classList.add('active'); }
   if (tournamentTab) { tournamentTab.hidden = true; tournamentTab.classList.remove('active'); }
+  if (adventureTab) { adventureTab.hidden = true; adventureTab.classList.remove('active'); }
   if (aiContent) aiContent.classList.remove('hidden');
   if (multiplayerSection) multiplayerSection.classList.add('hidden');
+  if (adventureSection) adventureSection.classList.add('hidden');
   resetMultiplayerUICallback();
   // Suppress unused parameter lint: modeTabs reference is for clarity.
   void modeTabs;
@@ -60,6 +84,7 @@ export function initPlayerSelectUI() {
   // Mode tabs
   on('mode-tab-ai', 'click', () => { configurePlayerSelectOverlay('ai'); playSound('buttonClick'); });
   on('mode-tab-player', 'click', () => { configurePlayerSelectOverlay('tournament'); playSound('buttonClick'); });
+  on('mode-tab-adventure', 'click', () => { configurePlayerSelectOverlay('adventure'); playSound('buttonClick'); });
 
   // Player-select close button
   on('player-select-close', 'click', () => hideOverlay('player-select-overlay'));
@@ -83,6 +108,15 @@ export function initPlayerSelectUI() {
       playSound('buttonClick');
     });
   });
+
+  qsa('.rating-type-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      qsa('.rating-type-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.matchRatingType = btn.dataset.ratingType || 'unrated';
+      playSound('buttonClick');
+    });
+  });
 }
 
 function onSideClick(side) {
@@ -94,7 +128,37 @@ function onSideClick(side) {
   state.playerSide = side;
   state.gameStarted = true;
   state.isFirstAIMove = true;
+  state.adventureModeActive = false;
+  state.adventureBotId = null;
   hideOverlay('player-select-overlay');
   if (onStartGameCallback) onStartGameCallback();
   playSound('buttonClick');
+}
+
+function renderAdventureBots() {
+  const grid = id('adventure-bot-grid');
+  if (!grid) return;
+
+  const unlockedLevel = state.userStats.adventureLevel || 0;
+  grid.innerHTML = ADVENTURE_BOTS.map((bot) => {
+    const locked = bot.unlockLevel > unlockedLevel;
+    const sideLabel = bot.side === 'tiger' ? 'Tiger Bot' : 'Goat Bot';
+    const buttonLabel = locked ? 'Locked' : 'Challenge';
+    return `
+      <button class="adventure-bot-card" type="button" data-bot-id="${bot.id}" ${locked ? 'disabled' : ''}>
+        <span class="adventure-bot-level">Level ${bot.unlockLevel + 1}</span>
+        <span class="adventure-bot-name">${bot.name}</span>
+        <span class="adventure-bot-title">${sideLabel} · ${bot.title}</span>
+        <span class="adventure-bot-action">${buttonLabel}</span>
+      </button>
+    `;
+  }).join('');
+
+  qsa('.adventure-bot-card').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      launchAdventureBot(btn.dataset.botId);
+      playSound('buttonClick');
+    });
+  });
 }

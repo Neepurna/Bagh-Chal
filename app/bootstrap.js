@@ -30,12 +30,16 @@ import {
   resetCurrentGame,
   setSandboxTool,
   showPlayerSelect,
+  resumePersistedGame,
+  startAdventureGame,
   startSandboxGame,
   startMultiplayerGame,
   checkWin
 } from './game/gameController.js';
 import { setOnTimeout } from './game/timerService.js';
 import { prevMove, nextMove, undoLastTurn } from './game/historyService.js';
+import { restorePersistedGame } from './game/gamePersistence.js';
+import { syncPlayerProfile } from './game/ratingService.js';
 
 // Multiplayer
 import {
@@ -84,6 +88,7 @@ import {
   configureLandingAndOverlays,
   initLandingAndOverlays
 } from './ui/landingAndOverlays.js';
+import { initLeaderboardUI } from './ui/leaderboardUI.js';
 
 let firebaseApi = null;
 let auth = null;
@@ -194,7 +199,8 @@ export function bootstrap({ firebase }) {
       state.isFirstAIMove = true;
       initGame();
     },
-    startSandboxGame
+    startSandboxGame,
+    startAdventureGame
   });
 
   setOnTimeout(() => handleTimeOut());
@@ -233,6 +239,7 @@ export function bootstrap({ firebase }) {
   initSocialUI();
   initProfileMenu();
   initLandingAndOverlays();
+  initLeaderboardUI();
 
   // Game-area buttons that only the bootstrap can wire (they need exitToHome
   // and the move history controls together).
@@ -269,7 +276,11 @@ export function bootstrap({ firebase }) {
   on('sandbox-tool-cancel', 'click', () => setSandboxTool(null));
 
   // ── Initial render ─────────────────────────────────────────────
-  initGame(); // populates the homepage with decorative goats
+  if (restorePersistedGame()) {
+    resumePersistedGame();
+  } else {
+    initGame(); // populates the homepage with decorative goats
+  }
 
   // DO NOT call updateUIForSignedOutUser() here.
   // The auth-loading-screen overlay covers the page while Firebase resolves
@@ -334,7 +345,13 @@ async function updateUserStats(won, side) {
       }
     }
     state.userStats.gamesPlayed++;
+    updates.rating = state.userStats.rating ?? 500;
+    updates.ratedWins = state.userStats.ratedWins || 0;
+    updates.ratedLosses = state.userStats.ratedLosses || 0;
+    updates.adventureLevel = state.userStats.adventureLevel || 0;
+    updates.adventureCompleted = state.userStats.adventureCompleted || 0;
     await userRef.update(updates);
+    await syncPlayerProfile();
     updateStatsDisplay();
   } catch (err) {
     console.error('Error updating stats:', err);

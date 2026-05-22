@@ -3,6 +3,7 @@
 // updates both at once.
 
 import { PHASE, PIECE_TYPES } from '../config/gameConfig.js';
+import { getAdventureBot } from '../game/adventureConfig.js';
 import { countTrappedPieces, BOARD_POSITIONS } from '../game/boardRules.js';
 import { id } from '../ui/dom.js';
 import { onRedraw, state } from '../state/store.js';
@@ -87,7 +88,9 @@ function updatePlaySidebar(game) {
   if (!playingStandardGame) return;
 
   const playerName = state.userStats?.username || state.currentUser?.displayName || 'You';
-  const opponentName = state.gameMode === 'ai' ? 'Mr.Bot' : (state.opponentUsername || 'Opponent');
+  const opponentName = state.adventureModeActive
+    ? getAdventureBot(state.adventureBotId).name
+    : (state.gameMode === 'ai' ? 'Mr.Bot' : (state.opponentUsername || 'Opponent'));
 
   setText('play-panel-title', state.gameMode === 'ai' ? 'Play BaghChal' : 'Friend Match');
   setText('play-player-name', playerName);
@@ -95,7 +98,7 @@ function updatePlaySidebar(game) {
   setText('play-side-label', state.playerSide === PIECE_TYPES.TIGER ? 'You play as Tiger' : 'You play as Goat');
   setText('play-opponent-side-label', state.playerSide === PIECE_TYPES.TIGER ? 'Opponent plays as Goat' : 'Opponent plays as Tiger');
   setText('bot-profile-copy', state.gameMode === 'ai'
-    ? (state.aiDifficulty === 'hard' ? 'Hard bot ready for a real fight.' : `${capitalize(state.aiDifficulty)} bot is on the board.`)
+    ? getBotProfileCopy()
     : 'Live game against your friend.');
 
   // Piece images for the mobile player strip
@@ -121,12 +124,24 @@ function updatePlaySidebar(game) {
   id('play-player-indicator')?.classList.toggle('active', isPlayerTurn);
   id('play-opponent-indicator')?.classList.toggle('active', !isPlayerTurn);
 
-  id('undo-game-btn')?.toggleAttribute('hidden', state.gameMode !== 'ai');
-  id('restart-left-btn')?.toggleAttribute('hidden', state.gameMode !== 'ai');
+  const rated = state.matchRatingType === 'rated';
+  id('undo-game-btn')?.toggleAttribute('hidden', state.gameMode !== 'ai' || rated);
+  id('restart-left-btn')?.toggleAttribute('hidden', state.gameMode !== 'ai' || rated);
   id('undo-game-btn')?.toggleAttribute(
     'disabled',
-    !(state.gameMode === 'ai' && game.currentPlayer === state.playerSide && state.gameHistory.length > 0)
+    !(state.gameMode === 'ai' && !rated && game.currentPlayer === state.playerSide && state.gameHistory.length > 0)
   );
+}
+
+function getBotProfileCopy() {
+  if (state.adventureModeActive) {
+    const bot = getAdventureBot(state.adventureBotId);
+    return `${bot.title}. Rated adventure match.`;
+  }
+  const label = state.matchRatingType === 'rated' ? 'Rated' : 'Unrated';
+  return state.aiDifficulty === 'hard'
+    ? `${label} hard bot ready for a real fight.`
+    : `${label} ${capitalize(state.aiDifficulty)} bot is on the board.`;
 }
 
 function updateSandboxUI(game) {

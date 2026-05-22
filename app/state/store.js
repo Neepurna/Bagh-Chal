@@ -30,7 +30,16 @@ export function makeInitialGameState() {
 export const state = {
   // ── Session / auth ─────────────────────────────────────────────
   currentUser: null,
-  userStats: { gamesPlayed: 0, tigerWins: 0, goatWins: 0 },
+  userStats: {
+    gamesPlayed: 0,
+    tigerWins: 0,
+    goatWins: 0,
+    rating: 500,
+    ratedWins: 0,
+    ratedLosses: 0,
+    adventureLevel: 0,
+    adventureCompleted: 0
+  },
   guestModeActive: false,
   pendingPostSignInAction: null,
 
@@ -39,6 +48,11 @@ export const state = {
   gameMode: 'ai',                   // 'ai' | 'multiplayer' | 'sandbox'
   multiplayerSide: null,
   aiDifficulty: 'easy',             // 'easy' | 'medium' | 'hard'
+  matchRatingType: 'unrated',       // 'rated' | 'unrated'
+  adventureBotId: null,
+  adventureModeActive: false,
+  currentGameId: null,
+  currentGameStartedAt: null,
   aiTimeControl: '3m',
   multiplayerTimeControl: '5m',
   sandboxTool: null,                // null | 'tiger' | 'goat' | 'erase'

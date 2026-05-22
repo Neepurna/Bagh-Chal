@@ -102,6 +102,14 @@
                 <span>As Goat:</span>
                 <span id="stats-goat-wins">0</span>
               </div>
+              <div class="stat-row">
+                <span>Rating:</span>
+                <span id="stats-rating">500</span>
+              </div>
+              <div class="stat-row">
+                <span>Adventure:</span>
+                <span id="stats-adventure">0 / 6</span>
+              </div>
             </div>
             <button class="sign-out-btn" id="sign-out-btn">Sign Out</button>
           </div>
@@ -226,11 +234,27 @@
               </div>
             </button>
 
+            <button class="lobby-menu-item" id="lobby-adventure-btn">
+              <span class="lobby-menu-icon lobby-icon--red">⛰</span>
+              <div class="lobby-menu-text">
+                <span class="lobby-menu-title">Adventure Mode</span>
+                <span class="lobby-menu-sub">Defeat six named bots and unlock the mountain path</span>
+              </div>
+            </button>
+
             <button class="lobby-menu-item" id="lobby-tournament-btn">
               <span class="lobby-menu-icon lobby-icon--gold">🏅</span>
               <div class="lobby-menu-text">
                 <span class="lobby-menu-title">Tournaments</span>
                 <span class="lobby-menu-sub">Join an Arena where anyone can win</span>
+              </div>
+            </button>
+
+            <button class="lobby-menu-item" id="lobby-leaderboard-btn">
+              <span class="lobby-menu-icon lobby-icon--blue">♛</span>
+              <div class="lobby-menu-text">
+                <span class="lobby-menu-title">Public Leaderboard</span>
+                <span class="lobby-menu-sub">Ranked by rating, games played, and adventure progress</span>
               </div>
             </button>
 
@@ -392,6 +416,7 @@
             <!-- Mode Tabs -->
             <div class="mode-tabs" id="player-select-mode-tabs">
               <button class="mode-tab active" id="mode-tab-ai">VS BOT</button>
+              <button class="mode-tab" id="mode-tab-adventure" hidden>ADVENTURE</button>
               <button class="mode-tab" id="mode-tab-player">TOURNAMENTS</button>
             </div>
 
@@ -430,6 +455,20 @@
                 </div>
               </div>
 
+              <div class="rating-selection" id="rating-section">
+                <h3 class="difficulty-title">Match Type</h3>
+                <div class="rating-type-buttons">
+                  <button class="rating-type-btn active" data-rating-type="unrated">
+                    <span class="difficulty-name">Unrated</span>
+                    <span class="time-control-meta">Undo enabled</span>
+                  </button>
+                  <button class="rating-type-btn" data-rating-type="rated">
+                    <span class="difficulty-name">Rated</span>
+                    <span class="time-control-meta">No undo</span>
+                  </button>
+                </div>
+              </div>
+
               <div class="player-selection">
                 <div class="selection-card" id="select-goat">
                   <img src="assets/Goat.png" alt="Goat" class="selection-logo">
@@ -463,6 +502,14 @@
                 </div>
                 <p class="tournament-alert">Feature launching soon. Stay tuned!</p>
               </div>
+            </div>
+
+            <div class="adventure-section hidden" id="adventure-section">
+              <div class="adventure-copy">
+                <h3 class="coming-soon-title">Adventure Path</h3>
+                <p class="coming-soon-text">Each victory unlocks the next named bot. Adventure matches are rated and do not allow undo.</p>
+              </div>
+              <div class="adventure-bot-grid" id="adventure-bot-grid"></div>
             </div>
           </div>
         </div>
@@ -559,6 +606,16 @@
             <h2 class="select-title">🔔 Notifications</h2>
             <div id="notif-list" class="notif-list">
               <p class="friends-empty">No notifications</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="winner-overlay" id="leaderboard-overlay">
+          <div class="winner-card leaderboard-card">
+            <button class="player-select-close" id="leaderboard-close">✕</button>
+            <h2 class="select-title">Public Leaderboard</h2>
+            <div class="leaderboard-list" id="leaderboard-list">
+              <p class="friends-empty">Loading leaderboard...</p>
             </div>
           </div>
         </div>
