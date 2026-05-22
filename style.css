@@ -2592,7 +2592,169 @@ footer {
   .tutorial-title  { font-size: 2.2rem; }
 }
 
-/* ── Mobile (max 600px) ───────────────────────────────────────────── */
+/* ── Tablet + mobile game layout (≤1024px) ────────────────────────
+   Reference layout: player strip → board → fixed bottom nav.
+   Appears after the min-width:900 block so cascade overrides 2-col.
+   ────────────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  /* Override min-width:900 2-col → single column, no gap when playing */
+  .game-layout {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  /* Order: strip(1) → board(2) → stats sidebar(3, hidden when playing) */
+  .play-sidebar { order: 1 !important; }
+  .board-wrap   { order: 2 !important; }
+  .sidebar      { order: 3 !important; }
+  .game-layout-playing .sidebar { display: none; }
+
+  /* Header: match reference — display font, red, compact */
+  .header-title {
+    font-family: var(--font-display);
+    color: var(--red);
+    letter-spacing: 0.06em;
+    font-size: 1.4rem;
+  }
+  .nav-btn span:not(.btn-icon) { display: none; }
+
+  /* Board: cap height so it stays visible without scrolling on landscape */
+  .board-container {
+    max-width: min(560px, calc(100vh - 220px));
+  }
+
+  /* Pad layout so fixed nav doesn't obscure board */
+  .game-layout-playing { padding-bottom: 76px; }
+
+  /* Fixed bottom nav when game is active */
+  .mobile-play-actions:not(.hidden) {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--white);
+    border-top: var(--border-thick);
+    box-shadow: 0 -3px 0 var(--black);
+    padding: 10px 16px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    flex-direction: row;
+    gap: 8px;
+    justify-content: stretch;
+  }
+
+  .mobile-action-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: var(--white);
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 10px 6px;
+    font-family: var(--font-body);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    color: var(--black);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .mobile-action-btn-icon { font-size: 1.2rem; }
+
+  .mobile-action-btn-danger {
+    background: var(--red);
+    color: var(--white);
+    border-color: var(--black);
+  }
+
+  /* Play sidebar → compact horizontal player strip */
+  .play-sidebar .play-sidebar-header,
+  .play-sidebar .play-sidebar-note,
+  .play-sidebar .play-sidebar-actions { display: none !important; }
+
+  .play-sidebar-card {
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--cream);
+  }
+
+  .play-sidebar-top { padding: 10px 16px; }
+
+  .play-player-stack {
+    flex-direction: row;
+    gap: 0;
+    margin-bottom: 0;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .play-player-card {
+    flex: 1;
+    padding: 8px 6px;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .play-player-card.active {
+    background: rgba(255, 214, 10, 0.45);
+    box-shadow: none;
+    transform: none;
+    border-color: transparent;
+  }
+
+  .play-player-meta {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 3px;
+  }
+
+  .play-turn-indicator { display: none; }
+
+  .play-player-piece-img {
+    display: block;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 2.5px solid var(--black);
+    box-shadow: 2px 2px 0 var(--black);
+    object-fit: cover;
+  }
+
+  .play-player-name  { font-size: 0.9rem; }
+  .play-player-sub   { font-size: 0.72rem; }
+
+  .play-player-stat {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #555;
+    margin-top: 2px;
+  }
+
+  .play-player-vs {
+    display: flex;
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    color: var(--black);
+    opacity: 0.4;
+    flex-shrink: 0;
+    padding: 0 10px;
+    align-self: center;
+  }
+}
+
+/* ── Mobile (max 600px) — tighten sizes vs tablet ─────────────────── */
 @media (max-width: 600px) {
   .container { padding: 0 12px 32px; }
 
@@ -2600,10 +2762,7 @@ footer {
 
   .header-title { font-size: 1.2rem; }
 
-  .nav-btn span:not(.btn-icon) { display: none; }
   .nav-btn { padding: 8px 10px; }
-
-  .game-layout { gap: 14px; }
 
   .panel-header  { padding: 10px 14px; }
   .panel-body    { padding: 12px 14px; }
@@ -2626,134 +2785,21 @@ footer {
 
   .mode-tabs { flex-wrap: wrap; }
 
-  /* Fixed bottom nav when game is active */
-  .mobile-play-actions:not(.hidden) {
-    display: flex;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 100;
-    background: var(--white);
-    border-top: var(--border-thick);
-    box-shadow: 0 -3px 0 var(--black);
-    padding: 8px 10px;
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
-    flex-direction: row;
-    gap: 6px;
-    justify-content: stretch;
-  }
-
-  .mobile-action-btn {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    background: var(--white);
-    border: var(--border);
-    border-radius: var(--radius);
-    padding: 7px 4px;
-    font-family: var(--font-body);
-    font-size: 0.62rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    cursor: pointer;
-    color: var(--black);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .mobile-action-btn-icon { font-size: 1rem; }
-
-  .mobile-action-btn-danger {
-    background: var(--red);
-    color: var(--white);
-    border-color: var(--black);
-  }
-
-  /* Pad layout so fixed nav doesn't obscure board */
+  /* Tighter sizes on phone vs tablet */
   .game-layout-playing { padding-bottom: 70px; }
-
-  /* Play sidebar → compact horizontal player strip */
-  .play-sidebar .play-sidebar-header,
-  .play-sidebar .play-sidebar-note,
-  .play-sidebar .play-sidebar-actions { display: none !important; }
-
-  .play-sidebar-card {
-    border-left: none;
-    border-right: none;
-    border-top: none;
-    border-radius: 0;
-    box-shadow: none;
-    background: var(--cream);
-  }
-
   .play-sidebar-top { padding: 8px 12px; }
-
-  .play-player-stack {
-    flex-direction: row;
-    gap: 0;
-    margin-bottom: 0;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .play-player-card {
-    flex: 1;
-    padding: 6px 4px;
-    border: none;
-    border-radius: var(--radius);
-    background: transparent;
-    box-shadow: none;
-  }
-
-  .play-player-card.active {
-    background: rgba(255, 214, 10, 0.45);
-    box-shadow: none;
-    transform: none;
-    border-color: transparent;
-  }
-
-  .play-player-meta {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 2px;
-  }
-
-  .play-turn-indicator { display: none; }
-
-  .play-player-piece-img {
-    display: block;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 2px solid var(--black);
-    box-shadow: 2px 2px 0 var(--black);
-    object-fit: cover;
-  }
-
+  .play-player-piece-img { width: 36px; height: 36px; }
   .play-player-name  { font-size: 0.78rem; }
   .play-player-sub   { font-size: 0.6rem; }
-
-  .play-player-stat {
-    display: block;
-    font-size: 0.65rem;
-    font-weight: 700;
-    color: #555;
-    margin-top: 1px;
-  }
-
-  .play-player-vs {
-    display: flex;
-    font-family: var(--font-display);
-    font-size: 1.1rem;
-    color: var(--black);
-    opacity: 0.4;
-    flex-shrink: 0;
-    padding: 0 6px;
-    align-self: center;
+  .play-player-stat  { font-size: 0.65rem; margin-top: 1px; }
+  .play-player-vs    { font-size: 1.1rem; padding: 0 6px; }
+  .play-player-card  { padding: 6px 4px; }
+  .mobile-action-btn { font-size: 0.62rem; padding: 7px 4px; gap: 2px; }
+  .mobile-action-btn-icon { font-size: 1rem; }
+  .mobile-play-actions:not(.hidden) {
+    padding: 8px 10px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    gap: 6px;
   }
 
   .tutorial-scroll { padding: 24px 16px; }
