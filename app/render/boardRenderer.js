@@ -28,8 +28,12 @@ export function initBoardRenderer() {
     return;
   }
   ctx = canvas.getContext('2d');
-  canvas.width = 600;
-  canvas.height = 600;
+  const initDpr = window.devicePixelRatio || 1;
+  canvas.width = 600 * initDpr;
+  canvas.height = 600 * initDpr;
+  canvas.style.width = '600px';
+  canvas.style.height = '600px';
+  ctx.setTransform(initDpr, 0, 0, initDpr, 0, 0);
 
   // Lazy-load images. Each image triggers a redraw when it loads so the board
   // appears as soon as it's ready (no need to gate the first draw on imagesLoaded).
@@ -64,9 +68,13 @@ export function resizeCanvas() {
   if (!container) return;
   const availableWidth = Math.max(container.clientWidth - 48, 320);
   const availableHeight = Math.max(container.clientHeight - 48, 320);
-  const size = Math.min(availableWidth, availableHeight, 980);
-  canvas.width = size;
-  canvas.height = size;
+  const cssSize = Math.min(availableWidth, availableHeight, 980);
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cssSize * dpr;
+  canvas.height = cssSize * dpr;
+  canvas.style.width = cssSize + 'px';
+  canvas.style.height = cssSize + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   markDirty();
 }
 
@@ -117,19 +125,22 @@ function drawOctagonPath(x, y, radius) {
 
 function drawBoard() {
   const game = state.game;
-  const size = Math.min(canvas.width, canvas.height);
+  const dpr = window.devicePixelRatio || 1;
+  const size = Math.min(canvas.width, canvas.height) / dpr;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   const padding = size * 0.1;
   const cellSize = (size - 2 * padding) / (GRID_SIZE - 1);
 
   // ── Background — warm cream ──────────────────────────────────────
   ctx.fillStyle = '#F5F0E4';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, size, size);
 
   // Subtle dot-grid texture
   ctx.fillStyle = 'rgba(17,17,17,0.06)';
   const dotSpacing = cellSize * 0.5;
-  for (let dx = dotSpacing; dx < canvas.width; dx += dotSpacing) {
-    for (let dy = dotSpacing; dy < canvas.height; dy += dotSpacing) {
+  for (let dx = dotSpacing; dx < size; dx += dotSpacing) {
+    for (let dy = dotSpacing; dy < size; dy += dotSpacing) {
       ctx.beginPath();
       ctx.arc(dx, dy, 1.2, 0, Math.PI * 2);
       ctx.fill();

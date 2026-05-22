@@ -80,6 +80,9 @@ function updatePlaySidebar(game) {
   const gameLayout = id('game-layout');
   if (gameLayout) gameLayout.classList.toggle('game-layout-playing', playingStandardGame);
 
+  const mobilePlayActions = id('mobile-play-actions');
+  if (mobilePlayActions) mobilePlayActions.classList.toggle('hidden', !playingStandardGame);
+
   if (!playingStandardGame) return;
 
   const playerName = state.userStats?.username || state.currentUser?.displayName || 'You';
@@ -93,6 +96,23 @@ function updatePlaySidebar(game) {
   setText('bot-profile-copy', state.gameMode === 'ai'
     ? (state.aiDifficulty === 'hard' ? 'Hard bot ready for a real fight.' : `${capitalize(state.aiDifficulty)} bot is on the board.`)
     : 'Live game against your friend.');
+
+  // Piece images for the mobile player strip
+  const playerSrc = state.playerSide === PIECE_TYPES.TIGER ? 'assets/Tiger.png' : 'assets/Goat.png';
+  const opponentSrc = state.playerSide === PIECE_TYPES.TIGER ? 'assets/Goat.png' : 'assets/Tiger.png';
+  const playerPieceImg = id('play-player-piece-img');
+  const opponentPieceImg = id('play-opponent-piece-img');
+  if (playerPieceImg) playerPieceImg.src = playerSrc;
+  if (opponentPieceImg) opponentPieceImg.src = opponentSrc;
+
+  // Compact stats for mobile strip
+  if (state.playerSide === PIECE_TYPES.TIGER) {
+    setText('play-player-stat', `cap: ${game.goatsCaptured}`);
+    setText('play-opponent-stat', `left: ${20 - game.goatsPlaced}`);
+  } else {
+    setText('play-player-stat', `left: ${20 - game.goatsPlaced}`);
+    setText('play-opponent-stat', `cap: ${game.goatsCaptured}`);
+  }
 
   const isPlayerTurn = game.currentPlayer === state.playerSide;
   id('play-player-card')?.classList.toggle('active', isPlayerTurn);

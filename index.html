@@ -124,19 +124,25 @@
               <div class="play-player-card" id="play-opponent-card">
                 <div class="play-player-meta">
                   <span class="play-turn-indicator" id="play-opponent-indicator" aria-hidden="true"></span>
+                  <img class="play-player-piece-img" id="play-opponent-piece-img" src="assets/Tiger.png" alt="">
                   <div>
                     <div class="play-player-name" id="play-opponent-name">Mr.Bot</div>
                     <div class="play-player-sub" id="play-opponent-side-label">Opponent plays as Tiger</div>
+                    <div class="play-player-stat" id="play-opponent-stat"></div>
                   </div>
                 </div>
               </div>
 
+              <div class="play-player-vs" aria-hidden="true">VS</div>
+
               <div class="play-player-card" id="play-player-card">
                 <div class="play-player-meta">
                   <span class="play-turn-indicator" id="play-player-indicator" aria-hidden="true"></span>
+                  <img class="play-player-piece-img" id="play-player-piece-img" src="assets/Goat.png" alt="">
                   <div>
                     <div class="play-player-name" id="play-player-name">You</div>
                     <div class="play-player-sub" id="play-side-label">You play as Goat</div>
+                    <div class="play-player-stat" id="play-player-stat"></div>
                   </div>
                 </div>
               </div>
@@ -312,7 +318,24 @@
         </div>
 
         <!-- External actions hook for Mobile -->
-        <div class="mobile-play-actions hidden" id="mobile-play-actions"></div>
+        <div class="mobile-play-actions hidden" id="mobile-play-actions">
+          <button class="mobile-action-btn" id="mobile-undo-btn" type="button">
+            <span class="mobile-action-btn-icon">↩</span>
+            <span>Undo</span>
+          </button>
+          <button class="mobile-action-btn" id="mobile-restart-btn" type="button">
+            <span class="mobile-action-btn-icon">↻</span>
+            <span>Restart</span>
+          </button>
+          <button class="mobile-action-btn mobile-action-btn-danger" id="mobile-resign-btn" type="button">
+            <span class="mobile-action-btn-icon">🏳</span>
+            <span>Surrender</span>
+          </button>
+          <button class="mobile-action-btn" id="mobile-profile-btn" type="button">
+            <span class="mobile-action-btn-icon">👤</span>
+            <span>Profile</span>
+          </button>
+        </div>
 
         <div class="panel hidden" id="sandbox-panel">
           <div class="panel-header">

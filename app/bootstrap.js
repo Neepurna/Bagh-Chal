@@ -5,7 +5,7 @@
 // DOM events, and kicks off the initial render. Order matters: the renderer
 // must exist before the controller schedules a redraw, etc.
 
-import { initAudioSystem } from './audio/audioSystem.js';
+import { initAudioSystem, playSound } from './audio/audioSystem.js';
 import { initializeAuth } from './auth/authService.js';
 import { buildInitialRoomState, createMultiplayerService } from './multiplayer/multiplayerService.js';
 import { setSentryUser } from './monitoring/sentry.js';
@@ -252,6 +252,15 @@ export function bootstrap({ firebase }) {
   on('resign-left-btn', 'click', () => {
     if (window.confirm('Are you sure you want to resign this game?')) resignCurrentGame();
   });
+  on('mobile-undo-btn', 'click', () => {
+    clearPendingAITimeouts();
+    if (undoLastTurn()) playSound('buttonClick');
+  });
+  on('mobile-restart-btn', 'click', resetCurrentGame);
+  on('mobile-resign-btn', 'click', () => {
+    if (window.confirm('Are you sure you want to resign this game?')) resignCurrentGame();
+  });
+  on('mobile-profile-btn', 'click', () => { id('profile-btn')?.click(); });
   on('sandbox-clear-btn', 'click', clearSandboxBoard);
   on('sandbox-exit-btn', 'click', exitToHome);
   on('sandbox-tool-tiger', 'click', () => setSandboxTool('tiger'));

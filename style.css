@@ -1063,6 +1063,12 @@ header {
   flex-direction: column;
 }
 
+/* Base: piece img, VS divider, stat — hidden on desktop, shown via mobile @media */
+.play-player-piece-img { display: none; }
+.play-player-vs        { display: none; }
+.play-player-stat      { display: none; }
+.mobile-action-btn     { display: none; }
+
 /* ══════════════════════════════════════════════════════════════════
    OVERLAYS (shared)
    ══════════════════════════════════════════════════════════════════ */
@@ -1972,8 +1978,8 @@ header {
   content: '';
   position: absolute;
   inset: 0;
-  background: url('assets/Welcome-Hero.png') center top / cover no-repeat;
-  opacity: 0.25;
+  background: url('assets/Welcome-Hero-01.png') center top / cover no-repeat;
+  opacity: 0.35;
   z-index: 0;
 }
 
@@ -2620,9 +2626,134 @@ footer {
 
   .mode-tabs { flex-wrap: wrap; }
 
-  .mobile-play-actions {
+  /* Fixed bottom nav when game is active */
+  .mobile-play-actions:not(.hidden) {
     display: flex;
-    padding: 0 0 4px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--white);
+    border-top: var(--border-thick);
+    box-shadow: 0 -3px 0 var(--black);
+    padding: 8px 10px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    flex-direction: row;
+    gap: 6px;
+    justify-content: stretch;
+  }
+
+  .mobile-action-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: var(--white);
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 7px 4px;
+    font-family: var(--font-body);
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    color: var(--black);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .mobile-action-btn-icon { font-size: 1rem; }
+
+  .mobile-action-btn-danger {
+    background: var(--red);
+    color: var(--white);
+    border-color: var(--black);
+  }
+
+  /* Pad layout so fixed nav doesn't obscure board */
+  .game-layout-playing { padding-bottom: 70px; }
+
+  /* Play sidebar → compact horizontal player strip */
+  .play-sidebar .play-sidebar-header,
+  .play-sidebar .play-sidebar-note,
+  .play-sidebar .play-sidebar-actions { display: none !important; }
+
+  .play-sidebar-card {
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--cream);
+  }
+
+  .play-sidebar-top { padding: 8px 12px; }
+
+  .play-player-stack {
+    flex-direction: row;
+    gap: 0;
+    margin-bottom: 0;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .play-player-card {
+    flex: 1;
+    padding: 6px 4px;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .play-player-card.active {
+    background: rgba(255, 214, 10, 0.45);
+    box-shadow: none;
+    transform: none;
+    border-color: transparent;
+  }
+
+  .play-player-meta {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 2px;
+  }
+
+  .play-turn-indicator { display: none; }
+
+  .play-player-piece-img {
+    display: block;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid var(--black);
+    box-shadow: 2px 2px 0 var(--black);
+    object-fit: cover;
+  }
+
+  .play-player-name  { font-size: 0.78rem; }
+  .play-player-sub   { font-size: 0.6rem; }
+
+  .play-player-stat {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #555;
+    margin-top: 1px;
+  }
+
+  .play-player-vs {
+    display: flex;
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    color: var(--black);
+    opacity: 0.4;
+    flex-shrink: 0;
+    padding: 0 6px;
+    align-self: center;
   }
 
   .tutorial-scroll { padding: 24px 16px; }
