@@ -1079,7 +1079,7 @@ header {
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 800;
+  z-index: 1100;
   padding: 20px;
 }
 
@@ -2179,7 +2179,7 @@ header {
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 900;
+  z-index: 1100;
   padding: 20px;
 }
 
