@@ -9,9 +9,11 @@
 // binding all at module top-level. See app/bootstrap.js for the new layout.
 
 import { initBrowserSentry } from './app/monitoring/sentry.js';
+import { inject as injectVercelAnalytics } from '@vercel/analytics';
 import { bootstrap } from './app/bootstrap.js';
 
 initBrowserSentry();
+injectVercelAnalytics();
 
 if (typeof window !== 'undefined' && window.firebase) {
   bootstrap({ firebase: window.firebase });
