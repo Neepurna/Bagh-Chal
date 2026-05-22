@@ -33,11 +33,11 @@ export function applyLocalRatingResult({ playerWon, playerSide, difficulty }) {
 
 export async function syncPlayerProfile() {
   const supabase = getSupabaseClient();
-  if (!supabase || !state.currentUser?.uid) return;
+  if (!supabase || !state.currentUser?.id) return;
 
   const username = state.userStats?.username || state.currentUser?.displayName || 'Player';
   const payload = {
-    firebase_uid: state.currentUser.uid,
+    auth_user_id: state.currentUser.id,
     display_name: username,
     username: state.userStats?.username || username,
     email: state.currentUser.email || null,
@@ -60,12 +60,12 @@ export async function syncPlayerProfile() {
 
 export async function loadSupabasePlayerProfile(user) {
   const supabase = getSupabaseClient();
-  if (!supabase || !user?.uid) return null;
+  if (!supabase || !user?.id) return null;
 
   const { data, error } = await supabase
     .from('player_profiles')
     .select('*')
-    .eq('firebase_uid', user.uid)
+    .eq('auth_user_id', user.id)
     .maybeSingle();
 
   if (error) {

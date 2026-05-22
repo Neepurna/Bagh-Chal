@@ -9,19 +9,13 @@ import { updateUI } from '../render/uiBindings.js';
 
 
 let multiplayerService = null;
-let firebaseApi = null;
-let getDb = () => null;
 let onRoomFinishedCallback = () => {};
 
 export function configureMultiplayerBridge({
-  firebase,
   service,
-  getDb: dbGetter,
   onRoomFinished
 }) {
-  firebaseApi = firebase;
   multiplayerService = service;
-  getDb = dbGetter;
   if (typeof onRoomFinished === 'function') onRoomFinishedCallback = onRoomFinished;
 }
 
@@ -35,8 +29,7 @@ export function stopRoomSyncListeners() {
 }
 
 export async function finalizeMultiplayerRoom({ roomId, winner, winnerMessage }) {
-  const db = getDb();
-  if (!db || !roomId) return;
+  if (!roomId) return;
   return multiplayerService.finalizeRoom({ roomId, winner, winnerMessage });
 }
 
@@ -50,7 +43,6 @@ function getCurrentMultiplayerPayload(extra = {}) {
     goatsCaptured: game.goatsCaptured,
     goatIdentities: { ...(game.goatIdentities || {}) },
     tigerIdentities: { ...(game.tigerIdentities || {}) },
-    updatedAt: firebaseApi.firestore.FieldValue.serverTimestamp(),
     ...extra
   };
 }
@@ -64,15 +56,16 @@ export async function syncMultiplayerState(extra = {}) {
 }
 
 function applyRoomStateToLocal(roomData) {
-  if (!roomData || !roomData.board) return;
+  const boardState = roomData.board_state || roomData;
+  if (!boardState || !boardState.board) return;
   const game = state.game;
 
   // Resolve opponent username from room document
   if (state.currentUser) {
-    const weAreHost = roomData.hostUid === state.currentUser.uid;
+    const weAreHost = roomData.host_id === state.currentUser.id;
     state.opponentUsername = weAreHost
-      ? (roomData.guestUsername || 'Opponent')
-      : (roomData.hostUsername || 'Opponent');
+      ? (roomData.guest_username || 'Opponent')
+      : (roomData.host_username || 'Opponent');
   }
 
   // Only apply board state when the game isn't already finished locally.
@@ -83,13 +76,13 @@ function applyRoomStateToLocal(roomData) {
   if (game.gameOver) return;
 
   multiplayerService.withAppliedRoomSnapshot(() => {
-    game.board = [...roomData.board];
-    game.currentPlayer = roomData.currentPlayer ?? PIECE_TYPES.GOAT;
-    game.phase = roomData.phase || PHASE.PLACEMENT;
-    game.goatsPlaced = roomData.goatsPlaced || 0;
-    game.goatsCaptured = roomData.goatsCaptured || 0;
-    game.goatIdentities = { ...(roomData.goatIdentities || {}) };
-    game.tigerIdentities = { ...(roomData.tigerIdentities || {}) };
+    game.board = [...boardState.board];
+    game.currentPlayer = boardState.currentPlayer ?? PIECE_TYPES.GOAT;
+    game.phase = boardState.phase || PHASE.PLACEMENT;
+    game.goatsPlaced = boardState.goatsPlaced || 0;
+    game.goatsCaptured = boardState.goatsCaptured || 0;
+    game.goatIdentities = { ...(boardState.goatIdentities || {}) };
+    game.tigerIdentities = { ...(boardState.tigerIdentities || {}) };
     game.selectedPiece = null;
     game.validMoves = [];
   });

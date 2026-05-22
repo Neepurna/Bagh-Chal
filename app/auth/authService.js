@@ -1,370 +1,190 @@
 import { getSupabaseClient } from '../services/supabaseClient.js';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCwZWRiXb_KwyNpUcQUfRNJQvQyf-o6x5g",
-  authDomain: "baghchal-26da2.firebaseapp.com",
-  projectId: "baghchal-26da2",
-  storageBucket: "baghchal-26da2.firebasestorage.app",
-  messagingSenderId: "342367298445",
-  appId: "1:342367298445:web:b30dc206c09e73ab24d3c4",
-  measurementId: "G-6VR5DSX8CT"
-};
-const googleRedirectStateKey = 'baghchal_google_redirect';
 const googleRedirectActionKey = 'baghchal_google_redirect_action';
 
-function setRedirectIntent(postSignInAction = null) {
-  window.localStorage.setItem(googleRedirectStateKey, '1');
-  if (postSignInAction) {
-    window.localStorage.setItem(googleRedirectActionKey, postSignInAction);
-  } else {
-    window.localStorage.removeItem(googleRedirectActionKey);
-  }
+function getDisplayName(user) {
+  return user?.user_metadata?.full_name
+    || user?.user_metadata?.name
+    || user?.email?.split('@')[0]
+    || 'Player';
 }
 
-function consumeRedirectIntent() {
-  const hasRedirectState = window.localStorage.getItem(googleRedirectStateKey) === '1';
-  if (!hasRedirectState) {
-    return { redirectAction: null, hadRedirectIntent: false };
-  }
-
-  const redirectAction = window.localStorage.getItem(googleRedirectActionKey);
-  window.localStorage.removeItem(googleRedirectStateKey);
-  window.localStorage.removeItem(googleRedirectActionKey);
-  return { redirectAction, hadRedirectIntent: true };
+function toAppUser(user) {
+  if (!user) return null;
+  return {
+    ...user,
+    uid: user.id,
+    displayName: getDisplayName(user),
+    photoURL: user.user_metadata?.avatar_url || user.user_metadata?.picture || '',
+    email: user.email || ''
+  };
 }
 
-async function loadUserData(db, user) {
-  if (!db) {
-    return { gamesPlayed: 0, tigerWins: 0, goatWins: 0, username: user?.displayName || 'Player' };
+function makeDefaultStats(user) {
+  return {
+    gamesPlayed: 0,
+    tigerWins: 0,
+    goatWins: 0,
+    rating: 500,
+    ratedWins: 0,
+    ratedLosses: 0,
+    adventureLevel: 0,
+    adventureCompleted: 0,
+    username: getDisplayName(user)
+  };
+}
+
+async function loadUserProfile(user) {
+  const supabase = getSupabaseClient();
+  if (!supabase || !user) return null;
+
+  const { data, error } = await supabase
+    .from('player_profiles')
+    .select('*')
+    .eq('auth_user_id', user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[supabase] profile load failed:', error.message);
+    return null;
+  }
+  return data;
+}
+
+function statsFromProfile(profile, user) {
+  if (!profile) return makeDefaultStats(user);
+  return {
+    gamesPlayed: profile.games_played || 0,
+    tigerWins: profile.tiger_wins || 0,
+    goatWins: profile.goat_wins || 0,
+    rating: profile.rating ?? 500,
+    ratedWins: profile.rated_wins || 0,
+    ratedLosses: profile.rated_losses || 0,
+    adventureLevel: profile.adventure_level || 0,
+    adventureCompleted: profile.adventure_completed || 0,
+    username: profile.username || profile.display_name || getDisplayName(user)
+  };
+}
+
+export function initializeAuth({ onSignedIn, onSignedOut, onUsernameSetupRequired }) {
+  const supabase = getSupabaseClient();
+
+  if (!supabase) {
+    console.error('[supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.');
+    onSignedOut?.({ auth: null });
+    return { auth: null };
   }
 
-  try {
-    const userDoc = await db.collection('users').doc(user.uid).get();
-    if (userDoc.exists) {
-      const data = userDoc.data();
-      const userStats = {
-        gamesPlayed: data.gamesPlayed || 0,
-        tigerWins: data.tigerWins || 0,
-        goatWins: data.goatWins || 0,
-        rating: data.rating || 500,
-        ratedWins: data.ratedWins || 0,
-        ratedLosses: data.ratedLosses || 0,
-        adventureLevel: data.adventureLevel || 0,
-        adventureCompleted: data.adventureCompleted || 0,
-        username: data.username || user.displayName || 'Player'
-      };
-
-      if (data.username) {
-        const clean = String(data.username).trim().toLowerCase();
-        const idxRef = db.collection('usernames').doc(clean);
-        const idxSnap = await idxRef.get();
-        if (!idxSnap.exists) {
-          await idxRef.set({ uid: user.uid }).catch(() => {});
-        }
-      }
-
-      return userStats;
+  async function handleSession(session) {
+    const rawUser = session?.user || null;
+    if (!rawUser) {
+      onSignedOut?.({ auth: supabase.auth });
+      return;
     }
 
-    return { gamesPlayed: 0, tigerWins: 0, goatWins: 0, username: user.displayName || 'Player' };
-  } catch (error) {
-    console.error('Error loading user data:', error);
-    return { gamesPlayed: 0, tigerWins: 0, goatWins: 0, username: user.displayName || 'Player' };
-  }
-}
+    const profile = await loadUserProfile(rawUser);
+    const appUser = toAppUser(rawUser);
+    const redirectAction = window.localStorage.getItem(googleRedirectActionKey);
+    window.localStorage.removeItem(googleRedirectActionKey);
+    const needsUsernameSetup = !profile?.username;
 
-export function initializeAuth({ firebase, onSignedIn, onSignedOut, onUsernameSetupRequired }) {
-  let auth = null;
-  let db = null;
+    if (needsUsernameSetup) onUsernameSetupRequired?.();
 
-  try {
-    firebase.initializeApp(firebaseConfig);
-    auth = firebase.auth();
-    db = firebase.firestore();
-    console.log('Firebase initialized successfully');
-  } catch (error) {
-    console.error('Firebase initialization error:', error);
-  }
-
-  if (auth) {
-
-    auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        console.log('User signed in:', user.email);
-
-        // Keep fallback values so onSignedIn is always called even if
-        // data loading partially fails.
-        let userStats = { gamesPlayed: 0, tigerWins: 0, goatWins: 0, username: user.displayName || 'Player' };
-        let redirectAction = null;
-        let needsUsernameSetup = false;
-
-        try {
-          userStats = await loadUserData(db, user);
-          const intent = consumeRedirectIntent();
-          redirectAction = intent.redirectAction;
-          const hadRedirectIntent = intent.hadRedirectIntent;
-
-          if (hadRedirectIntent) {
-            try {
-              // This Firestore call previously had no error handling — if it
-              // threw (rules block, network issue, etc.) onSignedIn was never
-              // called and the welcome page stayed visible.
-              const userDoc = await db.collection('users').doc(user.uid).get();
-              if (!userDoc.exists) {
-                needsUsernameSetup = true;
-                onUsernameSetupRequired?.();
-              }
-            } catch (firestoreError) {
-              console.error('Error checking user document:', firestoreError);
-              // Can't confirm whether the doc exists — treat as existing user
-              // and proceed. Username setup can be triggered separately if needed.
-            }
-          }
-        } catch (error) {
-          console.error('Error during sign-in data loading:', error);
-        }
-
-        // Always call onSignedIn when we have a user — this is the call that
-        // actually transitions the UI from welcome page to home page.
-        onSignedIn?.({ user, userStats, auth, db, redirectAction, needsUsernameSetup });
-      } else {
-        console.log('User signed out');
-        onSignedOut?.({ auth, db });
-      }
+    onSignedIn?.({
+      user: appUser,
+      userStats: statsFromProfile(profile, rawUser),
+      auth: supabase.auth,
+      redirectAction,
+      needsUsernameSetup
     });
   }
 
-  return { auth, db };
+  supabase.auth.getSession().then(({ data }) => handleSession(data.session));
+  const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    setTimeout(() => handleSession(session), 0);
+  });
+
+  return { auth: supabase.auth, unsubscribe: () => listener.subscription.unsubscribe() };
 }
-// ── Google Identity Services configuration ───────────────────────────────────
-//
-// GIS opens Google's account picker DIRECTLY (no Firebase relay → no black flash).
-// BUT GIS requires every domain the app runs on to be explicitly registered in
-// Google Cloud Console as an "Authorized JavaScript origin". Unregistered domains
-// get an "Access blocked: origin_mismatch" error with no JS callback to catch it.
-//
-// Solution: maintain AUTHORIZED_GIS_ORIGINS below. Domains in this list use the
-// chess.com-style GIS popup. Any other domain (a friend's link, a new host, etc.)
-// automatically falls back to Firebase's popup, which works everywhere.
-//
-// ── Step 1: Add your domains to Google Cloud Console ─────────────────────────
-//   1. Open https://console.cloud.google.com/apis/credentials?project=baghchal-26da2
-//   2. Click the OAuth 2.0 client named "Web client (auto created by Google Service)"
-//   3. Under "Authorized JavaScript origins" click "+ ADD URI" and add each
-//      domain where your app is hosted:
-//        https://baghchal-26da2.web.app
-//        https://baghchal-26da2.firebaseapp.com
-//        http://localhost:5173          ← Vite dev server
-//        http://localhost               ← plain localhost
-//        https://yourcustomdomain.com   ← add any custom domain here too
-//   4. Click Save (changes take up to 5 minutes to propagate).
-//
-// ── Step 2: Mirror those same origins here ───────────────────────────────────
-//   Add the exact same URLs to AUTHORIZED_GIS_ORIGINS below so the code knows
-//   when GIS is safe to use vs. when to fall back to Firebase popup.
-//
-const GOOGLE_OAUTH_CLIENT_ID = '342367298445-ab2811qo6gin4jo23b8n18l1m2ed56bc.apps.googleusercontent.com';
 
-// Domains registered in Google Cloud Console as Authorized JavaScript origins.
-// Keep this in sync with what you add in the Console (Step 1 above).
-const AUTHORIZED_GIS_ORIGINS = [
-  'https://baghchal-26da2.web.app',
-  'https://baghchal-26da2.firebaseapp.com',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:3000',
-  'http://localhost',
-];
-
-export async function signInWithGoogle({ auth, db, firebase, onUsernameSetupRequired, postSignInAction = null }) {
-  console.log('signInWithGoogle called');
-  if (!auth) {
-    console.error('Firebase auth not initialized');
-    alert('Authentication service not available. Please refresh the page.');
+export async function signInWithGoogle({ postSignInAction = null } = {}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    alert('Authentication service is not configured yet.');
     return;
   }
 
-  // ── Path A: Google Identity Services (chess.com-style) ───────────────────
-  // GIS opens Google's account picker in a popup that goes DIRECTLY to
-  // accounts.google.com — no intermediate Firebase relay page, so there is
-  // no black→white flash. We then hand the resulting access token to Firebase
-  // so auth state, Firestore rules, and all existing logic stay unchanged.
-  //
-  // GIS REQUIRES the current origin to be registered in Google Cloud Console.
-  // If it isn't, Google shows "Access blocked: origin_mismatch" with no JS
-  // callback — the error is unrecoverable from code. So we check the origin
-  // first and fall back to Firebase popup for any unregistered domain.
-  const currentOrigin = window.location.origin;
-  const originIsAuthorized = AUTHORIZED_GIS_ORIGINS.includes(currentOrigin);
-  const gisReady = window.google?.accounts?.oauth2 && originIsAuthorized;
+  if (postSignInAction) window.localStorage.setItem(googleRedirectActionKey, postSignInAction);
+  else window.localStorage.removeItem(googleRedirectActionKey);
 
-  if (!originIsAuthorized) {
-    console.log(`[auth] GIS skipped — origin "${currentOrigin}" not in AUTHORIZED_GIS_ORIGINS. Using Firebase popup fallback.`);
-  }
-
-  if (gisReady) {
-    console.log('Starting Google sign-in via GIS popup...');
-    return new Promise((resolve) => {
-      const tokenClient = window.google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_OAUTH_CLIENT_ID,
-        scope: 'openid email profile',
-        callback: async (tokenResponse) => {
-          if (tokenResponse.error) {
-            // 'access_denied' = user closed the popup — not an error worth alerting.
-            if (tokenResponse.error !== 'access_denied') {
-              console.error('GIS sign-in error:', tokenResponse.error);
-              alert('Failed to sign in with Google: ' + tokenResponse.error);
-            } else {
-              console.log('GIS popup closed by user.');
-            }
-            resolve();
-            return;
-          }
-
-          try {
-            setRedirectIntent(postSignInAction);
-            // Convert the Google access token into a Firebase credential.
-            const credential = firebase.auth.GoogleAuthProvider.credential(
-              null,
-              tokenResponse.access_token
-            );
-            await auth.signInWithCredential(credential);
-            // onAuthStateChanged handles everything from here.
-          } catch (error) {
-            window.localStorage.removeItem(googleRedirectStateKey);
-            window.localStorage.removeItem(googleRedirectActionKey);
-            console.error('Firebase credential error:', error);
-            alert('Failed to sign in: ' + error.message);
-          }
-          resolve();
-        }
-      });
-
-      // prompt:'select_account' forces Google to always show the account picker,
-      // even if the user has only one Google account — consistent with chess.com.
-      tokenClient.requestAccessToken({ prompt: 'select_account' });
-    });
-  }
-
-  // ── Path B: Firebase popup fallback ──────────────────────────────────────
-  // Used when GIS hasn't loaded yet (slow network, ad-blocker) OR when
-  // GOOGLE_OAUTH_CLIENT_ID hasn't been filled in yet.
-  // Has the Firebase relay flash but is functionally identical.
-  console.log('Starting Google sign-in via Firebase popup (GIS not ready)...');
-  const provider = new firebase.auth.GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: 'select_account' });
-
-  try {
-    setRedirectIntent(postSignInAction);
-    await auth.signInWithPopup(provider);
-  } catch (error) {
-    window.localStorage.removeItem(googleRedirectStateKey);
-    window.localStorage.removeItem(googleRedirectActionKey);
-    if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-      console.log('Google sign-in popup was closed by user.');
-      return;
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: import.meta.env.VITE_AUTH_REDIRECT_URL || window.location.origin,
+      queryParams: { prompt: 'select_account' }
     }
-    console.error('Sign-in error:', error);
+  });
+
+  if (error) {
+    console.error('Supabase Google sign-in error:', error);
     alert('Failed to sign in with Google: ' + error.message);
   }
 }
 
 export async function saveUsername({
   currentUser,
-  db,
-  firebase,
   username,
   onUsernameSaved,
   onUsernameError
 }) {
-  if (!currentUser) return;
+  const supabase = getSupabaseClient();
+  if (!currentUser || !supabase) return;
 
   const clean = username.trim().toLowerCase();
-  const supabase = getSupabaseClient();
+  try {
+    const { data: existing, error: lookupError } = await supabase
+      .from('player_profiles')
+      .select('auth_user_id')
+      .eq('username', clean)
+      .maybeSingle();
 
-  if (supabase) {
-    try {
-      const { data: existing, error: lookupError } = await supabase
-        .from('player_profiles')
-        .select('firebase_uid')
-        .eq('username', clean)
-        .maybeSingle();
-
-      if (lookupError) throw lookupError;
-      if (existing && existing.firebase_uid !== currentUser.uid) {
-        onUsernameError?.('❌ Username already taken — try another.');
-        return;
-      }
-
-      const payload = {
-        firebase_uid: currentUser.uid,
-        username: clean,
-        display_name: username.trim(),
-        email: currentUser.email,
-        photo_url: currentUser.photoURL || '',
-        games_played: 0,
-        tiger_wins: 0,
-        goat_wins: 0,
-        rating: 500,
-        rated_wins: 0,
-        rated_losses: 0,
-        adventure_level: 0,
-        adventure_completed: 0,
-        leaderboard_score: 167,
-        updated_at: new Date().toISOString()
-      };
-
-      const { error } = await supabase.from('player_profiles').upsert(payload);
-      if (error) throw error;
-      onUsernameSaved?.(clean);
-      return;
-    } catch (error) {
-      console.error('Error saving Supabase username:', error);
-      onUsernameError?.('❌ Error saving — try again.');
+    if (lookupError) throw lookupError;
+    if (existing && existing.auth_user_id !== currentUser.id) {
+      onUsernameError?.('Username already taken. Try another.');
       return;
     }
-  }
 
-  if (!db) return;
-
-  const existing = await db.collection('usernames').doc(clean).get();
-  if (existing.exists) {
-    onUsernameError?.('❌ Username already taken — try another.');
-    return;
-  }
-
-  try {
-    const batch = db.batch();
-    batch.set(db.collection('users').doc(currentUser.uid), {
+    const payload = {
+      auth_user_id: currentUser.id,
       username: clean,
-      displayUsername: username.trim(),
+      display_name: username.trim(),
       email: currentUser.email,
-      photoURL: currentUser.photoURL || '',
-      gamesPlayed: 0,
-      tigerWins: 0,
-      goatWins: 0,
+      photo_url: currentUser.photoURL || '',
+      games_played: 0,
+      tiger_wins: 0,
+      goat_wins: 0,
       rating: 500,
-      ratedWins: 0,
-      ratedLosses: 0,
-      adventureLevel: 0,
-      adventureCompleted: 0,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    batch.set(db.collection('usernames').doc(clean), { uid: currentUser.uid });
-    await batch.commit();
+      rated_wins: 0,
+      rated_losses: 0,
+      adventure_level: 0,
+      adventure_completed: 0,
+      leaderboard_score: 167,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('player_profiles').upsert(payload);
+    if (error) throw error;
     onUsernameSaved?.(clean);
   } catch (error) {
     console.error('Error saving username:', error);
-    onUsernameError?.('❌ Error saving — try again.');
+    onUsernameError?.('Error saving. Try again.');
   }
 }
 
 export async function signOut({ auth, beforeSignOut }) {
-  if (!auth) return;
-
   try {
     await beforeSignOut?.();
-    await auth.signOut();
+    await auth?.signOut();
   } catch (error) {
     console.error('Sign-out error:', error);
   }

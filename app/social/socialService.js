@@ -1,48 +1,80 @@
-export function createSocialService({ firebase, getContext }) {
-  let unsubFriends = null;
-  let unsubNotifs = null;
+import { getSupabaseClient } from '../services/supabaseClient.js';
+
+function unwrapNotification(row) {
+  const payload = row.payload || {};
+  return {
+    id: row.id,
+    type: row.type,
+    status: row.status,
+    createdAt: row.created_at ? { toDate: () => new Date(row.created_at) } : null,
+    ...payload
+  };
+}
+
+export function createSocialService({ getContext }) {
+  let pollId = null;
 
   function getRequiredContext() {
     const context = getContext();
-    if (!context?.currentUser || !context?.db) return null;
-    return context;
+    const supabase = getSupabaseClient();
+    if (!context?.currentUser || !supabase) return null;
+    return { ...context, supabase };
   }
 
   function stopSocialListeners() {
-    if (unsubFriends) { unsubFriends(); unsubFriends = null; }
-    if (unsubNotifs) { unsubNotifs(); unsubNotifs = null; }
+    if (pollId) {
+      clearInterval(pollId);
+      pollId = null;
+    }
+  }
+
+  async function fetchFriends(context) {
+    const { data, error } = await context.supabase
+      .from('friendships')
+      .select('friend_id,friend_username,status')
+      .eq('owner_id', context.currentUser.id)
+      .eq('status', 'accepted')
+      .order('updated_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map((row) => ({
+      uid: row.friend_id,
+      username: row.friend_username || 'Friend'
+    }));
+  }
+
+  async function fetchNotifications(context) {
+    const { data, error } = await context.supabase
+      .from('notifications')
+      .select('*')
+      .eq('recipient_id', context.currentUser.id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(unwrapNotification);
   }
 
   function startSocialListeners({ onFriends, onNotifications, onChallengeAccepted }) {
     const context = getRequiredContext();
     if (!context) return;
-
     stopSocialListeners();
 
-    unsubFriends = context.db.collection('friends').doc(context.currentUser.uid).collection('list')
-      .where('status', '==', 'accepted')
-      .onSnapshot((snap) => {
-        onFriends?.(snap.docs.map((doc) => ({ uid: doc.id, ...doc.data() })));
-      });
-
-    unsubNotifs = context.db.collection('notifications').doc(context.currentUser.uid).collection('items')
-      .orderBy('createdAt', 'desc')
-      .onSnapshot((snap) => {
-        const items = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-        items.filter((item) => item.type === 'friend_accepted').forEach((item) => {
-          context.db.collection('friends').doc(context.currentUser.uid).collection('list').doc(item.from).set({
-            status: 'accepted',
-            username: item.fromUsername || 'Friend',
-            addedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, { merge: true }).catch((error) => console.error('friend_accepted sync error:', error));
-        });
-
-        onNotifications?.(items);
-        items.filter((item) => item.type === 'challenge_accepted').forEach((item) => {
+    const refresh = async () => {
+      try {
+        const [friends, notifications] = await Promise.all([
+          fetchFriends(context),
+          fetchNotifications(context)
+        ]);
+        onFriends?.(friends);
+        onNotifications?.(notifications);
+        notifications.filter((item) => item.type === 'challenge_accepted').forEach((item) => {
           onChallengeAccepted?.(item);
         });
-      });
+      } catch (error) {
+        console.error('[social] listener refresh failed:', error);
+      }
+    };
+
+    refresh();
+    pollId = setInterval(refresh, 5000);
   }
 
   async function searchUser(username) {
@@ -53,47 +85,31 @@ export function createSocialService({ firebase, getContext }) {
     if (!clean) return { status: 'empty' };
 
     try {
-      let uid = null;
-      let data = null;
+      const { data, error } = await context.supabase
+        .from('player_profiles')
+        .select('auth_user_id,username,display_name,photo_url')
+        .eq('username', clean)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return { status: 'not_found' };
+      if (data.auth_user_id === context.currentUser.id) return { status: 'self' };
 
-      const snap = await context.db.collection('usernames').doc(clean).get();
-      if (snap.exists) {
-        uid = snap.data().uid;
-        const userSnap = await context.db.collection('users').doc(uid).get();
-        data = userSnap.exists ? userSnap.data() : null;
-      }
-
-      if (!uid || !data) {
-        const legacySnap = await context.db.collection('users').limit(200).get();
-        const hit = legacySnap.docs.find((doc) => {
-          const user = doc.data() || {};
-          const primary = (user.username || '').toString().trim().toLowerCase();
-          const display = (user.displayUsername || '').toString().trim().toLowerCase();
-          return primary === clean || display === clean;
-        });
-
-        if (hit) {
-          uid = hit.id;
-          data = hit.data();
-        }
-      }
-
-      if (!uid || !data) {
-        return { status: 'not_found' };
-      }
-
-      if (uid === context.currentUser.uid) {
-        return { status: 'self' };
-      }
-
-      const friendSnap = await context.db.collection('friends').doc(context.currentUser.uid).collection('list').doc(uid).get();
-      const friendStatus = friendSnap.exists ? friendSnap.data().status : null;
+      const { data: friend } = await context.supabase
+        .from('friendships')
+        .select('status')
+        .eq('owner_id', context.currentUser.id)
+        .eq('friend_id', data.auth_user_id)
+        .maybeSingle();
 
       return {
         status: 'found',
-        uid,
-        data,
-        friendStatus
+        uid: data.auth_user_id,
+        data: {
+          username: data.username,
+          displayUsername: data.display_name,
+          photoURL: data.photo_url
+        },
+        friendStatus: friend?.status || null
       };
     } catch (error) {
       console.error('searchUser error:', error);
@@ -104,57 +120,78 @@ export function createSocialService({ firebase, getContext }) {
   async function sendFriendRequest(toUid, toUsername) {
     const context = getRequiredContext();
     if (!context) return;
+    const now = new Date().toISOString();
 
-    const batch = context.db.batch();
-    batch.set(context.db.collection('friends').doc(context.currentUser.uid).collection('list').doc(toUid), {
+    const { error } = await context.supabase.from('friendships').upsert({
+      owner_id: context.currentUser.id,
+      friend_id: toUid,
       status: 'pending',
       direction: 'sent',
-      username: toUsername,
-      addedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    batch.set(context.db.collection('notifications').doc(toUid).collection('items').doc(), {
+      friend_username: toUsername,
+      updated_at: now
+    }, { onConflict: 'owner_id,friend_id' });
+    if (error) throw error;
+
+    await context.supabase.from('notifications').insert({
+      recipient_id: toUid,
+      sender_id: context.currentUser.id,
       type: 'friend_request',
-      from: context.currentUser.uid,
-      fromUsername: context.userStats.username,
-      fromDisplay: context.userStats.username,
-      fromPhoto: context.currentUser.photoURL || '',
       status: 'pending',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      payload: {
+        from: context.currentUser.id,
+        fromUsername: context.userStats.username,
+        fromDisplay: context.userStats.username,
+        fromPhoto: context.currentUser.photoURL || ''
+      }
     });
-    await batch.commit();
   }
 
   async function acceptFriendRequest(fromUid, fromUsername, notifId) {
     const context = getRequiredContext();
     if (!context) return;
+    const now = new Date().toISOString();
 
-    const batch = context.db.batch();
-    batch.set(context.db.collection('friends').doc(context.currentUser.uid).collection('list').doc(fromUid), {
-      status: 'accepted',
-      username: fromUsername,
-      addedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-    batch.delete(context.db.collection('notifications').doc(context.currentUser.uid).collection('items').doc(notifId));
-    batch.set(context.db.collection('notifications').doc(fromUid).collection('items').doc(), {
+    const rows = [
+      {
+        owner_id: context.currentUser.id,
+        friend_id: fromUid,
+        status: 'accepted',
+        direction: 'received',
+        friend_username: fromUsername,
+        updated_at: now
+      },
+      {
+        owner_id: fromUid,
+        friend_id: context.currentUser.id,
+        status: 'accepted',
+        direction: 'sent',
+        friend_username: context.userStats.username,
+        updated_at: now
+      }
+    ];
+    const { error } = await context.supabase.from('friendships').upsert(rows, { onConflict: 'owner_id,friend_id' });
+    if (error) throw error;
+    await dismissNotif(notifId);
+    await context.supabase.from('notifications').insert({
+      recipient_id: fromUid,
+      sender_id: context.currentUser.id,
       type: 'friend_accepted',
-      from: context.currentUser.uid,
-      fromUsername: context.userStats.username,
-      fromPhoto: context.currentUser.photoURL || '',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      payload: {
+        from: context.currentUser.id,
+        fromUsername: context.userStats.username,
+        fromPhoto: context.currentUser.photoURL || ''
+      }
     });
-    await batch.commit();
   }
 
   async function declineFriendRequest(notifId) {
-    const context = getRequiredContext();
-    if (!context) return;
-    await context.db.collection('notifications').doc(context.currentUser.uid).collection('items').doc(notifId).delete();
+    await dismissNotif(notifId);
   }
 
   async function dismissNotif(notifId) {
     const context = getRequiredContext();
-    if (!context) return;
-    await context.db.collection('notifications').doc(context.currentUser.uid).collection('items').doc(notifId).delete();
+    if (!context || !notifId) return;
+    await context.supabase.from('notifications').delete().eq('id', notifId);
   }
 
   async function sendChallenge({ toUid, selectedSide, challengeTime }) {
@@ -165,33 +202,32 @@ export function createSocialService({ firebase, getContext }) {
       ? (Math.random() > 0.5 ? 'tiger' : 'goat')
       : selectedSide;
     const opponentSide = challengerSide === 'tiger' ? 'goat' : 'tiger';
-    const notifRef = context.db.collection('notifications').doc(toUid).collection('items').doc();
 
-    await notifRef.set({
+    const { data, error } = await context.supabase.from('notifications').insert({
+      recipient_id: toUid,
+      sender_id: context.currentUser.id,
       type: 'challenge',
-      from: context.currentUser.uid,
-      fromUsername: context.userStats.username,
-      fromPhoto: context.currentUser.photoURL || '',
-      challengerSide,
-      opponentSide,
-      challengeTime,
-      challengeId: notifRef.id,
       status: 'pending',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+      payload: {
+        from: context.currentUser.id,
+        fromUsername: context.userStats.username,
+        fromPhoto: context.currentUser.photoURL || '',
+        challengerSide,
+        opponentSide,
+        challengeTime
+      }
+    }).select('id').single();
+    if (error) throw error;
 
-    return {
-      challengeId: notifRef.id,
-      challengerSide,
-      opponentSide
-    };
+    return { challengeId: data.id, challengerSide, opponentSide };
   }
 
   async function cancelPendingChallenge({ toUid, pendingChallengeId }) {
     const context = getRequiredContext();
     if (!context || !toUid || !pendingChallengeId) return;
-
-    await context.db.collection('notifications').doc(toUid).collection('items').doc(pendingChallengeId).delete().catch(() => {});
+    await context.supabase.from('notifications').delete()
+      .eq('id', pendingChallengeId)
+      .eq('recipient_id', toUid);
   }
 
   async function acceptChallenge({
@@ -206,49 +242,50 @@ export function createSocialService({ firebase, getContext }) {
     const context = getRequiredContext();
     if (!context) return null;
 
-    const roomRef = context.db.collection('rooms').doc();
-    const roomId = roomRef.id;
-    const initial = buildInitialRoomState();
-
-    await roomRef.set({
-      hostUid: challengerUid,
-      hostUsername: challengerUsername || 'Player',
-      guestUid: context.currentUser.uid,
-      guestUsername: context.userStats?.username || 'Player',
-      hostSide: theirSide,
-      guestSide: mySide,
-      timeControl: challengeTimeSelected,
+    const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const { data: room, error } = await context.supabase.from('rooms').insert({
+      room_code: roomCode,
+      host_id: challengerUid,
+      host_username: challengerUsername || 'Player',
+      guest_id: context.currentUser.id,
+      guest_username: context.userStats?.username || 'Player',
+      host_side: theirSide,
+      guest_side: mySide,
+      time_control: challengeTimeSelected,
       status: 'playing',
-      ...initial,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+      board_state: buildInitialRoomState(),
+      updated_at: new Date().toISOString()
+    }).select('*').single();
+    if (error) throw error;
 
-    await context.db.collection('notifications').doc(challengerUid).collection('items').doc().set({
+    await context.supabase.from('notifications').insert({
+      recipient_id: challengerUid,
+      sender_id: context.currentUser.id,
       type: 'challenge_accepted',
-      from: context.currentUser.uid,
-      fromUsername: context.userStats.username,
-      roomId,
-      mySide: theirSide,
-      challengeTime: challengeTimeSelected,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      payload: {
+        from: context.currentUser.id,
+        fromUsername: context.userStats.username,
+        roomId: room.id,
+        mySide: theirSide,
+        challengeTime: challengeTimeSelected
+      }
     });
-
-    await context.db.collection('notifications').doc(context.currentUser.uid).collection('items').doc(notifId).delete();
-
-    return { roomId };
+    await dismissNotif(notifId);
+    return { roomId: room.id };
   }
 
   async function declineChallenge({ notifId, challengerUid }) {
     const context = getRequiredContext();
     if (!context) return;
-
-    await context.db.collection('notifications').doc(context.currentUser.uid).collection('items').doc(notifId).delete();
-    await context.db.collection('notifications').doc(challengerUid).collection('items').doc().set({
+    await dismissNotif(notifId);
+    await context.supabase.from('notifications').insert({
+      recipient_id: challengerUid,
+      sender_id: context.currentUser.id,
       type: 'challenge_declined',
-      from: context.currentUser.uid,
-      fromUsername: context.userStats.username,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      payload: {
+        from: context.currentUser.id,
+        fromUsername: context.userStats.username
+      }
     });
   }
 

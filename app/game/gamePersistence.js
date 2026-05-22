@@ -121,11 +121,11 @@ export function clearPersistedActiveGame() {
 
 async function syncGameToSupabase(snapshot) {
   const supabase = getSupabaseClient();
-  if (!supabase || !state.currentUser?.uid) return;
+  if (!supabase || !state.currentUser?.id) return;
 
   const payload = {
     id: snapshot.id,
-    firebase_uid: state.currentUser.uid,
+    auth_user_id: state.currentUser.id,
     status: snapshot.status,
     game_mode: snapshot.gameMode,
     player_side: snapshot.playerSide === PIECE_TYPES.TIGER ? 'tiger' : 'goat',

@@ -7,20 +7,14 @@ import { state } from '../state/store.js';
 import { scheduleCanvasResize } from '../render/boardRenderer.js';
 import { toggleMoveNavigation } from '../game/historyService.js';
 
-let firebaseApi = null;
 let getAuth = () => null;
-let getDb = () => null;
 let beforeSignOutCallback = async () => {};
 
 export function configureProfileMenu({
-  firebase,
   getAuth: authGetter,
-  getDb: dbGetter,
   beforeSignOut
 }) {
-  firebaseApi = firebase;
   getAuth = authGetter;
-  getDb = dbGetter;
   if (typeof beforeSignOut === 'function') beforeSignOutCallback = beforeSignOut;
 }
 
@@ -104,12 +98,7 @@ export function updateUIForSignedOutUser() {
 export function initProfileMenu() {
   on('sign-in-btn', 'click', () => showOverlay('signup-overlay'));
 
-  const triggerGoogleSignIn = () => signInWithGoogle({
-    auth: getAuth(),
-    db: getDb(),
-    firebase: firebaseApi,
-    onUsernameSetupRequired: showUsernameSetup
-  });
+  const triggerGoogleSignIn = () => signInWithGoogle();
 
   on('google-signin-btn', 'click', triggerGoogleSignIn);
   on('landing-google-signin', 'click', triggerGoogleSignIn);
@@ -153,8 +142,6 @@ export function initProfileMenu() {
 
       saveUsername({
         currentUser: state.currentUser,
-        db: getDb(),
-        firebase: firebaseApi,
         username,
         onUsernameSaved: (cleanUsername) => {
           state.userStats.username = cleanUsername;

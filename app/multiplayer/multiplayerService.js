@@ -1,3 +1,4 @@
+import { getSupabaseClient } from '../services/supabaseClient.js';
 import { PHASE, PIECE_TYPES } from '../config/gameConfig.js';
 
 export function buildInitialRoomState() {
@@ -18,26 +19,29 @@ export function buildInitialRoomState() {
   };
 }
 
-export function createMultiplayerService({ firebase, getContext }) {
-  let currentRoomUnsub = null;
-  let roomLobbyUnsub = null;
+export function createMultiplayerService({ getContext }) {
+  let currentRoomChannel = null;
+  let lobbyChannel = null;
   let applyingRoomSnapshot = false;
 
+  function getClient() {
+    return getSupabaseClient();
+  }
+
   function stopRoomSyncListeners() {
-    if (currentRoomUnsub) {
-      currentRoomUnsub();
-      currentRoomUnsub = null;
+    const supabase = getClient();
+    if (currentRoomChannel) {
+      supabase?.removeChannel(currentRoomChannel);
+      currentRoomChannel = null;
     }
-    if (roomLobbyUnsub) {
-      roomLobbyUnsub();
-      roomLobbyUnsub = null;
-    }
+    stopLobbyListener();
   }
 
   function stopLobbyListener() {
-    if (roomLobbyUnsub) {
-      roomLobbyUnsub();
-      roomLobbyUnsub = null;
+    const supabase = getClient();
+    if (lobbyChannel) {
+      supabase?.removeChannel(lobbyChannel);
+      lobbyChannel = null;
     }
   }
 
@@ -54,58 +58,157 @@ export function createMultiplayerService({ firebase, getContext }) {
     }
   }
 
+  async function createRoom({ roomCode, hostSide, guestSide, timeControl, initial }) {
+    const supabase = getClient();
+    const { currentUser, userStats } = getContext();
+    if (!supabase || !currentUser) throw new Error('Sign in required.');
+
+    const { data, error } = await supabase
+      .from('rooms')
+      .insert({
+        room_code: roomCode,
+        host_id: currentUser.id,
+        host_username: userStats?.username || currentUser.displayName || 'Player',
+        host_side: hostSide,
+        guest_side: guestSide,
+        time_control: timeControl,
+        status: 'waiting',
+        board_state: initial,
+        updated_at: new Date().toISOString()
+      })
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async function joinRoomByCode({ roomCode, wantedSide }) {
+    const supabase = getClient();
+    const { currentUser, userStats } = getContext();
+    if (!supabase || !currentUser) throw new Error('Sign in required.');
+
+    const { data: room, error: fetchError } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('room_code', roomCode)
+      .eq('status', 'waiting')
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (!room) return { status: 'not_found' };
+    if (room.host_id === currentUser.id) return { status: 'self' };
+    if (room.guest_side !== wantedSide) return { status: 'wrong_side', room };
+
+    const { data, error } = await supabase
+      .from('rooms')
+      .update({
+        guest_id: currentUser.id,
+        guest_username: userStats?.username || currentUser.displayName || 'Player',
+        status: 'playing',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', room.id)
+      .eq('status', 'waiting')
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return { status: 'joined', room: data };
+  }
+
   async function syncRoomState({ roomId, gameMode, payload }) {
-    const { db } = getContext();
-    if (!db || !roomId || gameMode !== 'multiplayer' || applyingRoomSnapshot) return;
-    await db.collection('rooms').doc(roomId).set(payload, { merge: true });
+    const supabase = getClient();
+    if (!supabase || !roomId || gameMode !== 'multiplayer' || applyingRoomSnapshot) return;
+    await supabase
+      .from('rooms')
+      .update({
+        board_state: payload,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', roomId);
+  }
+
+  async function fetchRoom(roomId) {
+    const supabase = getClient();
+    if (!supabase || !roomId) return null;
+    const { data, error } = await supabase.from('rooms').select('*').eq('id', roomId).maybeSingle();
+    if (error) {
+      console.error('[MP] Room fetch error:', error);
+      return null;
+    }
+    return data;
   }
 
   function subscribeToRoom(roomId, { onRoomState, onRoomFinished }) {
-    const { db } = getContext();
-    if (!db || !roomId) return;
-    if (currentRoomUnsub) currentRoomUnsub();
+    const supabase = getClient();
+    if (!supabase || !roomId) return;
+    if (currentRoomChannel) supabase.removeChannel(currentRoomChannel);
 
-    currentRoomUnsub = db.collection('rooms').doc(roomId).onSnapshot((snap) => {
-      if (!snap.exists) return;
-      const room = snap.data();
-
-      if (room.board) {
+    fetchRoom(roomId).then((room) => {
+      if (room) {
         onRoomState?.(room);
+        if (room.status === 'finished' && room.winner) onRoomFinished?.(room);
       }
-
-      if (room.status === 'finished' && room.winner) {
-        onRoomFinished?.(room);
-      }
-    }, (err) => {
-      console.error('[MP] Room listener error:', err);
     });
+
+    currentRoomChannel = supabase
+      .channel(`room:${roomId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'rooms',
+        filter: `id=eq.${roomId}`
+      }, (payload) => {
+        const room = payload.new;
+        if (!room) return;
+        onRoomState?.(room);
+        if (room.status === 'finished' && room.winner) onRoomFinished?.(room);
+      })
+      .subscribe();
   }
 
   async function finalizeRoom({ roomId, winner, winnerMessage }) {
-    const { db } = getContext();
-    if (!db || !roomId || applyingRoomSnapshot) return;
-
-    await db.collection('rooms').doc(roomId).set({
+    const supabase = getClient();
+    if (!supabase || !roomId || applyingRoomSnapshot) return;
+    await supabase.from('rooms').update({
       status: 'finished',
       winner,
-      winnerMessage,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+      winner_message: winnerMessage,
+      updated_at: new Date().toISOString()
+    }).eq('id', roomId);
   }
 
-  function startLobbyListener(roomRef, { onRoomReady }) {
+  function startLobbyListener(roomId, { onRoomReady }) {
+    const supabase = getClient();
+    if (!supabase || !roomId) return;
     stopLobbyListener();
 
-    roomLobbyUnsub = roomRef.onSnapshot((snap) => {
-      if (!snap.exists) return;
-      const room = snap.data();
-      if (room.status === 'playing' && room.guestUid) {
-        stopLobbyListener();
-        onRoomReady?.(room);
-      }
-    }, (err) => {
-      console.error('[MP] Lobby listener error:', err);
-    });
+    lobbyChannel = supabase
+      .channel(`room-lobby:${roomId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'rooms',
+        filter: `id=eq.${roomId}`
+      }, (payload) => {
+        const room = payload.new;
+        if (room?.status === 'playing' && room.guest_id) {
+          stopLobbyListener();
+          onRoomReady?.(room);
+        }
+      })
+      .subscribe();
+  }
+
+  async function cancelWaitingRoom(roomId) {
+    const supabase = getClient();
+    const { currentUser } = getContext();
+    if (!supabase || !roomId || !currentUser) return;
+    await supabase.from('rooms').delete()
+      .eq('id', roomId)
+      .eq('host_id', currentUser.id)
+      .eq('status', 'waiting');
   }
 
   return {
@@ -113,9 +216,12 @@ export function createMultiplayerService({ firebase, getContext }) {
     stopLobbyListener,
     isApplyingRoomSnapshot,
     withAppliedRoomSnapshot,
+    createRoom,
+    joinRoomByCode,
     syncRoomState,
     subscribeToRoom,
     finalizeRoom,
-    startLobbyListener
+    startLobbyListener,
+    cancelWaitingRoom
   };
 }

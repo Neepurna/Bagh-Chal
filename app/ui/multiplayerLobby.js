@@ -6,23 +6,17 @@ import { PIECE_TYPES } from '../config/gameConfig.js';
 import { id, on, qs, qsa } from './dom.js';
 import { state } from '../state/store.js';
 
-let firebaseApi = null;
 let multiplayerService = null;
-let getDb = () => null;
 let onStartMultiplayerGame = () => {};
 let buildInitialRoomState = () => ({});
 
 export function configureMultiplayerLobby({
-  firebase,
   service,
   buildInitialRoomState: initBuilder,
-  getDb: dbGetter,
   startMultiplayerGame
 }) {
-  firebaseApi = firebase;
   multiplayerService = service;
   buildInitialRoomState = initBuilder;
-  getDb = dbGetter;
   onStartMultiplayerGame = startMultiplayerGame;
 }
 
@@ -67,8 +61,7 @@ function pulseSidePickerHint() {
 
 export function initMultiplayerLobbyUI() {
   on('create-room-btn', 'click', async () => {
-    const db = getDb();
-    if (!state.currentUser || !db) {
+    if (!state.currentUser) {
       alert('Please sign in first to play multiplayer.');
       return;
     }
@@ -81,24 +74,16 @@ export function initMultiplayerLobbyUI() {
     const guestSide = hostSide === 'tiger' ? 'goat' : 'tiger';
 
     try {
-      const roomRef = db.collection('rooms').doc();
       const initial = buildInitialRoomState();
-      await roomRef.set({
+      const room = await multiplayerService.createRoom({
         roomCode: code,
-        hostUid: state.currentUser.uid,
-        hostUsername: state.userStats?.username || state.currentUser.displayName || 'Player',
-        guestUid: null,
-        guestUsername: null,
-        hostSide,
         guestSide,
+        hostSide,
         timeControl: '5m',
-        status: 'waiting',
-        ...initial,
-        createdAt: firebaseApi.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebaseApi.firestore.FieldValue.serverTimestamp()
+        initial
       });
 
-      state.currentRoomId = roomRef.id;
+      state.currentRoomId = room.id;
       state.currentRoomCode = code;
       const roomCodeDisplay = id('room-code-display');
       if (roomCodeDisplay) roomCodeDisplay.textContent = code;
@@ -106,8 +91,8 @@ export function initMultiplayerLobbyUI() {
       id('room-waiting')?.classList.remove('hidden');
       playSound('buttonClick');
 
-      multiplayerService.startLobbyListener(roomRef, {
-        onRoomReady: (room) => onStartMultiplayerGame(roomRef.id, hostSide, room.timeControl || '5m')
+      multiplayerService.startLobbyListener(room.id, {
+        onRoomReady: (nextRoom) => onStartMultiplayerGame(room.id, hostSide, nextRoom.time_control || '5m')
       });
     } catch (err) {
       console.error('[mp] failed creating room:', err);
@@ -116,8 +101,7 @@ export function initMultiplayerLobbyUI() {
   });
 
   on('join-room-btn', 'click', async () => {
-    const db = getDb();
-    if (!state.currentUser || !db) {
+    if (!state.currentUser) {
       alert('Please sign in first to play multiplayer.');
       return;
     }
@@ -136,34 +120,23 @@ export function initMultiplayerLobbyUI() {
 
     try {
       const wantedSide = sideToString(state.multiplayerSide);
-      const snap = await db.collection('rooms').where('roomCode', '==', code).limit(1).get();
-      if (snap.empty) {
+      const result = await multiplayerService.joinRoomByCode({ roomCode: code, wantedSide });
+      if (result.status === 'not_found') {
         alert('Room not found or already started.');
         return;
       }
-      const roomDoc = snap.docs[0];
-      const room = roomDoc.data();
-      if (room.status !== 'waiting' || room.guestUid) {
-        alert('Room not available to join anymore.');
-        return;
-      }
-      if (room.hostUid === state.currentUser.uid) {
+      if (result.status === 'self') {
         alert('You cannot join your own room from this account.');
         return;
       }
-      if (room.guestSide !== wantedSide) {
-        alert(`Host reserved ${room.hostSide.toUpperCase()}. Please pick ${room.guestSide.toUpperCase()} to join.`);
+      if (result.status === 'wrong_side') {
+        alert(`Host reserved ${result.room.host_side.toUpperCase()}. Please pick ${result.room.guest_side.toUpperCase()} to join.`);
         return;
       }
-      await db.collection('rooms').doc(roomDoc.id).set({
-        guestUid: state.currentUser.uid,
-        guestUsername: state.userStats?.username || state.currentUser.displayName || 'Player',
-        status: 'playing',
-        updatedAt: firebaseApi.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-      state.currentRoomId = roomDoc.id;
+      const room = result.room;
+      state.currentRoomId = room.id;
       state.currentRoomCode = code;
-      onStartMultiplayerGame(roomDoc.id, wantedSide, room.timeControl || '5m');
+      onStartMultiplayerGame(room.id, wantedSide, room.time_control || '5m');
     } catch (err) {
       console.error('[mp] failed joining room:', err);
       alert('Failed to join room. Check rules and try again.');
@@ -183,16 +156,9 @@ export function initMultiplayerLobbyUI() {
   });
 
   on('cancel-room-btn', 'click', async () => {
-    const db = getDb();
     try {
-      if (db && state.currentRoomId) {
-        const roomSnap = await db.collection('rooms').doc(state.currentRoomId).get();
-        if (roomSnap.exists) {
-          const room = roomSnap.data();
-          if (room.hostUid === state.currentUser?.uid && room.status === 'waiting') {
-            await db.collection('rooms').doc(state.currentRoomId).delete();
-          }
-        }
+      if (state.currentRoomId) {
+        await multiplayerService.cancelWaitingRoom(state.currentRoomId);
       }
     } catch (err) {
       console.error('[mp] failed cancelling room:', err);

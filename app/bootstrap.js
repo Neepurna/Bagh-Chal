@@ -44,7 +44,6 @@ import {
   loadSupabasePlayerProfile,
   syncPlayerProfile
 } from './game/ratingService.js';
-import { configureSupabaseFirebaseAuth } from './services/supabaseClient.js';
 
 // Multiplayer
 import {
@@ -95,31 +94,24 @@ import {
 } from './ui/landingAndOverlays.js';
 import { initLeaderboardUI } from './ui/leaderboardUI.js';
 
-let firebaseApi = null;
 let auth = null;
-let db = null;
 let socialService = null;
 let multiplayerService = null;
 
-export function bootstrap({ firebase }) {
-  firebaseApi = firebase;
+export function bootstrap() {
   initAudioSystem();
   initBoardRenderer();
   initUiBindings();
 
   socialService = createSocialService({
-    firebase,
-    getContext: () => ({ currentUser: state.currentUser, db, userStats: state.userStats })
+    getContext: () => ({ currentUser: state.currentUser, userStats: state.userStats })
   });
   multiplayerService = createMultiplayerService({
-    firebase,
-    getContext: () => ({ db })
+    getContext: () => ({ currentUser: state.currentUser, userStats: state.userStats })
   });
 
   configureMultiplayerBridge({
-    firebase,
     service: multiplayerService,
-    getDb: () => db,
     onRoomFinished: (room) => {
       if (!state.game.gameOver) {
         const msg = room.winnerMessage
@@ -158,10 +150,8 @@ export function bootstrap({ firebase }) {
   });
 
   configureMultiplayerLobby({
-    firebase,
     service: multiplayerService,
     buildInitialRoomState,
-    getDb: () => db,
     startMultiplayerGame: startMultiplayer
   });
 
@@ -172,11 +162,9 @@ export function bootstrap({ firebase }) {
   });
 
   configureProfileMenu({
-    firebase,
     getAuth: () => auth,
-    getDb: () => db,
     beforeSignOut: async () => {
-      // Tear down everything game-related before Firebase sign-out completes.
+      // Tear down everything game-related before sign-out completes.
       stopRoomSyncListeners();
       state.gameStarted = false;
       state.gameMode = 'ai';
@@ -216,15 +204,12 @@ export function bootstrap({ firebase }) {
   setOnTimeout(() => handleTimeOut());
 
   // ── Auth ───────────────────────────────────────────────────────
-  ({ auth, db } = initializeAuth({
-    firebase,
+  ({ auth } = initializeAuth({
     onUsernameSetupRequired: showUsernameSetup,
-    onSignedIn: async ({ user, userStats: nextStats, auth: nextAuth, db: nextDb, redirectAction, needsUsernameSetup }) => {
+    onSignedIn: async ({ user, userStats: nextStats, auth: nextAuth, redirectAction, needsUsernameSetup }) => {
       state.currentUser = user;
       state.userStats = nextStats;
       auth = nextAuth;
-      db = nextDb;
-      configureSupabaseFirebaseAuth(auth);
       await hydrateSupabaseProfile(user);
       setSentryUser(user);
       state.pendingPostSignInAction = needsUsernameSetup ? redirectAction : null;
@@ -233,11 +218,9 @@ export function bootstrap({ firebase }) {
       startSocialListeners();
       if (redirectAction && !needsUsernameSetup) runPostSignInAction(redirectAction);
     },
-    onSignedOut: ({ auth: nextAuth, db: nextDb }) => {
+    onSignedOut: ({ auth: nextAuth }) => {
       state.currentUser = null;
       auth = nextAuth;
-      db = nextDb;
-      configureSupabaseFirebaseAuth(auth);
       setSentryUser(null);
       hideAuthLoadingScreen(); // reveal landing page only after auth confirmed absent
       updateUIForSignedOutUser();
@@ -296,13 +279,13 @@ export function bootstrap({ firebase }) {
   }
 
   // DO NOT call updateUIForSignedOutUser() here.
-  // The auth-loading-screen overlay covers the page while Firebase resolves
+  // The auth-loading-screen overlay covers the page while Supabase resolves
   // the persisted auth state from localStorage. Once onAuthStateChanged fires
   // (either onSignedIn or onSignedOut), hideAuthLoadingScreen() is called and
   // the correct UI is revealed — no flash of the landing page for logged-in
   // users, no flash of the app-shell for logged-out users.
   //
-  // Safety net: if Firebase takes longer than 5 s to respond (e.g. SDK blocked
+  // Safety net: if Supabase takes longer than 5 s to respond (e.g. SDK blocked
   // by an ad-blocker), we fall through to the signed-out state so the user is
   // never stuck on the loading screen.
   const _authFallbackTimer = setTimeout(() => {
