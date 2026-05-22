@@ -46,8 +46,8 @@ export function initLandingAndOverlays() {
     playSound('buttonClick');
   });
   on('landing-about-btn', 'click', () => { showOverlay('about-overlay'); playSound('buttonClick'); });
-  on('landing-history-btn', 'click', () => { showOverlay('tutorial-overlay'); playSound('buttonClick'); });
-  on('landing-terms-btn', 'click', () => alert('Terms of Use and Privacy Policy content is coming soon.'));
+  on('landing-history-btn', 'click', () => { showOverlay('about-overlay'); playSound('buttonClick'); });
+  on('landing-terms-btn', 'click', () => { showOverlay('terms-overlay'); playSound('buttonClick'); });
 
   // Game-area button: play again / exit
   on('play-again-btn', 'click', triggerShowPlayerSelect);
@@ -71,6 +71,7 @@ export function initLandingAndOverlays() {
 
   on('about-close', 'click', () => hideOverlay('about-overlay'));
   on('about-start', 'click', () => { hideOverlay('about-overlay'); openPlayerSelect('ai'); });
+  on('terms-close', 'click', () => hideOverlay('terms-overlay'));
 
   on('coach-coming-soon-close', 'click', () => hideOverlay('coach-coming-soon-overlay'));
 
