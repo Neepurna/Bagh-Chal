@@ -25,6 +25,7 @@ let BaghchalAIClass = null;
 
 let aiWorker = null;
 const workerSupported = typeof Worker !== 'undefined';
+const GUEST_APEX_PROFILE = 'guest_apex';
 
 // Hooks supplied by the bootstrap so the AI controller can ask the game
 // controller "is the game still running?" and "tell the renderer/UI to refresh".
@@ -53,10 +54,20 @@ export function initializeAIWorker() {
   }
 }
 
-function getAIMoveFromWorker(gameState, aiSide) {
+function getActiveAIProfile() {
+  if (state.adventureModeActive) {
+    return getAdventureBot(state.adventureBotId).profile;
+  }
+  if (state.guestModeActive && !state.currentUser) {
+    return GUEST_APEX_PROFILE;
+  }
+  return null;
+}
+
+function getAIMoveFromWorker(gameState, aiSide, positionCounts = null) {
   return new Promise((resolve) => {
     if (!aiWorker) { resolve(null); return; }
-    const timeout = setTimeout(() => resolve(null), AI_CONFIG.hard.thinkTime + 100);
+    const timeout = setTimeout(() => resolve(null), AI_CONFIG.hard.thinkTime + 150);
     const handler = (event) => {
       clearTimeout(timeout);
       aiWorker.removeEventListener('message', handler);
@@ -70,7 +81,8 @@ function getAIMoveFromWorker(gameState, aiSide) {
       goatsCaptured: gameState.goatsCaptured,
       aiSide,
       difficulty: 'hard',
-      profile: state.adventureModeActive ? getAdventureBot(state.adventureBotId).profile : null
+      profile: getActiveAIProfile(),
+      positionCounts: positionCounts ? Array.from(positionCounts.entries()) : []
     });
   });
 }
@@ -81,7 +93,7 @@ async function syncBaghchalAIFallback(gameState, aiSide, difficulty = 'hard', po
     BaghchalAIClass = mod.BaghchalAI;
   }
   const ai = new BaghchalAIClass(difficulty, {
-    profile: state.adventureModeActive ? getAdventureBot(state.adventureBotId).profile : null
+    profile: getActiveAIProfile()
   });
   return ai.getBestMove({
     board: gameState.board,
@@ -147,7 +159,7 @@ async function executeHardAIMove(aiSide) {
   // Pass positionCounts so MCTS can avoid loops
   const positionCounts = state.positionCounts;
 
-  let bestMove = await getAIMoveFromWorker(game, aiSide);
+  let bestMove = await getAIMoveFromWorker(game, aiSide, positionCounts);
   if (!bestMove) {
     try {
       bestMove = await syncBaghchalAIFallback(game, aiSide, 'hard', positionCounts);

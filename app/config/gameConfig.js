@@ -28,6 +28,6 @@ export const AI_CONFIG = {
     tigerMovementDepth: 2,
     goatPlacementDepth: 2,
     goatMovementDepth: 2,
-    thinkTime: 500  // MCTS needs more time for good simulations
+    thinkTime: 1250  // Apex guest/adventure profiles spend longer avoiding traps
   }
 };

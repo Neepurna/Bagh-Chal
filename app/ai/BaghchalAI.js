@@ -61,6 +61,13 @@ class BaghchalAI {
 
   applyProfileTuning() {
     const profile = this.profile || '';
+    if (profile === 'guest_apex') {
+      this.simulationCount += 450;
+      this.searchDepth += 2;
+      this.timeBudget += 650;
+      this.explorationConstant = 1.2;
+      return;
+    }
     if (profile.startsWith('goat_')) {
       this.searchDepth += profile === 'goat_deep_chain' ? 2 : 1;
       this.timeBudget += profile === 'goat_deep_chain' ? 220 : 140;
@@ -139,25 +146,25 @@ class BaghchalAI {
       case DIFFICULTY.EASY:
         return this.getEasyMove(gameState, aiSide);
       case DIFFICULTY.MEDIUM:
-        return this.getMediumHeuristicMove(gameState, aiSide);
+        return this.getMediumHeuristicMove(gameState, aiSide, positionCounts);
       case DIFFICULTY.HARD:
         if (aiSide === PIECE_TYPES.TIGER) {
           // Tiger: MCTS with capture-first guarantee and loop prevention
           return this.getMCTSMove(gameState, aiSide, positionCounts);
         } else {
           // Goat: Deep heuristic minimax (depth 4) — better than MCTS for defense
-          return this.getHardGoatMove(gameState);
+          return this.getHardGoatMove(gameState, positionCounts);
         }
       default:
-        return this.getMediumHeuristicMove(gameState, aiSide);
+        return this.getMediumHeuristicMove(gameState, aiSide, positionCounts);
     }
   }
 
   // Hard mode Goat: depth-4 heuristic with aggressive tiger-restriction scoring
-  getHardGoatMove(gameState) {
+  getHardGoatMove(gameState, positionCounts = null) {
     const moves = this.getAllPossibleMoves(gameState, PIECE_TYPES.GOAT);
     if (moves.length === 0) return null;
-    return this.getGoatHeuristicMove(moves, gameState);
+    return this.getGoatHeuristicMove(moves, gameState, positionCounts);
   }
 
   // === EASY MODE: Random play, tiger prefers captures ===
@@ -178,50 +185,49 @@ class BaghchalAI {
 
   // === MEDIUM MODE: Paper's heuristic strategy (no MCTS, no randomness) ===
   // Based on Section III of the paper: observed patterns from experienced players
-  getMediumHeuristicMove(gameState, aiSide) {
+  getMediumHeuristicMove(gameState, aiSide, positionCounts = null) {
     const moves = this.getAllPossibleMoves(gameState, aiSide);
     if (moves.length === 0) return null;
 
     if (aiSide === PIECE_TYPES.TIGER) {
-      return this.getTigerHeuristicMove(moves, gameState);
-    } else {
-      return this.getGoatHeuristicMove(moves, gameState);
+      return this.getTigerHeuristicMove(moves, gameState, positionCounts);
     }
+    return this.getGoatHeuristicMove(moves, gameState, positionCounts);
   }
 
   // Tiger heuristic: priority order from paper Section III
   // 1. Sure-eat (guaranteed capture)
   // 2. Fork (threaten 2+ goats simultaneously)
   // 3. Positional minimax (center > edge-center > others)
-  getTigerHeuristicMove(moves, gameState) {
+  getTigerHeuristicMove(moves, gameState, positionCounts = null) {
     // Priority 1: Sure eat - directly capture a goat
     const captureMoves = moves.filter(m => m.capture !== null);
     if (captureMoves.length > 0) {
       // Pick the capture that leads to the best board position
-      return this.selectMoveWithMinimax(captureMoves, gameState, PIECE_TYPES.TIGER);
+      return this.selectMoveWithMinimax(captureMoves, gameState, PIECE_TYPES.TIGER, positionCounts);
     }
 
     // Priority 2: Fork - move that threatens 2+ goats simultaneously
     const forkMoves = this.detectFork(moves, gameState);
     if (forkMoves.length > 0) {
-      return this.selectMoveWithMinimax(forkMoves, gameState, PIECE_TYPES.TIGER);
+      return this.selectMoveWithMinimax(forkMoves, gameState, PIECE_TYPES.TIGER, positionCounts);
     }
 
     // Priority 3: Best positional move via minimax
-    return this.selectMoveWithMinimax(moves, gameState, PIECE_TYPES.TIGER);
+    return this.selectMoveWithMinimax(moves, gameState, PIECE_TYPES.TIGER, positionCounts);
   }
 
   // Goat heuristic: based on paper's goat strategy observations
   // 1. Placement phase: edge-centers first, then borders, avoid threatened spots
   // 2. Movement phase: defend threatened goats, form chains, restrict tigers
-  getGoatHeuristicMove(moves, gameState) {
+  getGoatHeuristicMove(moves, gameState, positionCounts = null) {
     if (gameState.phase === 'placement') {
-      return this.getGoatPlacementHeuristic(moves, gameState);
+      return this.getGoatPlacementHeuristic(moves, gameState, positionCounts);
     }
-    return this.getGoatMovementHeuristic(moves, gameState);
+    return this.getGoatMovementHeuristic(moves, gameState, positionCounts);
   }
 
-  getGoatPlacementHeuristic(moves, gameState) {
+  getGoatPlacementHeuristic(moves, gameState, positionCounts = null) {
     // Paper: "Goat is lost if the first move is not the center of an outside edge"
     // First goat should go to an edge-center (2, 10, 14, 22)
     if (gameState.goatsPlaced === 0) {
@@ -229,7 +235,7 @@ class BaghchalAI {
       if (edgeCenterMoves.length > 0) {
         // Hard mode evaluates which edge-center is best; others pick any
         if (this.difficulty === DIFFICULTY.HARD) {
-          return this.selectMoveWithMinimax(edgeCenterMoves, gameState, PIECE_TYPES.GOAT);
+          return this.selectMoveWithMinimax(edgeCenterMoves, gameState, PIECE_TYPES.GOAT, positionCounts);
         }
         return edgeCenterMoves[Math.floor(Math.random() * edgeCenterMoves.length)];
       }
@@ -252,16 +258,16 @@ class BaghchalAI {
     // Prioritize border positions, then center area
     const borderMoves = availableMoves.filter(m => BORDER_POSITIONS.includes(m.to));
     if (borderMoves.length > 0) {
-      return this.selectMoveWithMinimax(borderMoves, gameState, PIECE_TYPES.GOAT);
+      return this.selectMoveWithMinimax(borderMoves, gameState, PIECE_TYPES.GOAT, positionCounts);
     }
-    return this.selectMoveWithMinimax(availableMoves, gameState, PIECE_TYPES.GOAT);
+    return this.selectMoveWithMinimax(availableMoves, gameState, PIECE_TYPES.GOAT, positionCounts);
   }
 
-  getGoatMovementHeuristic(moves, gameState) {
+  getGoatMovementHeuristic(moves, gameState, positionCounts = null) {
     // Priority 1: Save any threatened goat
     const defensiveMoves = this.getDefensiveMoves(gameState, moves);
     if (defensiveMoves.length > 0) {
-      return this.selectMoveWithMinimax(defensiveMoves, gameState, PIECE_TYPES.GOAT);
+      return this.selectMoveWithMinimax(defensiveMoves, gameState, PIECE_TYPES.GOAT, positionCounts);
     }
 
     // Priority 2: Pre-move one tiger reply ahead, then choose the deepest
@@ -276,7 +282,7 @@ class BaghchalAI {
     const candidateMoves = previewedMoves
       .filter((entry) => entry.risk === lowestRisk)
       .map((entry) => entry.move);
-    return this.selectMoveWithMinimax(candidateMoves.length ? candidateMoves : moves, gameState, PIECE_TYPES.GOAT);
+    return this.selectMoveWithMinimax(candidateMoves.length ? candidateMoves : moves, gameState, PIECE_TYPES.GOAT, positionCounts);
   }
 
   previewTigerReplyRisk(nextState) {
@@ -302,9 +308,8 @@ class BaghchalAI {
     return this.getMediumHeuristicMove(gameState, aiSide);
   }
 
-  selectMoveWithMinimax(moves, gameState, aiSide) {
-    let bestMove = null;
-    let bestScore = -Infinity;
+  selectMoveWithMinimax(moves, gameState, aiSide, positionCounts = null) {
+    const scoredMoves = [];
 
     // For goats: always prefer safe moves in medium/hard (full precision)
     if (aiSide === PIECE_TYPES.GOAT) {
@@ -326,15 +331,46 @@ class BaghchalAI {
       }
       
       const newState = this.applyMove(gameState, move);
-      const score = this.minimax(newState, this.searchDepth - 1, -Infinity, Infinity, false, aiSide, startTime);
-      
-      if (score > bestScore) {
-        bestScore = score;
-        bestMove = move;
+      const rawScore = this.minimax(newState, this.searchDepth - 1, -Infinity, Infinity, false, aiSide, startTime);
+      const repeatCount = this.getPositionRepeatCount(newState, positionCounts);
+      const score = rawScore + this.getRepetitionAdjustment(newState, repeatCount);
+      scoredMoves.push({ move, rawScore, score, repeatCount });
+    }
+
+    if (scoredMoves.length === 0) return moves[0];
+
+    scoredMoves.sort((a, b) => b.score - a.score);
+    const bestRawScore = Math.max(...scoredMoves.map((entry) => entry.rawScore));
+    const nonDrawingMoves = scoredMoves.filter((entry) => entry.repeatCount < 2);
+
+    if (nonDrawingMoves.length > 0) {
+      nonDrawingMoves.sort((a, b) => b.score - a.score);
+      const bestNonDrawingRaw = Math.max(...nonDrawingMoves.map((entry) => entry.rawScore));
+      const acceptableEscapeGap = this.profile === 'guest_apex' ? 35000 : 20000;
+      if (bestNonDrawingRaw >= bestRawScore - acceptableEscapeGap) {
+        return nonDrawingMoves[0].move;
       }
     }
 
-    return bestMove || moves[0];
+    return scoredMoves[0].move;
+  }
+
+  getPositionRepeatCount(gameState, positionCounts) {
+    if (!positionCounts || positionCounts.size === 0 || gameState.phase !== 'movement') {
+      return 0;
+    }
+    const key = gameState.board.join(',') + ':' + gameState.currentPlayer;
+    return positionCounts.get(key) || 0;
+  }
+
+  getRepetitionAdjustment(gameState, repeatCount) {
+    if (repeatCount === 0 || this.isTerminalState(gameState)) {
+      return 0;
+    }
+    if (repeatCount >= 2) {
+      return -90000;
+    }
+    return this.profile === 'guest_apex' ? -6500 : -1200;
   }
   
   sortMovesByHeuristic(moves, gameState, aiSide) {
@@ -607,10 +643,14 @@ class BaghchalAI {
     if (aiSide === PIECE_TYPES.TIGER) {
       const allMoves = this.getAllPossibleMoves(gameState, aiSide);
       const captures = allMoves.filter(m => m.capture !== null);
+      if (this.profile === 'guest_apex' && captures.length > 0) {
+        return this.selectMoveWithMinimax(allMoves, gameState, aiSide, positionCounts);
+      }
       if (captures.length === 1) return captures[0];
       if (captures.length > 1) {
-        // Multiple captures: pick the one leaving the best board position
-        return this.selectBestByPosition(captures, gameState, aiSide);
+        // Multiple captures: pick the one leaving the best board position while
+        // still avoiding immediate repetition traps when the game history says so.
+        return this.selectMoveWithMinimax(captures, gameState, aiSide, positionCounts);
       }
     }
 
@@ -634,7 +674,7 @@ class BaghchalAI {
 
     // Fallback to heuristic if MCTS returns nothing
     if (!bestMove) {
-      return this.getMediumHeuristicMove(gameState, aiSide);
+      return this.getMediumHeuristicMove(gameState, aiSide, positionCounts);
     }
 
     return bestMove;
@@ -657,17 +697,17 @@ class BaghchalAI {
       return ranked[0].move;
     }
 
-    // Try each candidate move in visit order; skip those heading into a position
-    // that has already been visited twice (one more = draw, which we should avoid
-    // when winning/fighting as tiger)
+    // Try each candidate move in visit order; skip moves heading into positions
+    // already close to a repetition draw when a viable alternative exists.
+    const repeatLimit = this.profile === 'guest_apex' ? 1 : 2;
     for (const child of ranked) {
       if (!child.move) continue;
       const nextState = this.applyMove(gameState, child.move);
       // Build the key as the live game does: board + currentPlayer after the move
       const keyAfterMove = nextState.board.join(',') + ':' + nextState.currentPlayer;
       const currentCount = positionCounts.get(keyAfterMove) || 0;
-      if (currentCount < 2) {
-        return child.move; // Safe — won't cause draw
+      if (currentCount < repeatLimit || this.isTerminalState(nextState)) {
+        return child.move;
       }
       // This move heads toward a repeated position; try the next-best child
     }

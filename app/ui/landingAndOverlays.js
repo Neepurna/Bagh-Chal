@@ -60,7 +60,7 @@ export function initLandingAndOverlays() {
       state.matchRatingType = 'unrated';
       state.adventureModeActive = false;
       state.adventureBotId = null;
-      state.aiDifficulty = 'easy';
+      state.aiDifficulty = 'hard';
       state.aiTimeControl = '3m';
       state.gameStarted = true;
       state.isFirstAIMove = true;
