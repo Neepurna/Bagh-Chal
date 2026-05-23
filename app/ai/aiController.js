@@ -43,7 +43,7 @@ export function initializeAIWorker() {
   if (!workerSupported) return;
   if (aiWorker) return;
   try {
-    aiWorker = new Worker('ai-worker.js', { type: 'module' });
+    aiWorker = new Worker(new URL('../../ai-worker.js', import.meta.url), { type: 'module' });
     aiWorker.onerror = (err) => {
       console.error('[ai] worker error:', err);
       aiWorker = null;
