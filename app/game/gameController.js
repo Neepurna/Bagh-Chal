@@ -193,6 +193,7 @@ export function startSandboxGame() {
   state.gameStarted = true;
   state.isFirstAIMove = false;
   state.sandboxTool = null;
+  state.sandboxStarterSide = PIECE_TYPES.GOAT;
   hideOverlay('winner-overlay');
   hideOverlay('player-select-overlay');
   initGame({
@@ -204,6 +205,69 @@ export function startSandboxGame() {
     autoAIMove: false,
     layout: 'empty'
   });
+}
+
+export function setSandboxStarterSide(side) {
+  if (state.gameMode !== 'sandbox') return;
+  state.sandboxStarterSide = side === PIECE_TYPES.TIGER ? PIECE_TYPES.TIGER : PIECE_TYPES.GOAT;
+  syncSandboxMeta();
+  updateUI();
+  markDirty();
+}
+
+export function startSandboxBotGame() {
+  if (state.gameMode !== 'sandbox') return false;
+
+  const tigerCount = countPiecesOnBoard(PIECE_TYPES.TIGER);
+  const goatCount = countPiecesOnBoard(PIECE_TYPES.GOAT);
+  if (tigerCount !== 4 || goatCount > 20) {
+    window.alert('Open Board needs exactly 4 tigers and at most 20 goats before starting a bot game.');
+    return false;
+  }
+
+  clearPendingAsyncActions();
+  stopTimer();
+
+  state.gameMode = 'ai';
+  state.matchRatingType = 'unrated';
+  state.adventureModeActive = false;
+  state.adventureBotId = null;
+  state.aiDifficulty = 'hard';
+  state.aiTimeControl = '3m';
+  state.playerSide = state.sandboxStarterSide;
+  state.gameStarted = true;
+  state.isFirstAIMove = true;
+  state.sandboxTool = null;
+
+  const game = state.game;
+  game.selectedPiece = null;
+  game.validMoves = [];
+  game.gameOver = false;
+  game.currentPlayer = state.sandboxStarterSide;
+  game.phase = goatCount >= 20 ? PHASE.MOVEMENT : PHASE.PLACEMENT;
+  game.goatsPlaced = goatCount;
+  game.goatsCaptured = 20 - goatCount;
+
+  state.gameHistory = [];
+  state.currentMoveIndex = -1;
+  state.savedGameState = null;
+  state.positionHistory = [];
+  state.positionCounts = new Map();
+  state.currentGameId = null;
+  state.currentGameStartedAt = null;
+  pushPositionHistory();
+
+  setDisplay('welcome-screen', 'none');
+  updateModePanels({ playing: true });
+  beginPersistedGame();
+  startTimer();
+  updateUI();
+  markDirty();
+  scheduleCanvasResize();
+
+  const aiSide = state.playerSide === PIECE_TYPES.GOAT ? PIECE_TYPES.TIGER : PIECE_TYPES.GOAT;
+  if (game.currentPlayer === aiSide) scheduleAIMove(250);
+  return true;
 }
 
 export function resumePersistedGame() {
@@ -587,6 +651,7 @@ export function resetCurrentGame() {
 export function clearSandboxBoard() {
   if (state.gameMode !== 'sandbox') return;
   state.sandboxTool = null;
+  state.sandboxStarterSide = PIECE_TYPES.GOAT;
   initGame({
     started: true,
     decorativeGoats: false,
@@ -640,9 +705,9 @@ function updateModePanels({ playing }) {
 function syncSandboxMeta() {
   const game = state.game;
   game.goatsPlaced = countPiecesOnBoard(PIECE_TYPES.GOAT);
-  game.goatsCaptured = 0;
+  game.goatsCaptured = Math.max(0, 20 - game.goatsPlaced);
   game.phase = game.goatsPlaced >= 20 ? PHASE.MOVEMENT : PHASE.PLACEMENT;
-  game.currentPlayer = PIECE_TYPES.GOAT;
+  game.currentPlayer = state.sandboxStarterSide;
 }
 
 function countPiecesOnBoard(pieceType) {

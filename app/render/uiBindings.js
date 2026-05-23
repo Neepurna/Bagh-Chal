@@ -156,20 +156,33 @@ function updateSandboxUI(game) {
   const goatTool = id('sandbox-tool-goat');
   const eraseTool = id('sandbox-tool-erase');
   const cancelTool = id('sandbox-tool-cancel');
+  const goatTurnBtn = id('sandbox-turn-goat');
+  const tigerTurnBtn = id('sandbox-turn-tiger');
+  const startBtn = id('sandbox-start-btn');
 
   tigerTool?.classList.toggle('active', state.sandboxTool === 'tiger');
   goatTool?.classList.toggle('active', state.sandboxTool === 'goat');
   eraseTool?.classList.toggle('active', state.sandboxTool === 'erase');
   cancelTool?.classList.toggle('active', state.sandboxTool === null);
+  goatTurnBtn?.classList.toggle('active', state.sandboxStarterSide === PIECE_TYPES.GOAT);
+  tigerTurnBtn?.classList.toggle('active', state.sandboxStarterSide === PIECE_TYPES.TIGER);
   tigerTool?.toggleAttribute('disabled', tigerReserve <= 0);
   goatTool?.toggleAttribute('disabled', goatReserve <= 0);
+  startBtn?.toggleAttribute('disabled', !canStartSandboxMatch(game));
 }
 
 function getSandboxToolLabel() {
+  const turnLabel = state.sandboxStarterSide === PIECE_TYPES.TIGER ? 'Tiger' : 'Goat';
   if (state.sandboxTool === 'tiger') return 'Placing tigers';
   if (state.sandboxTool === 'goat') return 'Placing goats';
   if (state.sandboxTool === 'erase') return 'Removing pieces';
-  return 'Move any piece on the board';
+  return `${turnLabel} to move`;
+}
+
+function canStartSandboxMatch(game) {
+  const tigerCount = countPieces(game.board, PIECE_TYPES.TIGER);
+  const goatCount = countPieces(game.board, PIECE_TYPES.GOAT);
+  return tigerCount === 4 && goatCount <= 20;
 }
 
 function countPieces(board, pieceType) {

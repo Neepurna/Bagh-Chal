@@ -56,6 +56,7 @@ export const state = {
   aiTimeControl: '3m',
   multiplayerTimeControl: '5m',
   sandboxTool: null,                // null | 'tiger' | 'goat' | 'erase'
+  sandboxStarterSide: PIECE_TYPES.GOAT,
 
   // ── Game runtime flags ─────────────────────────────────────────
   gameStarted: false,

@@ -29,8 +29,10 @@ import {
   resignCurrentGame,
   resetCurrentGame,
   setSandboxTool,
+  setSandboxStarterSide,
   showPlayerSelect,
   resumePersistedGame,
+  startSandboxBotGame,
   startAdventureGame,
   startSandboxGame,
   startMultiplayerGame,
@@ -270,6 +272,9 @@ export function bootstrap() {
   on('sandbox-tool-goat', 'click', () => setSandboxTool('goat'));
   on('sandbox-tool-erase', 'click', () => setSandboxTool('erase'));
   on('sandbox-tool-cancel', 'click', () => setSandboxTool(null));
+  on('sandbox-turn-goat', 'click', () => setSandboxStarterSide('goat'));
+  on('sandbox-turn-tiger', 'click', () => setSandboxStarterSide('tiger'));
+  on('sandbox-start-btn', 'click', startSandboxBotGame);
 
   // ── Initial render ─────────────────────────────────────────────
   if (restorePersistedGame()) {

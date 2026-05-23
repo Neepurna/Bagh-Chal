@@ -1083,10 +1083,16 @@ header {
 }
 
 .sandbox-clear-btn,
-.sandbox-exit-btn {
+.sandbox-exit-btn,
+.sandbox-start-btn {
   margin-bottom: 0;
   font-size: 0.78rem;
   padding: 9px 16px;
+}
+
+.sandbox-start-btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* ── Game Actions panel ───────────────────────────────────────────── */
