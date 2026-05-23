@@ -16,7 +16,7 @@ import {
   getWinState
 } from './boardRules.js';
 import { saveState, toggleMoveNavigation } from './historyService.js';
-import { startTimer, stopTimer, resetTimer, onMoveMade } from './timerService.js';
+import { startTimer, stopTimer, onMoveMade } from './timerService.js';
 import {
   clearPendingAITimeouts,
   initializeAIWorker,
@@ -110,8 +110,8 @@ export function initGame(options = {}) {
   if (shouldShowPanels) {
     setDisplay('welcome-screen', 'none');
     updateModePanels({ playing: true });
-    if (shouldStartTimer) startTimer();
     if (options.persistStart !== false) beginPersistedGame();
+    if (shouldStartTimer) startTimer();
   } else {
     hooks.setHomeUXByAuthState();
   }
@@ -463,6 +463,7 @@ function handleTigerSelectOrMove(clickedIndex) {
       moveTigerOnBoard(move);
       pushPositionHistory();
       persistActiveGame();
+      onMoveMade();
       if (!checkWin()) afterPlayerMove();
       return;
     }
@@ -501,6 +502,7 @@ function handleGoatSelectOrMove(clickedIndex) {
     pushPositionHistory();
     persistActiveGame();
     updateUI();
+    onMoveMade();
     if (!checkWin()) afterPlayerMove();
     return;
   }

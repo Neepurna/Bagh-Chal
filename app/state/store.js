@@ -86,6 +86,16 @@ export const state = {
   positionHistory: [],
   positionCounts: new Map(),
 
+  // Chess-clock state. Each side receives the selected game time once; only
+  // the side to move counts down, with no per-turn reset or increment.
+  clockSeconds: {
+    tiger: null,
+    goat: null
+  },
+  clockInitialized: false,
+  clockActiveSide: null,
+  clockLastTickAt: null,
+
   // Sequential goat flag (cycles 0..19)
   goatFlagCounter: 0,
 
@@ -130,6 +140,10 @@ export function resetGameState() {
   state.savedGameState = null;
   state.positionHistory = [];
   state.positionCounts = new Map();
+  state.clockSeconds = { tiger: null, goat: null };
+  state.clockInitialized = false;
+  state.clockActiveSide = null;
+  state.clockLastTickAt = null;
   state.goatFlagCounter = 0;
 }
 

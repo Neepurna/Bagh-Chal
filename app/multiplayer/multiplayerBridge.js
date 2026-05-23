@@ -6,6 +6,7 @@ import { PHASE, PIECE_TYPES } from '../config/gameConfig.js';
 import { state } from '../state/store.js';
 import { markDirty } from '../state/store.js';
 import { updateUI } from '../render/uiBindings.js';
+import { syncTimerToCurrentTurn } from '../game/timerService.js';
 
 
 let multiplayerService = null;
@@ -43,6 +44,13 @@ function getCurrentMultiplayerPayload(extra = {}) {
     goatsCaptured: game.goatsCaptured,
     goatIdentities: { ...(game.goatIdentities || {}) },
     tigerIdentities: { ...(game.tigerIdentities || {}) },
+    clockSeconds: {
+      tiger: Number.isFinite(state.clockSeconds?.tiger) ? state.clockSeconds.tiger : null,
+      goat: Number.isFinite(state.clockSeconds?.goat) ? state.clockSeconds.goat : null
+    },
+    clockInitialized: state.clockInitialized,
+    clockActiveSide: state.clockActiveSide,
+    clockLastTickAt: state.clockLastTickAt,
     ...extra
   };
 }
@@ -85,8 +93,19 @@ function applyRoomStateToLocal(roomData) {
     game.tigerIdentities = { ...(boardState.tigerIdentities || {}) };
     game.selectedPiece = null;
     game.validMoves = [];
+
+    if (boardState.clockSeconds) {
+      state.clockSeconds = {
+        tiger: typeof boardState.clockSeconds.tiger === 'number' ? Math.max(0, boardState.clockSeconds.tiger) : Infinity,
+        goat: typeof boardState.clockSeconds.goat === 'number' ? Math.max(0, boardState.clockSeconds.goat) : Infinity
+      };
+      state.clockInitialized = boardState.clockInitialized !== false;
+      state.clockActiveSide = boardState.clockActiveSide ?? game.currentPlayer;
+      state.clockLastTickAt = boardState.clockLastTickAt || Date.now();
+    }
   });
 
+  syncTimerToCurrentTurn();
   updateUI();
   markDirty();
 }

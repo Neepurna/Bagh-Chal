@@ -551,10 +551,10 @@ header {
 }
 
 .play-player-card.active {
-  background: var(--yellow);
+  background: var(--cream);
   border-color: var(--black);
-  box-shadow: var(--shadow-sm);
-  transform: translate(-2px, -2px);
+  box-shadow: none;
+  transform: none;
 }
 
 .play-player-meta {
@@ -568,13 +568,17 @@ header {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #ccc;
+  background: #bbb;
   border: 2px solid var(--black);
   flex-shrink: 0;
-  transition: background var(--transition);
+  transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
 }
 
-.play-turn-indicator.active { background: var(--black); }
+.play-turn-indicator.active {
+  background: #18c964;
+  box-shadow: 0 0 0 3px rgba(24, 201, 100, 0.18), 0 0 12px rgba(24, 201, 100, 0.75);
+  transform: scale(1.12);
+}
 
 .play-player-name {
   font-weight: 700;
@@ -603,8 +607,8 @@ header {
 }
 
 .play-player-card.active .play-player-clock {
-  background: var(--black);
-  color: var(--white);
+  background: var(--white);
+  color: var(--black);
 }
 
 .play-sidebar-note {
@@ -3061,7 +3065,7 @@ footer {
   }
 
   .play-player-card.active {
-    background: rgba(255, 214, 10, 0.45);
+    background: transparent;
     box-shadow: none;
     transform: none;
     border-color: transparent;
@@ -3074,7 +3078,7 @@ footer {
     gap: 3px;
   }
 
-  .play-turn-indicator { display: none; }
+  .play-turn-indicator { display: inline-block; }
 
   .play-player-piece-img {
     display: block;
@@ -3282,8 +3286,8 @@ footer {
   }
 
   .game-layout-playing .play-player-card.active {
-    background: var(--yellow);
-    box-shadow: 2px 2px 0 var(--black);
+    background: var(--white);
+    box-shadow: none;
     transform: none;
   }
 
@@ -3304,7 +3308,7 @@ footer {
   }
 
   .game-layout-playing .play-turn-indicator {
-    display: none;
+    display: inline-block;
   }
 
   .game-layout-playing .play-player-name {

@@ -6,6 +6,15 @@ import { syncPlayerProfile } from './ratingService.js';
 const ACTIVE_GAME_KEY = 'baghchal.activeGame.v1';
 const COMPLETED_GAMES_KEY = 'baghchal.completedGames.v1';
 
+function serializeClockValue(value) {
+  return Number.isFinite(value) ? value : null;
+}
+
+function restoreClockValue(value, fallback) {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, value);
+  return Number.isFinite(fallback) ? fallback : Infinity;
+}
+
 function cloneGame(game) {
   return {
     board: [...game.board],
@@ -27,7 +36,7 @@ export function beginPersistedGame() {
   persistActiveGame();
 }
 
-export function persistActiveGame() {
+export function persistActiveGame(options = {}) {
   if (!state.gameStarted || state.gameMode === 'sandbox') return;
   if (!state.currentGameId) beginPersistedGame();
 
@@ -40,6 +49,7 @@ export function persistActiveGame() {
     playerSide: state.playerSide,
     aiDifficulty: state.aiDifficulty,
     aiTimeControl: state.aiTimeControl,
+    multiplayerTimeControl: state.multiplayerTimeControl,
     matchRatingType: state.matchRatingType,
     adventureModeActive: state.adventureModeActive,
     adventureBotId: state.adventureBotId,
@@ -47,13 +57,22 @@ export function persistActiveGame() {
     gameHistory: state.gameHistory,
     goatFlagCounter: state.goatFlagCounter,
     positionHistory: state.positionHistory,
-    positionCounts: Array.from(state.positionCounts.entries())
+    positionCounts: Array.from(state.positionCounts.entries()),
+    clockSeconds: {
+      tiger: serializeClockValue(state.clockSeconds?.tiger),
+      goat: serializeClockValue(state.clockSeconds?.goat)
+    },
+    clockInitialized: state.clockInitialized,
+    clockActiveSide: state.clockActiveSide,
+    clockLastTickAt: state.clockLastTickAt
   };
 
   window.localStorage.setItem(ACTIVE_GAME_KEY, JSON.stringify(snapshot));
-  syncGameToSupabase(snapshot).catch((err) => {
-    console.warn('[supabase] active game sync failed:', err.message);
-  });
+  if (options.syncRemote !== false) {
+    syncGameToSupabase(snapshot).catch((err) => {
+      console.warn('[supabase] active game sync failed:', err.message);
+    });
+  }
 }
 
 export function restorePersistedGame() {
@@ -70,6 +89,7 @@ export function restorePersistedGame() {
     state.playerSide = snapshot.playerSide ?? PIECE_TYPES.GOAT;
     state.aiDifficulty = snapshot.aiDifficulty || 'medium';
     state.aiTimeControl = snapshot.aiTimeControl || '3m';
+    state.multiplayerTimeControl = snapshot.multiplayerTimeControl || '5m';
     state.matchRatingType = snapshot.matchRatingType || 'unrated';
     state.adventureModeActive = !!snapshot.adventureModeActive;
     state.adventureBotId = snapshot.adventureBotId || null;
@@ -82,11 +102,34 @@ export function restorePersistedGame() {
     state.goatFlagCounter = snapshot.goatFlagCounter || 0;
     state.positionHistory = snapshot.positionHistory || [];
     state.positionCounts = new Map(snapshot.positionCounts || []);
+    const fallbackSeconds = state.gameMode === 'multiplayer'
+      ? getStoredMultiplayerSeconds(snapshot.multiplayerTimeControl)
+      : getStoredAISeconds(snapshot.aiTimeControl);
+    state.clockSeconds = {
+      tiger: restoreClockValue(snapshot.clockSeconds?.tiger, fallbackSeconds),
+      goat: restoreClockValue(snapshot.clockSeconds?.goat, fallbackSeconds)
+    };
+    state.clockInitialized = snapshot.clockInitialized !== false;
+    state.clockActiveSide = snapshot.clockActiveSide ?? state.game.currentPlayer;
+    state.clockLastTickAt = snapshot.clockLastTickAt || Date.now();
     return snapshot;
   } catch (error) {
     console.warn('[persist] failed to restore active game:', error.message);
     return null;
   }
+}
+
+function getStoredAISeconds(timeControl) {
+  if (timeControl === '10m') return 600;
+  if (timeControl === 'infinite') return Infinity;
+  return 180;
+}
+
+function getStoredMultiplayerSeconds(timeControl) {
+  if (timeControl === '3m') return 180;
+  if (timeControl === '10m') return 600;
+  if (timeControl === 'infinite') return Infinity;
+  return 300;
 }
 
 export function completePersistedGame({ winner, message, ratingDelta = 0 }) {
