@@ -2,6 +2,7 @@ import { PIECE_TYPES } from '../config/gameConfig.js';
 import { state } from '../state/store.js';
 import { getSupabaseClient } from '../services/supabaseClient.js';
 import { syncPlayerProfile } from './ratingService.js';
+import { trackGameStart, trackGameEnd } from '../analytics/analyticsService.js';
 
 const ACTIVE_GAME_KEY = 'baghchal.activeGame.v1';
 const COMPLETED_GAMES_KEY = 'baghchal.completedGames.v1';
@@ -34,6 +35,11 @@ export function beginPersistedGame() {
   state.currentGameId = crypto.randomUUID();
   state.currentGameStartedAt = new Date().toISOString();
   persistActiveGame();
+  trackGameStart({
+    gameMode: state.gameMode,
+    playerSide: state.playerSide === PIECE_TYPES.TIGER ? 'tiger' : 'goat',
+    aiDifficulty: state.aiDifficulty ?? null,
+  });
 }
 
 export function persistActiveGame(options = {}) {
@@ -152,6 +158,7 @@ export function completePersistedGame({ winner, message, ratingDelta = 0 }) {
     syncGameToSupabase(completed).catch((err) => {
       console.warn('[supabase] completed game sync failed:', err.message);
     });
+    trackGameEnd(completed);
     syncPlayerProfile();
   } catch (error) {
     console.warn('[persist] failed to complete game:', error.message);
