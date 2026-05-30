@@ -44,8 +44,9 @@ export function configurePlayerSelectOverlay(view = 'ai') {
   }
 
   if (view === 'tournament') {
-    state.gameMode = 'multiplayer';
-    if (title) { title.hidden = false; title.textContent = 'Tournaments'; }
+    state.gameMode = 'ai';
+    state.challenge = null;
+    if (title) { title.hidden = false; title.textContent = 'USDC Bot Bounty'; }
     setHidden('player-select-mode-tabs', true);
     if (aiTab) { aiTab.hidden = true; aiTab.classList.remove('active'); }
     if (tournamentTab) { tournamentTab.hidden = false; tournamentTab.classList.add('active'); }

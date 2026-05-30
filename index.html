@@ -26,9 +26,9 @@
     </div>
 
     <div class="landing-actions">
-      <button class="landing-action landing-action-google" id="landing-google-signin">
+      <button class="landing-action landing-action-google" id="landing-google-signin" type="button" onclick="document.getElementById('app-shell').hidden=false;document.getElementById('signup-overlay').classList.add('show');">
         <span class="landing-action-icon">G</span>
-        <span>Google Sign In</span>
+        <span>Sign In</span>
       </button>
       <button class="landing-action landing-action-gold" id="landing-guest-btn">
         <span class="landing-action-icon">▶</span>
@@ -48,6 +48,15 @@
       <button class="landing-footer-link" id="landing-terms-btn">Terms of Use &amp; Privacy Policy</button>
     </div>
   </section>
+
+  <button
+    class="local-auth-debug-btn"
+    id="local-auth-debug-btn"
+    type="button"
+    onclick="document.getElementById('logged-out-landing').hidden=true;document.getElementById('app-shell').hidden=false;document.getElementById('signup-overlay').classList.add('show');"
+  >
+    Local Email Sign In
+  </button>
 
   <div class="container">
     <div id="app-shell">
@@ -475,24 +484,26 @@
 
             <!-- Multiplayer Room Section (visible in Tournaments mode) -->
             <div class="multiplayer-section hidden" id="multiplayer-section">
-              <div class="tournament-coming-soon">
-                <h3 class="coming-soon-title">🏆 Tournaments - Coming Soon</h3>
-                <p class="coming-soon-text">Compete with players worldwide and win exciting prizes!</p>
-                <div class="prize-info">
-                  <div class="prize-card">
-                    <span class="prize-badge">1st</span>
-                    <span class="prize-amount">Cash Prize</span>
+              <div class="bot-bounty-panel">
+                <div class="bot-bounty-header">
+                  <div>
+                    <span class="bot-bounty-eyebrow">Bot Bounty Test Run</span>
+                    <h3 class="coming-soon-title">Defeat a Boss Bot. Win USDC.</h3>
+                    <p class="coming-soon-text">One cash prize per boss. First verified winner claims the sponsored USDC reward.</p>
                   </div>
-                  <div class="prize-card">
-                    <span class="prize-badge">2nd</span>
-                    <span class="prize-amount">Cash Prize</span>
-                  </div>
-                  <div class="prize-card">
-                    <span class="prize-badge">3rd</span>
-                    <span class="prize-amount">Cash Prize</span>
-                  </div>
+                  <button class="bot-bounty-refresh-btn" id="bot-bounty-refresh-btn" type="button" aria-label="Refresh bounties">↻</button>
                 </div>
-                <p class="tournament-alert">Feature launching soon. Stay tuned!</p>
+                <div class="bot-bounty-wallet">
+                  <div>
+                    <span class="bot-bounty-wallet-label">Payout wallet</span>
+                    <strong id="bot-bounty-wallet-text">No wallet linked</strong>
+                  </div>
+                  <button class="welcome-secondary-btn" id="bot-bounty-wallet-btn" type="button">Link Phantom</button>
+                </div>
+                <div class="bot-bounty-grid" id="bot-bounty-grid">
+                  <div class="bot-bounty-loading">Loading bounty challenges...</div>
+                </div>
+                <p class="tournament-alert" id="bot-bounty-status">Sign in and link Phantom to start a prize-eligible attempt.</p>
               </div>
             </div>
 
@@ -535,11 +546,24 @@
           </div>
         </div>
 
-        <!-- Sign Up/In Overlay (Google Auth) -->
+        <!-- Sign Up/In Overlay -->
         <div class="winner-overlay" id="signup-overlay">
           <div class="winner-card signup-card">
             <button class="player-select-close" id="signup-close">✕</button>
-            <h2 class="select-title">🔐 Sign In with Google</h2>
+            <h2 class="select-title">🔐 Sign In</h2>
+            <form class="signup-form email-signin-form" id="email-signin-form">
+              <div class="form-group">
+                <label for="email-signin-email">Email</label>
+                <input type="email" id="email-signin-email" name="email" placeholder="you@example.com" autocomplete="email" required>
+              </div>
+              <div class="form-group">
+                <label for="email-signin-password">Password</label>
+                <input type="password" id="email-signin-password" name="password" placeholder="At least 6 characters" autocomplete="current-password" required minlength="6">
+              </div>
+              <p class="email-signin-error" id="email-signin-error" hidden></p>
+              <button type="submit" class="signup-submit-btn" id="email-signin-submit">Continue with Email</button>
+            </form>
+            <div class="auth-divider"><span>or</span></div>
             <button class="google-signin-btn" id="google-signin-btn">
               <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
                 <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -634,6 +658,8 @@
               <p class="winner-subtext" id="winner-subtext">A decisive finish on the board.</p>
             </div>
             <div class="winner-actions">
+              <button class="play-again-btn" id="claim-reward-btn" hidden>Claim USDC</button>
+              <a class="claim-reward-link" id="claim-reward-link" href="#" target="_blank" rel="noreferrer" hidden>View transaction</a>
               <button class="play-again-btn" id="play-again-btn">Play Again</button>
               <button class="exit-btn" id="exit-btn">Exit</button>
             </div>

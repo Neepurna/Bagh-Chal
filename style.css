@@ -1659,6 +1659,175 @@ header {
   display: inline-block;
 }
 
+.bot-bounty-panel {
+  text-align: left;
+  padding: 10px 0 2px;
+}
+
+.bot-bounty-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.bot-bounty-eyebrow,
+.bot-bounty-wallet-label,
+.bot-bounty-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--red);
+  letter-spacing: 0;
+  margin-bottom: 4px;
+}
+
+.bot-bounty-refresh-btn {
+  width: 40px;
+  height: 40px;
+  border: var(--border);
+  border-radius: 8px;
+  background: var(--cream);
+  color: var(--black);
+  font-size: 1.2rem;
+  font-weight: 900;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.bot-bounty-wallet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+  border: var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+  margin-bottom: 16px;
+}
+
+.bot-bounty-wallet strong {
+  color: var(--black);
+  font-size: 0.98rem;
+  word-break: break-word;
+}
+
+.bot-bounty-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bot-bounty-card {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  padding: 14px;
+  border: var(--border);
+  border-radius: 8px;
+  background: var(--cream);
+  min-height: 300px;
+}
+
+.bot-bounty-card-media {
+  height: 92px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+}
+
+.bot-bounty-card-media img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+
+.bot-bounty-card-copy h3 {
+  color: var(--black);
+  font-size: 1.3rem;
+  line-height: 1.05;
+  margin-bottom: 8px;
+}
+
+.bot-bounty-card-copy p {
+  color: rgba(0, 0, 0, 0.72);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  margin-bottom: 12px;
+}
+
+.bot-bounty-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bot-bounty-meta span {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--black);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.bot-bounty-start-btn {
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--red);
+  color: white;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.bot-bounty-start-btn:disabled,
+.bot-bounty-wallet button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bot-bounty-loading {
+  grid-column: 1 / -1;
+  border: var(--border);
+  border-radius: 8px;
+  padding: 18px;
+  color: var(--black);
+  background: var(--cream);
+  text-align: center;
+}
+
+.claim-reward-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 8px;
+  border: var(--border);
+  background: var(--cream);
+  color: var(--black);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+@media (max-width: 680px) {
+  .bot-bounty-header,
+  .bot-bounty-wallet {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bot-bounty-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Sign in / Username overlays ──────────────────────────────────── */
 .signup-card {
   max-width: 380px;
@@ -1749,6 +1918,54 @@ header {
   background: var(--cream);
   box-shadow: 1px 1px 0 var(--black);
   transform: translate(3px, 3px);
+}
+
+.email-signin-form {
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.email-signin-error {
+  color: #f87171;
+  font-size: 0.85rem;
+  margin: -4px 0 2px;
+  text-align: left;
+}
+
+.auth-divider {
+  align-items: center;
+  color: rgba(255, 255, 255, 0.58);
+  display: flex;
+  font-size: 0.78rem;
+  gap: 10px;
+  margin: 12px 0;
+  text-transform: uppercase;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  background: rgba(255, 255, 255, 0.18);
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+
+.local-auth-debug-btn {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 12000;
+  background: var(--red);
+  border: var(--border-thick);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: var(--white);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 12px 14px;
+  text-transform: uppercase;
 }
 
 /* ── Winner result overlay ────────────────────────────────────────── */

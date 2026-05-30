@@ -1,7 +1,7 @@
 // Profile dropdown + sign-in/out + username setup form + stats display +
 // home-screen UX toggling for signed-in vs. signed-out vs. guest modes.
 
-import { saveUsername, signInWithGoogle, signOut } from '../auth/authService.js';
+import { saveUsername, signInWithEmailPassword, signInWithGoogle, signOut } from '../auth/authService.js';
 import { id, on, hideOverlay, setDisplay, showOverlay } from './dom.js';
 import { state } from '../state/store.js';
 import { scheduleCanvasResize } from '../render/boardRenderer.js';
@@ -96,12 +96,46 @@ export function updateUIForSignedOutUser() {
 }
 
 export function initProfileMenu() {
-  on('sign-in-btn', 'click', () => showOverlay('signup-overlay'));
+  const openSignInOverlay = () => {
+    const appShell = id('app-shell');
+    if (appShell) appShell.hidden = false;
+    showOverlay('signup-overlay');
+  };
+
+  on('sign-in-btn', 'click', openSignInOverlay);
 
   const triggerGoogleSignIn = () => signInWithGoogle();
 
   on('google-signin-btn', 'click', triggerGoogleSignIn);
-  on('landing-google-signin', 'click', triggerGoogleSignIn);
+  on('landing-google-signin', 'click', openSignInOverlay);
+
+  const emailForm = id('email-signin-form');
+  if (emailForm) {
+    emailForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const errorEl = id('email-signin-error');
+      const submitBtn = id('email-signin-submit');
+      if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.hidden = true;
+      }
+      if (submitBtn) submitBtn.disabled = true;
+
+      signInWithEmailPassword({
+        email: id('email-signin-email')?.value || '',
+        password: id('email-signin-password')?.value || '',
+        onError: (message) => {
+          if (errorEl) {
+            errorEl.textContent = message;
+            errorEl.hidden = false;
+          }
+        },
+        onSuccess: () => hideOverlay('signup-overlay')
+      }).finally(() => {
+        if (submitBtn) submitBtn.disabled = false;
+      });
+    });
+  }
 
   on('sign-out-btn', 'click', () => signOut({
     auth: getAuth(),

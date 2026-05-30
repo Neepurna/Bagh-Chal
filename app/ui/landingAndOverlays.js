@@ -54,6 +54,12 @@ export function initLandingAndOverlays() {
 
   // Game-area button: play again / exit
   on('play-again-btn', 'click', () => {
+    if (state.gameMode === 'challenge') {
+      hideOverlay('winner-overlay');
+      openPlayerSelect('tournament');
+      playSound('buttonClick');
+      return;
+    }
     if (state.guestModeActive && !state.currentUser) {
       hideOverlay('winner-overlay');
       state.gameMode = 'ai';

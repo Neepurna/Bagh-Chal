@@ -158,6 +158,48 @@ export async function signInWithGoogle({ postSignInAction = null } = {}) {
   }
 }
 
+export async function signInWithEmailPassword({
+  email,
+  password,
+  onError,
+  onSuccess
+}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    onError?.('Authentication service is not configured yet.');
+    return;
+  }
+
+  const cleanEmail = email.trim();
+  if (!cleanEmail || !password) {
+    onError?.('Email and password are required.');
+    return;
+  }
+
+  let result = await supabase.auth.signInWithPassword({
+    email: cleanEmail,
+    password
+  });
+
+  if (result.error && /invalid login credentials/i.test(result.error.message)) {
+    result = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        data: { full_name: cleanEmail.split('@')[0] }
+      }
+    });
+  }
+
+  if (result.error) {
+    console.error('Supabase email sign-in error:', result.error);
+    onError?.(result.error.message);
+    return;
+  }
+
+  onSuccess?.();
+}
+
 export async function saveUsername({
   currentUser,
   username,

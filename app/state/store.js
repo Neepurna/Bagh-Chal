@@ -53,6 +53,7 @@ export const state = {
   adventureModeActive: false,
   currentGameId: null,
   currentGameStartedAt: null,
+  challenge: null,
   aiTimeControl: '3m',
   multiplayerTimeControl: '5m',
   sandboxTool: null,                // null | 'tiger' | 'goat' | 'erase'

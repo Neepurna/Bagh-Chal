@@ -73,7 +73,7 @@ function updateMultiplayerTags(game) {
 
 function updatePlaySidebar(game) {
   const playingStandardGame = state.gameStarted
-    && (state.gameMode === 'ai' || state.gameMode === 'multiplayer');
+    && (state.gameMode === 'ai' || state.gameMode === 'multiplayer' || state.gameMode === 'challenge');
 
   const playSidebar = id('play-sidebar');
   if (playSidebar) playSidebar.classList.toggle('hidden', !playingStandardGame);
@@ -88,16 +88,23 @@ function updatePlaySidebar(game) {
   if (!playingStandardGame) return;
 
   const playerName = state.userStats?.username || state.currentUser?.displayName || 'You';
-  const opponentName = state.adventureModeActive
+  const opponentName = state.gameMode === 'challenge'
+    ? (state.challenge?.botName || 'Bounty Bot')
+    : state.adventureModeActive
     ? getAdventureBot(state.adventureBotId).name
     : (state.gameMode === 'ai' ? 'Mr.Bot' : (state.opponentUsername || 'Opponent'));
 
-  setText('play-panel-title', state.gameMode === 'ai' ? 'Play BaghChal' : 'Friend Match');
+  const panelTitle = state.gameMode === 'challenge'
+    ? 'USDC Bot Bounty'
+    : (state.gameMode === 'ai' ? 'Play BaghChal' : 'Friend Match');
+  setText('play-panel-title', panelTitle);
   setText('play-player-name', playerName);
   setText('play-opponent-name', opponentName);
   setText('play-side-label', state.playerSide === PIECE_TYPES.TIGER ? 'You play as Tiger' : 'You play as Goat');
   setText('play-opponent-side-label', state.playerSide === PIECE_TYPES.TIGER ? 'Opponent plays as Goat' : 'Opponent plays as Tiger');
-  setText('bot-profile-copy', state.gameMode === 'ai'
+  setText('bot-profile-copy', state.gameMode === 'challenge'
+    ? getChallengeProfileCopy()
+    : state.gameMode === 'ai'
     ? getBotProfileCopy()
     : 'Live game against your friend.');
 
@@ -131,6 +138,12 @@ function updatePlaySidebar(game) {
     'disabled',
     !(state.gameMode === 'ai' && !rated && game.currentPlayer === state.playerSide && state.gameHistory.length > 0)
   );
+}
+
+function getChallengeProfileCopy() {
+  if (state.challenge?.pendingMoveUi) return 'Verifying your move on the server...';
+  const prize = state.challenge?.prizeUsdc ? `${state.challenge.prizeUsdc} USDC` : 'USDC';
+  return `Server-verified prize attempt. Win to claim ${prize}.`;
 }
 
 function getBotProfileCopy() {

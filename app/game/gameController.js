@@ -53,6 +53,8 @@ import {
 const hooks = {
   syncMultiplayerState: async () => {},
   finalizeMultiplayerRoom: async () => {},
+  submitChallengeMove: async () => ({ ok: false, error: 'Challenge backend is not configured.' }),
+  resignChallengeAttempt: async () => ({ ok: false, error: 'Challenge backend is not configured.' }),
   isApplyingRoomSnapshot: () => false,
   stopRoomSyncListeners: () => {},
   resetMultiplayerUI: () => {},
@@ -64,6 +66,40 @@ const hooks = {
 
 export function configureGameController(injected) {
   Object.assign(hooks, injected);
+}
+
+let pendingChallengeMoveUiTimeout = null;
+
+function clearChallengePendingUi() {
+  if (pendingChallengeMoveUiTimeout) {
+    clearTimeout(pendingChallengeMoveUiTimeout);
+    pendingChallengeMoveUiTimeout = null;
+  }
+}
+
+function setChallengePendingMove(pending) {
+  if (!state.challenge) return;
+
+  if (!pending) {
+    clearChallengePendingUi();
+    state.challenge.pendingMove = false;
+    state.challenge.pendingMoveUi = false;
+    return;
+  }
+
+  state.challenge.pendingMove = true;
+  state.challenge.pendingMoveUi = false;
+  clearChallengePendingUi();
+
+  // Avoid flashing "Verifying..." on every move; only show it for slow requests.
+  pendingChallengeMoveUiTimeout = setTimeout(() => {
+    pendingChallengeMoveUiTimeout = null;
+    if (state.gameMode !== 'challenge') return;
+    if (!state.challenge?.pendingMove) return;
+    state.challenge.pendingMoveUi = true;
+    updateUI();
+    markDirty();
+  }, 250);
 }
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -126,6 +162,7 @@ export function clearPendingAsyncActions() {
     clearTimeout(state.pendingBoardResetTimeout);
     state.pendingBoardResetTimeout = null;
   }
+  clearChallengePendingUi();
   clearPendingAITimeouts();
 }
 
@@ -134,6 +171,7 @@ export function exitToHome() {
   stopTimer();
   state.gameStarted = false;
   state.gameMode = 'ai';
+  state.challenge = null;
   state.sandboxTool = null;
   hooks.stopRoomSyncListeners();
   state.currentRoomId = null;
@@ -155,6 +193,7 @@ export function showPlayerSelect() {
   stopTimer();
   state.gameStarted = false;
   state.gameMode = 'ai';
+  state.challenge = null;
   state.sandboxTool = null;
   hooks.stopRoomSyncListeners();
   state.currentRoomId = null;
@@ -180,6 +219,54 @@ export function startMultiplayerGame(roomId, side, timeControl = '5m', { onSubsc
   id('room-waiting')?.classList.add('hidden');
   hideOverlay('player-select-overlay');
   initGame();
+}
+
+export function startChallengeGame(payload = {}) {
+  const challenge = payload.challenge || {};
+  const attempt = payload.attempt || {};
+  const snapshot = payload.game_state || payload.canonical_state || payload.state;
+
+  clearPendingAsyncActions();
+  stopTimer();
+  hooks.stopRoomSyncListeners();
+  state.currentRoomId = null;
+  state.currentRoomCode = null;
+  state.gameMode = 'challenge';
+  state.matchRatingType = 'rated';
+  state.adventureModeActive = false;
+  state.adventureBotId = challenge.bot_id || challenge.botId || null;
+  state.aiDifficulty = 'hard';
+  state.playerSide = normalizeSide(challenge.player_side || challenge.playerSide);
+  state.gameStarted = true;
+  state.isFirstAIMove = false;
+  state.sandboxTool = null;
+  state.challenge = {
+    attemptId: attempt.id || payload.attempt_id,
+    challengeId: challenge.id || payload.challenge_id,
+    botName: challenge.bot_name || challenge.botName || 'Bounty Bot',
+    botProfile: challenge.bot_profile || challenge.botProfile || null,
+    walletAddress: attempt.wallet_address || payload.wallet_address || null,
+    prizeUsdc: Number(challenge.prize_usdc || challenge.prizeUsdc || 0),
+    status: attempt.status || 'active',
+    pendingMove: false,
+    pendingMoveUi: false,
+    claimEligible: false,
+    claimId: null,
+    claimTxSignature: null
+  };
+
+  hideOverlay('winner-overlay');
+  hideOverlay('player-select-overlay');
+  initGame({
+    started: true,
+    decorativeGoats: false,
+    playStartSound: true,
+    persistStart: false,
+    autoAIMove: false
+  });
+  applyChallengeSnapshot(snapshot);
+  updateUI();
+  markDirty();
 }
 
 export function startSandboxGame() {
@@ -410,6 +497,13 @@ function handleClick(event) {
     return;
   }
 
+  if (state.gameMode === 'challenge') {
+    handleChallengeClick(clickedIndex);
+    updateUI();
+    markDirty();
+    return;
+  }
+
   if (game.currentPlayer !== state.playerSide) return;
 
   const phase = game.phase;
@@ -489,6 +583,175 @@ function handleSandboxClick(clickedIndex) {
     game.goatIdentities[clickedIndex] = nextGoatFlag();
     syncSandboxMeta();
     playSound('pieceMove');
+  }
+}
+
+function handleChallengeClick(clickedIndex) {
+  const game = state.game;
+  if (state.challenge?.pendingMove) return;
+  if (game.currentPlayer !== state.playerSide) return;
+
+  const phase = game.phase;
+  const isPlacement = phase === PHASE.PLACEMENT;
+  const isPlayerGoat = state.playerSide === PIECE_TYPES.GOAT;
+  const isGoatTurn = game.currentPlayer === PIECE_TYPES.GOAT;
+  const isTigerTurn = !isGoatTurn;
+
+  if (isPlacement && isGoatTurn && isPlayerGoat) {
+    if (game.board[clickedIndex] !== PIECE_TYPES.EMPTY) return;
+    sendChallengeMove({ type: 'place', to: clickedIndex });
+    return;
+  }
+
+  if (
+    (isPlacement && isTigerTurn && !isPlayerGoat) ||
+    (!isPlacement && isTigerTurn && !isPlayerGoat)
+  ) {
+    handleChallengeSelectOrMove(clickedIndex, PIECE_TYPES.TIGER);
+    return;
+  }
+
+  if (!isPlacement && isGoatTurn && isPlayerGoat) {
+    handleChallengeSelectOrMove(clickedIndex, PIECE_TYPES.GOAT);
+  }
+}
+
+function handleChallengeSelectOrMove(clickedIndex, pieceType) {
+  const game = state.game;
+  if (game.selectedPiece === null) {
+    if (game.board[clickedIndex] === pieceType) {
+      game.selectedPiece = clickedIndex;
+      game.validMoves = getValidMovesForCurrent(clickedIndex);
+    }
+    return;
+  }
+
+  const move = game.validMoves.find((candidate) => candidate.to === clickedIndex);
+  if (move) {
+    sendChallengeMove({
+      type: 'move',
+      from: game.selectedPiece,
+      to: move.to,
+      capture: move.capture
+    });
+    return;
+  }
+
+  if (game.board[clickedIndex] === pieceType) {
+    game.selectedPiece = clickedIndex;
+    game.validMoves = getValidMovesForCurrent(clickedIndex);
+  } else {
+    game.selectedPiece = null;
+    game.validMoves = [];
+  }
+}
+
+async function sendChallengeMove(move) {
+  if (!state.challenge?.attemptId) return;
+  const optimisticRollback = cloneGameForRollback(state.game);
+  try {
+    applyOptimisticChallengeMove(move);
+  } catch (err) {
+    console.warn('[challenge] optimistic apply failed:', err);
+  }
+
+  setChallengePendingMove(true);
+  updateUI();
+  markDirty();
+
+  const result = await hooks.submitChallengeMove(state.challenge.attemptId, move);
+  setChallengePendingMove(false);
+  if (!result?.ok) {
+    state.game = optimisticRollback;
+    window.alert(result?.error || 'Challenge move failed.');
+    updateUI();
+    markDirty();
+    return;
+  }
+
+  const data = result.data || {};
+  applyChallengeSnapshot(data.game_state || data.canonical_state || data.state);
+  state.challenge.status = data.status || state.challenge.status;
+  state.challenge.claimEligible = !!data.claim_eligible;
+  state.challenge.claimId = data.claim_id || state.challenge.claimId || null;
+
+  updateUI();
+  markDirty();
+
+  if (data.winner) {
+    const playerWon = (data.winner === 'tiger' && state.playerSide === PIECE_TYPES.TIGER)
+      || (data.winner === 'goat' && state.playerSide === PIECE_TYPES.GOAT);
+    state.challenge.claimEligible = !!data.claim_eligible && playerWon;
+    endGame(data.message || `${data.winner === 'tiger' ? 'Tiger' : 'Goat'} won the challenge.`, data.winner);
+  }
+}
+
+function cloneGameForRollback(game) {
+  return {
+    ...game,
+    board: [...(game.board || [])],
+    validMoves: [...(game.validMoves || [])],
+    tigerIdentities: { ...(game.tigerIdentities || {}) },
+    goatIdentities: { ...(game.goatIdentities || {}) }
+  };
+}
+
+function applyOptimisticChallengeMove(move) {
+  const game = state.game;
+  if (!move || game.gameOver) return;
+
+  // The client already validated move legality; this is only to make the UI feel snappy.
+  const mover = game.currentPlayer;
+
+  if (move.type === 'place') {
+    if (mover !== PIECE_TYPES.GOAT) return;
+    if (typeof move.to !== 'number') return;
+    if (game.board[move.to] !== PIECE_TYPES.EMPTY) return;
+
+    game.board[move.to] = PIECE_TYPES.GOAT;
+    game.goatIdentities[move.to] = nextGoatFlag();
+    game.goatsPlaced += 1;
+    if (game.goatsPlaced >= 20) game.phase = PHASE.MOVEMENT;
+    game.currentPlayer = PIECE_TYPES.TIGER;
+    game.selectedPiece = null;
+    game.validMoves = [];
+    return;
+  }
+
+  if (move.type === 'move') {
+    if (typeof move.from !== 'number' || typeof move.to !== 'number') return;
+
+    const from = move.from;
+    const to = move.to;
+    const capture = move.capture;
+
+    game.board[to] = mover;
+    game.board[from] = PIECE_TYPES.EMPTY;
+
+    if (mover === PIECE_TYPES.TIGER) {
+      const tigerIdentity = game.tigerIdentities[from];
+      delete game.tigerIdentities[from];
+      if (tigerIdentity !== undefined) game.tigerIdentities[to] = tigerIdentity;
+
+      if (typeof capture === 'number') {
+        if (game.board[capture] === PIECE_TYPES.GOAT) {
+          game.board[capture] = PIECE_TYPES.EMPTY;
+          delete game.goatIdentities[capture];
+          game.goatsCaptured += 1;
+        }
+      }
+
+      game.currentPlayer = PIECE_TYPES.GOAT;
+    } else {
+      const goatIdentity = game.goatIdentities[from];
+      delete game.goatIdentities[from];
+      if (goatIdentity !== undefined) game.goatIdentities[to] = goatIdentity;
+
+      game.currentPlayer = PIECE_TYPES.TIGER;
+    }
+
+    game.selectedPiece = null;
+    game.validMoves = [];
   }
 }
 
@@ -608,6 +871,28 @@ function afterPlayerMove() {
   }
 }
 
+function applyChallengeSnapshot(snapshot) {
+  if (!snapshot?.board) return;
+  state.game = {
+    ...state.game,
+    board: [...snapshot.board],
+    currentPlayer: normalizeSide(snapshot.currentPlayer || snapshot.current_player),
+    phase: snapshot.phase || PHASE.PLACEMENT,
+    goatsPlaced: Number(snapshot.goatsPlaced ?? snapshot.goats_placed ?? 0),
+    goatsCaptured: Number(snapshot.goatsCaptured ?? snapshot.goats_captured ?? 0),
+    selectedPiece: null,
+    validMoves: [],
+    gameOver: !!snapshot.gameOver,
+    tigerIdentities: { ...(snapshot.tigerIdentities || snapshot.tiger_identities || {}) },
+    goatIdentities: { ...(snapshot.goatIdentities || snapshot.goat_identities || {}) }
+  };
+}
+
+function normalizeSide(side) {
+  if (side === PIECE_TYPES.TIGER || side === 'tiger') return PIECE_TYPES.TIGER;
+  return PIECE_TYPES.GOAT;
+}
+
 export function startAdventureGame(botId) {
   const bot = getAdventureBot(botId);
   clearPendingAsyncActions();
@@ -663,9 +948,30 @@ export function clearSandboxBoard() {
   });
 }
 
-export function resignCurrentGame() {
+export async function resignCurrentGame() {
   if (!state.gameStarted || state.game.gameOver) return;
-  if (state.gameMode !== 'ai' && state.gameMode !== 'multiplayer') return;
+  if (state.gameMode !== 'ai' && state.gameMode !== 'multiplayer' && state.gameMode !== 'challenge') return;
+
+  if (state.gameMode === 'challenge') {
+    if (state.challenge?.pendingMove || !state.challenge?.attemptId) return;
+    setChallengePendingMove(true);
+    updateUI();
+    markDirty();
+    const result = await hooks.resignChallengeAttempt(state.challenge.attemptId);
+    setChallengePendingMove(false);
+    if (!result?.ok) {
+      window.alert(result?.error || 'Challenge resignation failed.');
+      updateUI();
+      markDirty();
+      return;
+    }
+    const data = result.data || {};
+    applyChallengeSnapshot(data.game_state || data.canonical_state || data.state);
+    state.challenge.status = data.status || 'lost';
+    state.challenge.claimEligible = false;
+    endGame(data.message || 'Bounty failed by resignation.', data.winner || (state.playerSide === PIECE_TYPES.TIGER ? 'goat' : 'tiger'));
+    return;
+  }
 
   const playerIsTiger = state.playerSide === PIECE_TYPES.TIGER;
   const winner = playerIsTiger ? 'goat' : 'tiger';

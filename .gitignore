@@ -10,8 +10,17 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+target
+programs/**/target
+test-ledger
+.anchor
+.agents
 *.local
 .env.sentry-build-plugin
+.wrangler
+supabase/.temp
+supabase/functions/.env
+supabase/functions/.env.*
 
 # Editor directories and files
 .vscode/*

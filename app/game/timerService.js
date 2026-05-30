@@ -35,6 +35,7 @@ export function getMultiplayerTurnSeconds() {
 }
 
 function matchSeconds() {
+  if (state.gameMode === 'challenge') return Infinity;
   return state.gameMode === 'multiplayer' ? getMultiplayerTurnSeconds() : getAITurnSeconds();
 }
 
@@ -174,7 +175,7 @@ function persistClockLocallyThrottled() {
 }
 
 function persistClockLocally() {
-  if (!state.gameStarted || state.gameMode === 'sandbox') return;
+  if (!state.gameStarted || state.gameMode === 'sandbox' || state.gameMode === 'challenge') return;
   persistActiveGame({ syncRemote: false });
 }
 

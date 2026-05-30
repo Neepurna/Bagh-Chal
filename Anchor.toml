@@ -1,0 +1,18 @@
+[toolchain]
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+bot_bounty_escrow = "4gMywWMtcipYgq57W5w3egsHNXSMYrAbg29c79QLwKf6"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "npx ts-mocha -p ./tsconfig.anchor.json -t 1000000 tests/**/*.ts"

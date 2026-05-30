@@ -43,7 +43,7 @@ export function beginPersistedGame() {
 }
 
 export function persistActiveGame(options = {}) {
-  if (!state.gameStarted || state.gameMode === 'sandbox') return;
+  if (!state.gameStarted || state.gameMode === 'sandbox' || state.gameMode === 'challenge') return;
   if (!state.currentGameId) beginPersistedGame();
 
   const snapshot = {

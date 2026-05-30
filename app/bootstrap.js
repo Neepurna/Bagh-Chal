@@ -34,6 +34,7 @@ import {
   resumePersistedGame,
   startSandboxBotGame,
   startAdventureGame,
+  startChallengeGame,
   startSandboxGame,
   startMultiplayerGame,
   checkWin
@@ -95,6 +96,12 @@ import {
   initLandingAndOverlays
 } from './ui/landingAndOverlays.js';
 import { initLeaderboardUI } from './ui/leaderboardUI.js';
+import {
+  configureBotBountyUI,
+  initBotBountyUI,
+  refreshBotBountyUI
+} from './ui/botBountyUI.js';
+import { resignChallengeAttempt, submitChallengeMove } from './challenges/challengeService.js';
 
 let auth = null;
 let socialService = null;
@@ -131,6 +138,8 @@ export function bootstrap() {
   configureGameController({
     syncMultiplayerState,
     finalizeMultiplayerRoom,
+    submitChallengeMove,
+    resignChallengeAttempt,
     isApplyingRoomSnapshot,
     stopRoomSyncListeners,
     resetMultiplayerUI,
@@ -170,6 +179,7 @@ export function bootstrap() {
       stopRoomSyncListeners();
       state.gameStarted = false;
       state.gameMode = 'ai';
+      state.challenge = null;
       state.currentRoomId = null;
       state.currentRoomCode = null;
       state.pendingChallengeId = null;
@@ -203,6 +213,10 @@ export function bootstrap() {
     startAdventureGame
   });
 
+  configureBotBountyUI({
+    startChallengeGame
+  });
+
   setOnTimeout(() => handleTimeOut());
 
   // ── Auth ───────────────────────────────────────────────────────
@@ -217,6 +231,7 @@ export function bootstrap() {
       state.pendingPostSignInAction = needsUsernameSetup ? redirectAction : null;
       hideAuthLoadingScreen(); // reveal app only after auth is confirmed
       updateUIForSignedInUser();
+      refreshBotBountyUI();
       startSocialListeners();
       if (redirectAction && !needsUsernameSetup) runPostSignInAction(redirectAction);
     },
@@ -226,6 +241,7 @@ export function bootstrap() {
       setSentryUser(null);
       hideAuthLoadingScreen(); // reveal landing page only after auth confirmed absent
       updateUIForSignedOutUser();
+      refreshBotBountyUI();
       stopSocialListeners();
     }
   }));
@@ -238,6 +254,7 @@ export function bootstrap() {
   initProfileMenu();
   initLandingAndOverlays();
   initLeaderboardUI();
+  initBotBountyUI();
 
   // Game-area buttons that only the bootstrap can wire (they need exitToHome
   // and the move history controls together).

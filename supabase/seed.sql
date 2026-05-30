@@ -1,0 +1,2 @@
+-- Seed data is handled in migrations for the bot bounty MVP.
+-- This file exists because supabase/config.toml enables db.seed by default.

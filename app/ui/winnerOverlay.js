@@ -59,6 +59,23 @@ export function buildWinnerPresentation(message, winner) {
     };
   }
 
+  if (state.gameMode === 'challenge') {
+    if (playerWon && state.challenge?.claimEligible) {
+      return {
+        title: 'Bounty Cleared!',
+        kicker: 'USDC Reward Unlocked',
+        subtext: `You defeated ${state.challenge.botName || 'the bounty bot'}. Claim your sponsored reward.`
+      };
+    }
+    return {
+      title: playerWon ? 'Challenge Won' : `${winnerLabel} Won`,
+      kicker: playerWon ? 'Verification Pending' : 'Bounty Failed',
+      subtext: playerWon
+        ? 'The server recorded your win, but the claim is not eligible yet.'
+        : 'Prize claims require a server-verified win with no timeout, resignation, or tampered state.'
+    };
+  }
+
   return {
     title: message || `${winnerLabel} won the match.`,
     kicker: winner === 'tiger' ? 'Predator Prevails' : 'The Herd Holds',
@@ -98,10 +115,27 @@ export function showWinnerOverlay(message, winner) {
   if (winnerKicker) winnerKicker.textContent = presentation.kicker;
   if (winnerSubtext) winnerSubtext.textContent = presentation.subtext;
   if (winnerText) winnerText.textContent = presentation.title;
+  updateClaimAction();
   overlay.classList.add('show');
 }
 
 export function hideWinnerOverlay() {
   const overlay = id('winner-overlay');
   if (overlay) overlay.classList.remove('show');
+}
+
+function updateClaimAction() {
+  const claimButton = id('claim-reward-btn');
+  const claimLink = id('claim-reward-link');
+  const playerWon = state.gameMode === 'challenge'
+    && state.challenge?.claimEligible;
+  if (claimButton) {
+    claimButton.hidden = !playerWon;
+    claimButton.disabled = false;
+    claimButton.textContent = `Claim ${state.challenge?.prizeUsdc || ''} USDC`.trim();
+  }
+  if (claimLink) {
+    claimLink.hidden = true;
+    claimLink.href = '#';
+  }
 }

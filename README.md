@@ -29,6 +29,25 @@ Build for production:
 npm run build
 ```
 
+Cloudflare Pages preview:
+
+```bash
+npm run cf:preview
+```
+
+Deploy to Cloudflare Pages:
+
+```bash
+npm run cf:deploy
+```
+
+Cloudflare dashboard settings:
+
+- Framework preset: Vite
+- Build command: `npm run build`
+- Build output directory: `dist`
+- Project config: `wrangler.toml`
+
 ## Project structure
 
 - `index.html` – app shell
@@ -45,6 +64,7 @@ npm run build
 - The AI runs entirely in the browser.
 - No backend service is required for the MVP.
 - If Firebase features are enabled, valid Firebase project credentials are still required.
+- Cloudflare Pages serves the static Vite build from `dist`.
 
 ## Docs
 
