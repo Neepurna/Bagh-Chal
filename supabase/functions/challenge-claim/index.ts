@@ -72,10 +72,45 @@ Deno.serve(async (req) => {
       .single();
     if (pendingError) throw pendingError;
 
-    const txSignature = await settleClaimWithRelayer({
-      challenge: claim.bot_challenges,
-      claim: pending
-    });
+    let txSignature: string;
+    try {
+      txSignature = await settleClaimWithRelayer({
+        challenge: claim.bot_challenges,
+        claim: pending
+      });
+    } catch (settleErr) {
+      const message = settleErr?.message || 'Failed to settle claim on-chain.';
+      const { data: failed, error: failedError } = await admin
+        .from('bot_challenge_claims')
+        .update({
+          status: 'failed',
+          error_message: message,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', claim.id)
+        .select('*')
+        .single();
+      if (failedError) throw failedError;
+
+      await admin.from('chain_events').insert({
+        event_type: 'challenge_claim_settlement_failed',
+        challenge_id: claim.challenge_id,
+        claim_id: claim.id,
+        status: 'failed',
+        payload: {
+          wallet_address: claim.wallet_address,
+          amount_usdc: claim.amount_usdc,
+          message
+        }
+      });
+
+      return jsonResponse({
+        claim: failed,
+        status: 'failed',
+        tx_signature: null,
+        error: message
+      }, 400);
+    }
 
     const { data: settled, error: settledError } = await admin
       .from('bot_challenge_claims')

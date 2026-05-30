@@ -120,7 +120,22 @@ async function invokeFunction(name, body) {
 
   const { data, error } = await supabase.functions.invoke(name, invokeOptions);
   if (error) {
-    return { ok: false, error: error.message || `Function ${name} failed.` };
+    // Supabase FunctionsHttpError contains the Response under `error.context`.
+    // In production this is the only reliable way to surface the server's JSON error payload.
+    let message = error.message || `Function ${name} failed.`;
+    let details = null;
+    try {
+      if (error?.context && typeof error.context.json === 'function') {
+        details = await error.context.json();
+        if (details?.error) message = String(details.error);
+      } else if (error?.context && typeof error.context.text === 'function') {
+        const text = await error.context.text();
+        if (text) message = text;
+      }
+    } catch {
+      // ignore parsing errors
+    }
+    return { ok: false, error: message, data: details };
   }
   if (data?.error) {
     return { ok: false, error: data.error, data };
