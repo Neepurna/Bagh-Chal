@@ -1833,6 +1833,14 @@ header {
   max-width: 380px;
 }
 
+.signup-subtitle {
+  margin: 10px 0 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.72);
+  text-align: center;
+}
+
 .signup-form {
   display: flex;
   flex-direction: column;
