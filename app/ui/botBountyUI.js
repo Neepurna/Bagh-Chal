@@ -173,7 +173,10 @@ async function claimRewardFromWinnerOverlay() {
   state.challenge.claimId = submitted.data.claim?.id || submitted.data.claim_id || state.challenge.claimId;
   const claimed = await claimChallengeReward(state.challenge.claimId);
   if (!claimed.ok) {
-    updateClaimButton(`Claim Pending: ${claimed.error}`, false);
+    const message = claimed.error || 'Claim failed.';
+    const capReached = /fully claimed|claim cap|cap has been reached/i.test(message);
+    updateClaimButton(capReached ? 'Prize Already Claimed' : `Claim Failed: ${message}`, capReached);
+    setStatus(message);
     return;
   }
 
