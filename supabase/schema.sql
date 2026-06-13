@@ -332,11 +332,35 @@ to authenticated
 using ((select auth.uid()) in (host_id, guest_id))
 with check ((select auth.uid()) in (host_id, guest_id));
 
+drop policy if exists "Signed-in players can join waiting rooms." on public.rooms;
+create policy "Signed-in players can join waiting rooms."
+on public.rooms for update
+to authenticated
+using (status = 'waiting' and guest_id is null and (select auth.uid()) <> host_id)
+with check (status = 'playing' and guest_id = (select auth.uid()) and (select auth.uid()) <> host_id);
+
 drop policy if exists "Host can delete waiting room." on public.rooms;
 create policy "Host can delete waiting room."
 on public.rooms for delete
 to authenticated
 using ((select auth.uid()) = host_id and status = 'waiting');
+
+do $$
+begin
+  if exists (
+    select 1
+    from pg_publication
+    where pubname = 'supabase_realtime'
+  ) and not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'rooms'
+  ) then
+    alter publication supabase_realtime add table public.rooms;
+  end if;
+end $$;
 
 drop policy if exists "Verified wallets are readable by owner." on public.wallet_links;
 create policy "Verified wallets are readable by owner."

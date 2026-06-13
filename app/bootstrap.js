@@ -123,7 +123,8 @@ export function bootstrap() {
     service: multiplayerService,
     onRoomFinished: (room) => {
       if (!state.game.gameOver) {
-        const msg = room.winnerMessage
+        const msg = room.winner_message
+          || room.winnerMessage
           || (room.winner === 'tiger' ? 'Tiger won the match.' : 'Goat won the match.');
         endGame(msg, room.winner);
       }
