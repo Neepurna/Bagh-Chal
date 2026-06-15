@@ -40,6 +40,27 @@ export function stopSocialListeners() {
   socialService?.stopSocialListeners();
 }
 
+function escapeHtml(value = '') {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function escapeAttr(value = '') {
+  return escapeHtml(value);
+}
+
+function friendAvatar(photoURL, fallback = '👤') {
+  if (!photoURL) return `<div class="friend-avatar">${fallback}</div>`;
+  return `
+    <div class="friend-avatar">
+      <img class="friend-avatar-img" src="${escapeAttr(photoURL)}" alt="" width="36" height="36" loading="lazy" referrerpolicy="no-referrer">
+    </div>`;
+}
+
 // ── Friends list / search ─────────────────────────────────────────────────
 async function searchUser(username) {
   const resultsEl = id('search-results');
@@ -59,10 +80,10 @@ async function searchUser(username) {
 
   resultsEl.innerHTML = `
     <div class="friend-row">
-      <div class="friend-avatar">${result.data.photoURL ? `<img src="${result.data.photoURL}">` : '👤'}</div>
+      ${friendAvatar(result.data.photoURL)}
       <div class="friend-info">
-        <div class="friend-name">${result.data.displayUsername || result.data.username || 'Player'}</div>
-        <div class="friend-sub">@${result.data.username || 'user'}</div>
+        <div class="friend-name">${escapeHtml(result.data.displayUsername || result.data.username || 'Player')}</div>
+        <div class="friend-sub">@${escapeHtml(result.data.username || 'user')}</div>
       </div>
       <div class="friend-actions">${actionHtml}</div>
     </div>`;
@@ -96,10 +117,10 @@ function renderFriendsList(friends) {
   }
   el.innerHTML = friends.map((f) => `
     <div class="friend-row">
-      <div class="friend-avatar">👤</div>
+      ${friendAvatar(null)}
       <div class="friend-info">
-        <div class="friend-name">${f.username}</div>
-        <div class="friend-sub">@${f.username}</div>
+        <div class="friend-name">${escapeHtml(f.username)}</div>
+        <div class="friend-sub">@${escapeHtml(f.username)}</div>
       </div>
       <div class="friend-actions">
         <button class="fa-btn challenge" onclick="openChallengeFlow('${f.uid}','${f.username}')">Challenge</button>
@@ -293,9 +314,9 @@ function renderRequestsTab(reqs) {
   if (!reqs.length) { el.innerHTML = '<p class="friends-empty">No pending friend requests</p>'; return; }
   el.innerHTML = reqs.map((n) => `
     <div class="friend-row">
-      <div class="friend-avatar">${n.fromPhoto ? `<img src="${n.fromPhoto}">` : '👤'}</div>
+      ${friendAvatar(n.fromPhoto)}
       <div class="friend-info">
-        <div class="friend-name">${n.fromUsername}</div>
+        <div class="friend-name">${escapeHtml(n.fromUsername)}</div>
         <div class="friend-sub">wants to be friends</div>
       </div>
       <div class="friend-actions">

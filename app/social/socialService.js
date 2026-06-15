@@ -149,39 +149,14 @@ export function createSocialService({ getContext }) {
   async function acceptFriendRequest(fromUid, fromUsername, notifId) {
     const context = getRequiredContext();
     if (!context) return;
-    const now = new Date().toISOString();
 
-    const rows = [
-      {
-        owner_id: context.currentUser.id,
-        friend_id: fromUid,
-        status: 'accepted',
-        direction: 'received',
-        friend_username: fromUsername,
-        updated_at: now
-      },
-      {
-        owner_id: fromUid,
-        friend_id: context.currentUser.id,
-        status: 'accepted',
-        direction: 'sent',
-        friend_username: context.userStats.username,
-        updated_at: now
-      }
-    ];
-    const { error } = await context.supabase.from('friendships').upsert(rows, { onConflict: 'owner_id,friend_id' });
-    if (error) throw error;
-    await dismissNotif(notifId);
-    await context.supabase.from('notifications').insert({
-      recipient_id: fromUid,
-      sender_id: context.currentUser.id,
-      type: 'friend_accepted',
-      payload: {
-        from: context.currentUser.id,
-        fromUsername: context.userStats.username,
-        fromPhoto: context.currentUser.photoURL || ''
-      }
+    const { error } = await context.supabase.rpc('accept_friend_request', {
+      request_notification_id: notifId
     });
+    if (error) throw error;
+
+    void fromUid;
+    void fromUsername;
   }
 
   async function declineFriendRequest(notifId) {
