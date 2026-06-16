@@ -173,28 +173,18 @@ export function createSocialService({ getContext }) {
     const context = getRequiredContext();
     if (!context) return null;
 
-    const challengerSide = selectedSide === 'random'
-      ? (Math.random() > 0.5 ? 'tiger' : 'goat')
-      : selectedSide;
-    const opponentSide = challengerSide === 'tiger' ? 'goat' : 'tiger';
-
-    const { data, error } = await context.supabase.from('notifications').insert({
-      recipient_id: toUid,
-      sender_id: context.currentUser.id,
-      type: 'challenge',
-      status: 'pending',
-      payload: {
-        from: context.currentUser.id,
-        fromUsername: context.userStats.username,
-        fromPhoto: context.currentUser.photoURL || '',
-        challengerSide,
-        opponentSide,
-        challengeTime
-      }
-    }).select('id').single();
+    const { data, error } = await context.supabase.rpc('send_game_challenge', {
+      target_user_id: toUid,
+      selected_side: selectedSide || 'random',
+      selected_time_control: challengeTime || '5m'
+    });
     if (error) throw error;
 
-    return { challengeId: data.id, challengerSide, opponentSide };
+    return {
+      challengeId: data?.challenge_id,
+      challengerSide: data?.challenger_side,
+      opponentSide: data?.opponent_side
+    };
   }
 
   async function cancelPendingChallenge({ toUid, pendingChallengeId }) {

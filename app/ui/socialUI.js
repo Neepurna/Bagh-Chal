@@ -53,6 +53,14 @@ function escapeAttr(value = '') {
   return escapeHtml(value);
 }
 
+function escapeJsString(value = '') {
+  return String(value)
+    .replaceAll('\\', '\\\\')
+    .replaceAll("'", "\\'")
+    .replaceAll('\n', '\\n')
+    .replaceAll('\r', '\\r');
+}
+
 function friendAvatar(photoURL, fallback = '👤') {
   if (!photoURL) return `<div class="friend-avatar">${fallback}</div>`;
   return `
@@ -123,7 +131,7 @@ function renderFriendsList(friends) {
         <div class="friend-sub">@${escapeHtml(f.username)}</div>
       </div>
       <div class="friend-actions">
-        <button class="fa-btn challenge" onclick="openChallengeFlow('${f.uid}','${f.username}')">Challenge</button>
+        <button class="fa-btn challenge" onclick="openChallengeFlow('${escapeJsString(f.uid)}','${escapeJsString(f.username)}')">Challenge</button>
       </div>
     </div>`).join('');
 }
@@ -156,7 +164,7 @@ function openChallengeFlow(toUid, toUsername) {
         <button class="csp-btn" id="ctime-10m" onclick="selectChallengeTime('10m')">10m</button>
         <button class="csp-btn" id="ctime-infinite" onclick="selectChallengeTime('infinite')">∞</button>
       </div>
-      <button class="room-btn create" style="margin-top:20px;width:100%;" onclick="sendChallenge()">Send Challenge</button>
+      <button class="room-btn create" id="send-challenge-btn" style="margin-top:20px;width:100%;" onclick="sendChallenge()">Send Challenge</button>
     `;
   }
   const spinner = overlay.querySelector('.waiting-spinner');
@@ -181,26 +189,46 @@ function selectChallengeTime(time) {
 }
 
 async function sendChallenge() {
-  const result = await socialService.sendChallenge({
-    toUid: challengeTargetUid,
-    selectedSide: challengeSide,
-    challengeTime
-  });
-  if (!result) return;
-  state.pendingChallengeId = result.challengeId;
-
   const overlay = id('challenge-sent-overlay');
   if (!overlay) return;
   const text = id('challenge-sent-text');
   const sub = id('challenge-sent-sub');
   const topIcon = id('challenge-top-icon');
-  if (topIcon) topIcon.textContent = '⏳';
-  if (text) text.textContent = 'Challenge sent!';
-  if (sub) {
-    sub.innerHTML = `<p class="waiting-text" style="line-height:1.4"><strong>${challengeTargetName}</strong> plays as ${result.opponentSide}<br>You play as ${result.challengerSide} · ${challengeTime}</p>`;
+  const sendButton = id('send-challenge-btn');
+
+  try {
+    if (sendButton) {
+      sendButton.disabled = true;
+      sendButton.textContent = 'Sending...';
+    }
+    if (topIcon) topIcon.textContent = '⏳';
+    if (text) text.textContent = 'Sending challenge...';
+    if (sub) sub.innerHTML = '<p class="waiting-text">Sending the challenge request...</p>';
+
+    const result = await socialService.sendChallenge({
+      toUid: challengeTargetUid,
+      selectedSide: challengeSide,
+      challengeTime
+    });
+    if (!result?.challengeId) throw new Error('Challenge was not created.');
+    state.pendingChallengeId = result.challengeId;
+
+    if (text) text.textContent = 'Challenge sent!';
+    if (sub) {
+      sub.innerHTML = `<p class="waiting-text" style="line-height:1.4"><strong>${escapeHtml(challengeTargetName)}</strong> plays as ${escapeHtml(result.opponentSide)}<br>You play as ${escapeHtml(result.challengerSide)} · ${escapeHtml(challengeTime)}</p>`;
+    }
+    const spinner = overlay.querySelector('.waiting-spinner');
+    if (spinner) spinner.style.display = '';
+  } catch (err) {
+    console.error('[social] failed sending challenge:', err);
+    if (topIcon) topIcon.textContent = '';
+    if (text) text.textContent = 'Could not send challenge';
+    if (sub) sub.innerHTML = '<p class="waiting-text">Please refresh your friends list and try again.</p>';
+    if (sendButton) {
+      sendButton.disabled = false;
+      sendButton.textContent = 'Send Challenge';
+    }
   }
-  const spinner = overlay.querySelector('.waiting-spinner');
-  if (spinner) spinner.style.display = '';
 }
 
 async function dismissNotif(notifId) { await socialService.dismissNotif(notifId); }
